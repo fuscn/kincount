@@ -1,0 +1,88 @@
+注意事项
+
+拦截器过滤了数据,只返回data
+不要使用TS语法
+需要使用pinia状态管理
+先查看是否有可以使用的公共组件,优先使用公共组件
+
+
+常犯错误
+刷新页面重复加载错误分析：
+在进入页面时，onMounted 钩子中调用了 loadList(true)，同时 van-list 组件也会在初始化时触发 @load 事件（即调用 loadList(false)），因此会导致两次请求。
+
+解决方案：
+我们可以取消 onMounted 中的调用，因为 van-list 组件的 @load 事件会在初始化时自动触发一次。但是注意，如果列表数据需要在一进入页面就加载，那么使用 van-list 的初始加载即可。
+
+删除操作后会重复加载的问题
+
+解决方案：
+添加加载锁：使用 isLoading 变量防止同时发起多个请求
+分离事件处理：将 @refresh 和 @load 事件分别绑定到 onRefresh 和 onLoad 方法
+数据去重：在添加新数据时检查是否已存在相同ID的项目
+删除后重置页码：删除操作后重置页码为1，确保刷新时从第一页开始
+优化加载状态管理：确保在各种情况下都能正确重置加载状态
+
+
+API 调整
+Dialog 调用方式调整
+在 Vant 3 中，Dialog 是一个函数，调用函数可以快速唤起全局的弹窗组件，而 Dialog.Component 才是 Dialog 组件对象，这与大部分组件的用法存在差异，容易导致使用错误。
+
+为了更符合直觉，我们在 Vant 4 中调整了 Dialog 的调用方式，将 Dialog() 函数重命名为 showDialog()，并让 Dialog 直接指向组件对象。
+
+// Vant 3
+Dialog(); // 函数调用
+Dialog.Component; // 组件对象
+
+// Vant 4
+showDialog(); // 函数调用
+Dialog; // 组件对象
+由于 Dialog 变为了组件对象，Dialog 上挂载的其他方法也进行了重命名，新旧 API 的映射关系如下：
+Dialog(); // -> showDialog()
+Dialog.alert(); // -> showDialog()
+Dialog.confirm(); // -> showConfirmDialog()
+Dialog.close(); // -> closeDialog();
+Dialog.setDefaultOptions(); // -> setDialogDefaultOptions()
+Dialog.resetDefaultOptions(); // -> resetDialogDefaultOptions()
+
+Toast 调用方式调整
+Vant 4 中，Toast 组件的调用方式也进行了调整，与 Dialog 组件的改动一致：
+
+// Vant 3
+Toast(); // 函数调用
+
+// Vant 4
+showToast(); // 函数调用
+Toast; // 组件对象
+Toast 上挂载的其他方法也进行了重命名，新旧 API 的映射关系如下：
+
+Toast(); // -> showToast()
+Toast.fail(); // -> showFailToast()
+Toast.success(); // -> showSuccessToast()
+Toast.loading(); // -> showLoadingToast()
+Toast.clear(); // -> closeToast()
+Toast.setDefaultOptions(); // -> setToastDefaultOptions()
+Toast.resetDefaultOptions(); // -> resetToastDefaultOptions()
+同时，Vant 4 将不再在 this 对象上全局注册 $toast 方法，这意味着 this 对象上将无法访问到 $toast。
+
+
+Toast();
+Toast.clear();
+@vant/compat 中导出的 Toast 与 Vant 3 中的 Toast 拥有完全一致的 API 和行为，因此你只需要修改 Toast 的引用路径，其他代码可以保持不变。
+
+Notify 调用方式调整
+Vant 4 中，Notify 组件的调用方式也进行了调整，与 Dialog 组件的改动一致：
+
+// Vant 3
+Notify(); // 函数调用
+Notify.Component; // 组件对象
+
+// Vant 4
+showNotify(); // 函数调用
+Notify; // 组件对象
+Notify 上挂载的其他方法也进行了重命名，新旧 API 的映射关系如下：
+
+Notify(); // -> showNotify()
+Notify.clear(); // -> closeNotify()
+Notify.setDefaultOptions(); // -> setNotifyDefaultOptions()
+Notify.resetDefaultOptions(); // -> resetNotifyDefaultOptions()
+同时，Vant 4 将不再在 this 对象上全局注册 $notify 方法，这意味着 this 对象上将无法访问到 $notify。
