@@ -1,0 +1,149 @@
+// src/styles/index.scss
+@use './mobile.scss' as mobile;
+
+/* Vant 主题变量覆盖 - 移动端优化 */
+:root {
+  --van-primary-color: #1989fa;
+  --van-font-size-md: 14px;
+  --van-border-radius: 8px;
+}
+
+/* 移动端通用样式 */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 
+               'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 
+               '微软雅黑', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f7f8fa;
+}
+
+/* 通用工具类 - 移动端优化 */
+.flex { display: flex; }
+.flex-1 { flex: 1; }
+.flex-column { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* 间距工具类 */
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.p-16 { padding: 16px; }
+
+/* 安全区域适配 */
+.safe-area-top {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 通用组件样式 */
+.page-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}
+
+/* Vant 组件样式统一覆盖 */
+:deep(.van-nav-bar) {
+  background: #fff;
+  
+  .van-nav-bar__text,
+  .van-icon {
+    color: #1989fa;
+  }
+}
+
+:deep(.van-cell-group__title) {
+  font-size: 14px;
+  color: #323233;
+  font-weight: 500;
+  padding: 16px 16px 8px;
+  background: #f7f8fa;
+}
+
+:deep(.van-cell) {
+  padding: 12px 16px;
+  
+  .van-cell__title {
+    flex: 2;
+    color: #646566;
+  }
+  
+  .van-cell__value {
+    flex: 3;
+    text-align: right;
+    color: #323233;
+  }
+  
+  .van-cell__label {
+    font-size: 12px;
+    color: #969799;
+    margin-top: 2px;
+  }
+}
+
+:deep(.van-button) {
+  border-radius: 6px;
+  
+  &.van-button--small {
+    height: 32px;
+    font-size: 14px;
+    padding: 0 12px;
+  }
+  
+  &.van-button--normal {
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+:deep(.van-empty) {
+  padding: 60px 0;
+}
+
+:deep(.van-dropdown-menu) {
+  background: white;
+}
+
+:deep(.van-search) {
+  padding: 8px 16px;
+}
+
+/* 金额样式类 */
+.income-amount {
+  color: #07c160;
+  font-weight: bold;
+}
+
+.expense-amount {
+  color: #ee0a24;
+  font-weight: bold;
+}
+
+.profit-positive {
+  color: #07c160;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.profit-negative {
+  color: #ee0a24;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* 导入 mobile.scss 中的样式 */
+@include mobile.styles;
+

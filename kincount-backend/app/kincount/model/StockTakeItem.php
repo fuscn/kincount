@@ -1,0 +1,40 @@
+<?php
+namespace app\kincount\model;
+
+
+class StockTakeItem extends BaseModel
+{
+    
+    protected $type = [
+        'stock_take_id' => 'integer',
+        'product_id' => 'integer',
+        'system_quantity' => 'integer',
+        'actual_quantity' => 'integer',
+        'difference_quantity' => 'integer',
+        'cost_price' => 'float',
+        'difference_amount' => 'float'
+    ];
+    
+    // 关联盘点单
+    public function stockTake()
+    {
+        return $this->belongsTo(StockTake::class);
+    }
+    
+    // 关联商品
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+    
+    // 差异类型
+    public function getDifferenceTypeAttr()
+    {
+        if ($this->difference_quantity > 0) {
+            return '盘盈';
+        } elseif ($this->difference_quantity < 0) {
+            return '盘亏';
+        }
+        return '正常';
+    }
+}

@@ -1,0 +1,76 @@
+// src/styles/mobile.scss
+@mixin styles {
+  /* 移动端适配 */
+  :root {
+    --van-nav-bar-height: 46px;
+    --van-tabbar-height: 50px;
+  }
+
+  /* 通用移动端样式 */
+  .mobile-page {
+    padding: 16px;
+    min-height: calc(100vh - var(--van-nav-bar-height) - var(--van-tabbar-height));
+    box-sizing: border-box;
+  }
+
+  /* 卡片样式 */
+  .mobile-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  /* 列表样式 */
+  .mobile-list {
+    .van-cell {
+      padding: 12px 16px;
+      
+      &::after {
+        left: 16px;
+        right: 16px;
+      }
+    }
+  }
+
+  /* 表单样式 */
+  .mobile-form {
+    .van-field {
+      padding: 12px 16px;
+      
+      &::after {
+        left: 16px;
+        right: 16px;
+      }
+    }
+  }
+
+  /* 按钮组 */
+  .mobile-button-group {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    
+    .van-button {
+      flex: 1;
+    }
+  }
+
+  /* 响应式工具类 */
+  @media (max-width: 768px) {
+    .hide-mobile {
+      display: none !important;
+    }
+    
+    .full-width-mobile {
+      width: 100% !important;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .hide-desktop {
+      display: none !important;
+    }
+  }
+}
