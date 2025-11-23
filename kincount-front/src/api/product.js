@@ -1,7 +1,6 @@
 // src/api/product.js
 import request from '@/utils/request'
 
-
 // 创建商品聚合
 export function saveProductAggregate(data) {
   return request({ url: '/products/aggregate', method: 'post', data })
@@ -11,8 +10,9 @@ export function saveProductAggregate(data) {
 export function updateProductAggregate(id, data) {
   return request({ url: `/products/${id}/aggregate`, method: 'put', data })
 }
+
 /* ====== SKU 维度：核心接口 ====== */
-// SKU 分页列表（替代原商品列表）
+// SKU 分页列表
 export function getSkuList(params) {
   return request({
     url: '/skus',
@@ -21,7 +21,7 @@ export function getSkuList(params) {
   })
 }
 
-// SKU 详情（替代原商品详情）
+// SKU 详情
 export function getSkuDetail(skuId) {
   return request({
     url: `/skus/${skuId}`,
@@ -29,7 +29,7 @@ export function getSkuDetail(skuId) {
   })
 }
 
-// 新增 SKU（含规格、价格、库存初始化）
+// 新增 SKU
 export function addSku(data) {
   return request({
     url: '/skus',
@@ -38,7 +38,7 @@ export function addSku(data) {
   })
 }
 
-// 编辑 SKU（价格、规格、状态等）
+// 编辑 SKU
 export function updateSku(skuId, data) {
   return request({
     url: `/skus/${skuId}`,
@@ -47,7 +47,7 @@ export function updateSku(skuId, data) {
   })
 }
 
-// 删除 SKU（软删）
+// 删除 SKU
 export function deleteSku(skuId) {
   return request({
     url: `/skus/${skuId}`,
@@ -63,7 +63,8 @@ export function batchSku(data) {
     data
   })
 }
-// SKU 选择器搜索（分页 + 关键字）
+
+// SKU 选择器搜索
 export function getSkuSelectList(params) {
   return request({
     url: '/skus/select',
@@ -71,7 +72,8 @@ export function getSkuSelectList(params) {
     params
   })
 }
-// SKU 选择器（下拉/搜索）
+
+// SKU 选择器（下拉/搜索）- 与上面相同，可以移除重复的
 export function searchSkuSelect(params) {
   return request({
     url: '/skus/select',
@@ -99,10 +101,24 @@ export function getSkuBySpecs(productId, specs) {
 }
 
 /* ====== 商品聚合：只读信息 ====== */
-// 商品聚合信息（仅用于展示基础属性、图片、分类等）
+// 商品聚合信息
 export function getProductAggregate(productId) {
   return request({
     url: `/products/${productId}/aggregate`,
     method: 'get'
+  })
+}
+
+// 批量添加SKU - 使用现有的 batchSku 接口
+export function addMultipleSku(data) {
+  return batchSku(data) // 直接使用 batchSku
+}
+
+// 批量删除SKU - 修正URL路径
+export function deleteMultipleSku(ids) {
+  return request({
+    url: '/skus/batch', // 修正为 /skus/batch
+    method: 'delete',
+    data: { ids }
   })
 }

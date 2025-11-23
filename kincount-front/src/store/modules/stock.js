@@ -25,9 +25,7 @@ export const useStockStore = defineStore('stock', {
     /* ===== 实时库存 ===== */
     async loadList(params) {
       try {
-        console.log('📊 调用库存列表API，参数:', params)
         const result = await getStockList(params)
-        console.log('📦 库存列表API响应:', result)
 
         // 处理不同的响应结构
         let listData = []
@@ -50,11 +48,9 @@ export const useStockStore = defineStore('stock', {
         this.list = listData
         this.total = totalCount
 
-        console.log('✅ 处理后的库存数据:', this.list)
 
         return { list: listData, total: totalCount }
       } catch (error) {
-        console.error('加载库存列表失败:', error)
         this.list = []
         this.total = 0
         throw error
@@ -68,7 +64,6 @@ export const useStockStore = defineStore('stock', {
         this.warningTotal = result?.total || 0
         return result
       } catch (error) {
-        console.error('加载库存预警失败:', error)
         this.warningList = []
         this.warningTotal = 0
         throw error
@@ -80,7 +75,6 @@ export const useStockStore = defineStore('stock', {
         this.statistics = await getStockStatistics()
         return this.statistics
       } catch (error) {
-        console.error('加载库存统计失败:', error)
         this.statistics = {}
         throw error
       }
@@ -94,7 +88,6 @@ export const useStockStore = defineStore('stock', {
         this.takeTotal = result?.total || 0
         return result
       } catch (error) {
-        console.error('加载盘点列表失败:', error)
         this.takeList = []
         this.takeTotal = 0
         throw error
@@ -106,7 +99,6 @@ export const useStockStore = defineStore('stock', {
         this.currentTake = await getStockTakeDetail(id)
         return this.currentTake
       } catch (error) {
-        console.error('加载盘点详情失败:', error)
         this.currentTake = {}
         throw error
       }
@@ -117,7 +109,6 @@ export const useStockStore = defineStore('stock', {
         await auditStockTake(id)
         await this.loadTakeDetail(id)
       } catch (error) {
-        console.error('审核盘点失败:', error)
         throw error
       }
     },
@@ -130,7 +121,6 @@ export const useStockStore = defineStore('stock', {
         this.transferTotal = result?.total || 0
         return result
       } catch (error) {
-        console.error('加载调拨列表失败:', error)
         this.transferList = []
         this.transferTotal = 0
         throw error
@@ -142,7 +132,6 @@ export const useStockStore = defineStore('stock', {
         this.currentTransfer = await getStockTransferDetail(id)
         return this.currentTransfer
       } catch (error) {
-        console.error('加载调拨详情失败:', error)
         this.currentTransfer = {}
         throw error
       }
@@ -153,7 +142,6 @@ export const useStockStore = defineStore('stock', {
         await auditStockTransfer(id)
         await this.loadTransferDetail(id)
       } catch (error) {
-        console.error('审核调拨失败:', error)
         throw error
       }
     }

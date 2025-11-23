@@ -19,13 +19,6 @@
           placeholder="请输入商品名称"
           :rules="[{ required: true, message: '请输入商品名称' }]" 
         />
-        <!-- <van-field 
-          v-model="form.product_no" 
-          name="product_no"
-          label="商品编号" 
-          placeholder="请输入商品编号"
-          :rules="[{ required: true, message: '请输入商品编号' }]" 
-        /> -->
         <van-field 
           v-model="form.unit" 
           name="unit"
@@ -37,24 +30,25 @@
 
       <!-- 分类品牌 -->
       <van-cell-group title="分类品牌">
-        <van-field 
-          v-model="categoryText" 
-          name="category_id"
-          label="商品分类" 
-          placeholder="请选择分类" 
-          is-link 
+        <!-- 分类选择 -->
+        <van-field
+          label="商品分类"
           readonly
-          @click="showCategoryPicker = true" 
-          :rules="[{ required: true, message: '请选择分类' }]" 
+          is-link
+          :value="getCategoryName(form.category_id)"
+          placeholder="请选择分类"
+          @click="showCategoryPicker = true"
+          :rules="[{ required: true, message: '请选择商品分类' }]"
         />
-        <van-field 
-          v-model="brandText" 
-          name="brand_id"
-          label="品牌" 
-          placeholder="请选择品牌" 
-          is-link 
+        
+        <!-- 品牌选择 -->
+        <van-field
+          label="品牌"
           readonly
-          @click="showBrandPicker = true" 
+          is-link
+          :value="getBrandName(form.brand_id)"
+          placeholder="请选择品牌"
+          @click="showBrandPicker = true"
         />
       </van-cell-group>
 
@@ -77,20 +71,25 @@
       </van-cell-group>
     </van-form>
 
-    <!-- 选择器 -->
+    <!-- 分类选择器 -->
     <van-popup v-model:show="showCategoryPicker" position="bottom" round>
-      <van-picker 
-        :columns="categoryColumns" 
-        @confirm="onCategoryConfirm" 
-        @cancel="showCategoryPicker = false" 
+      <van-picker
+        :columns="categoryColumns"
+        @confirm="onCategoryConfirm"
+        @cancel="showCategoryPicker = false"
+        show-toolbar
+        title="选择分类"
       />
     </van-popup>
 
+    <!-- 品牌选择器 -->
     <van-popup v-model:show="showBrandPicker" position="bottom" round>
-      <van-picker 
-        :columns="brandColumns" 
-        @confirm="onBrandConfirm" 
-        @cancel="showBrandPicker = false" 
+      <van-picker
+        :columns="brandColumns"
+        @confirm="onBrandConfirm"
+        @cancel="showBrandPicker = false"
+        show-toolbar
+        title="选择品牌"
       />
     </van-popup>
   </div>
@@ -117,10 +116,9 @@ const isEdit = computed(() => !!route.params.id)
 const form = reactive({
   id: '',
   name: '',
-  // product_no: '',
   unit: '',
-  category_id: undefined,
-  brand_id: undefined,
+  category_id: '',
+  brand_id: '',
   images: [],
   description: ''
 })
@@ -130,20 +128,81 @@ const showBrandPicker = ref(false)
 const categoryColumns = ref([])
 const brandColumns = ref([])
 
-/* 显示文本 */
-const categoryText = computed(() =>
-  categoryColumns.value.find(i => i.value === form.category_id)?.text || ''
-)
-const brandText = computed(() =>
-  brandColumns.value.find(i => i.value === form.brand_id)?.text || ''
-)
+/* ===== 处理分类数据 ===== */
+// 根据您提供的分类数据结构，处理为选择器选项
+const processCategoryData = (categories) => {
+  const result = []
+  
+  categories.forEach(category => {
+    // 根据"--"前缀判断层级，顶级分类不能选择
+    const isTopLevel = !category.label.startsWith('--')
+    
+    if (isTopLevel) {
+      // 顶级分类，显示为不可用状态
+      result.push({
+        text: category.label,
+        value: category.value,
+        disabled: true
+      })
+    } else {
+      // 子分类，去除"--"前缀并添加到选项
+      const displayText = category.label.replace(/^--+/, '')
+      result.push({
+        text: displayText,
+        value: category.value,
+        disabled: false
+      })
+    }
+  })
+  
+  return result
+}
+
+// 获取分类名称
+const getCategoryName = (categoryId) => {
+  if (!categoryId) return ''
+  
+  const category = categoryColumns.value.find(item => item.value === categoryId)
+  return category ? category.text : ''
+}
+
+// 获取品牌名称
+const getBrandName = (brandId) => {
+  if (!brandId) return ''
+  const brand = brandColumns.value.find(item => item.value === brandId)
+  return brand ? brand.text : ''
+}
 
 /* ===== 加载选项 ===== */
 onMounted(async () => {
   try {
     const [cat, brd] = await Promise.all([getCategoryOptions(), getBrandOptions()])
-    categoryColumns.value = cat.map(i => ({ text: i.label, value: i.value }))
-    brandColumns.value = brd.map(i => ({ text: i.name, value: i.id }))
+    
+    console.log('原始分类数据:', cat)
+    
+    // 处理分类数据
+    const processedCategories = processCategoryData(cat || [])
+    
+    console.log('处理后的分类数据:', processedCategories)
+    
+    // 添加"请选择"选项
+    categoryColumns.value = [
+      { text: '请选择分类', value: '', disabled: false },
+      ...processedCategories
+    ]
+    
+    // 处理品牌数据
+    const brandData = brd || []
+    brandColumns.value = [
+      { text: '请选择品牌', value: '' },
+      ...brandData.map(i => ({ 
+        text: i.name || i.label || i.text, 
+        value: i.id || i.value 
+      }))
+    ]
+    
+    console.log('品牌数据:', brandColumns.value)
+    
     if (isEdit.value) await loadAggregate()
   } catch (error) {
     console.error('加载数据失败:', error)
@@ -162,15 +221,20 @@ async function loadAggregate() {
 }
 
 /* ===== 选择器确认 ===== */
-const onCategoryConfirm = ({ selectedOptions }) => {
-  if (!selectedOptions.length) return
-  form.category_id = selectedOptions[0].value
+const onCategoryConfirm = (value) => {
+  // 检查是否选择了被禁用的顶级分类
+  const selectedOption = categoryColumns.value.find(item => item.value === value.value)
+  if (selectedOption && selectedOption.disabled) {
+    showToast('请选择子分类')
+    return
+  }
+  
+  form.category_id = value.value
   showCategoryPicker.value = false
 }
 
-const onBrandConfirm = ({ selectedOptions }) => {
-  if (!selectedOptions.length) return
-  form.brand_id = selectedOptions[0].value
+const onBrandConfirm = (value) => {
+  form.brand_id = value.value
   showBrandPicker.value = false
 }
 
@@ -180,13 +244,18 @@ const onSubmit = async () => {
     // 使用 van-form 的 validate 方法
     await formRef.value.validate()
     
+    // 验证分类是否选择（不能是空字符串）
+    if (!form.category_id) {
+      showToast('请选择商品分类')
+      return
+    }
+    
     // 构建提交数据
     const payload = {
       name: form.name,
-      // product_no: form.product_no,
       unit: form.unit,
       category_id: form.category_id,
-      brand_id: form.brand_id,
+      brand_id: form.brand_id || undefined, // 如果为空则设为undefined
       images: form.images || [],
       description: form.description || ''
     }
@@ -217,7 +286,14 @@ const onSubmit = async () => {
     if (responseData && responseData.id) {
       // 确保 id 是字符串格式
       const productId = String(responseData.id)
-      router.replace(`/product/${productId}/skus`)
+      
+      // 新增商品后跳转到新增SKU页面
+      if (!isEdit.value) {
+        router.replace(`/product/${productId}/skus/create`)
+      } else {
+        // 编辑商品后跳转到SKU列表页
+        router.replace(`/product/${productId}/skus`)
+      }
     } else {
       console.warn('响应数据中没有找到 ID，跳转到列表页')
       router.replace('/product/list')
@@ -240,7 +316,14 @@ const onSubmit = async () => {
         const responseData = error.response?.data || error.data
         if (responseData && responseData.id) {
           const productId = String(responseData.id)
-          router.replace(`/product/${productId}/skus`)
+          
+          // 新增商品后跳转到新增SKU页面
+          if (!isEdit.value) {
+            router.replace(`/product/${productId}/skus/create`)
+          } else {
+            // 编辑商品后跳转到SKU列表页
+            router.replace(`/product/${productId}/skus`)
+          }
         } else {
           // 如果没有 id，等待后跳转到列表页
           setTimeout(() => {
@@ -286,5 +369,11 @@ const onCancel = async () => {
 :deep(.van-cell-group__title) {
   padding: 16px 16px 8px;
   font-weight: 500;
+}
+
+/* 分类选择器样式 */
+:deep(.van-picker-column__item--disabled) {
+  color: #c8c9cc;
+  cursor: not-allowed;
 }
 </style>

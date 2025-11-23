@@ -74,6 +74,12 @@ Route::group(function () use ($jwtMiddleware) {
         Route::put('/:id', 'ProductController/skuUpdate');      # 编辑 SKU
         Route::delete('/:id', 'ProductController/skuDelete');   # 删除 SKU
         Route::get('/select', 'ProductController/skuSelect');   # SKU 下拉/搜索
+
+        # 新增批量操作接口
+        Route::post('/batch', 'ProductController/skuBatchSave');          # 批量新增 SKU
+        Route::put('/batch/:product_id', 'ProductController/skuBatchUpdate'); # 批量更新 SKU（根据商品ID）
+        Route::get('/product/:product_id', 'ProductController/skuByProduct'); # 根据商品ID获取所有SKU
+        Route::delete('/batch', 'ProductController/skuBatchDelete');      # 批量删除 SKU
     });
 
 

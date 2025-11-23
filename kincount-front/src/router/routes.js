@@ -20,7 +20,7 @@ export default [
       {
         path: '/product/skus',
         name: 'SkuList',
-        component: () => import('@/views/product/SkuList.vue'),
+        component: () => import('@/views/product/sku/SkuList.vue'),
         meta: {
           title: 'SKU总列表',
           showLayoutNavBar: false // 可使用全局导航栏

@@ -9,17 +9,6 @@
       @click-right="onAdd"
     />
 
-    <!-- 调试信息 -->
-    <div class="debug-info" v-if="debugMode">
-      <van-cell-group title="调试信息">
-        <van-cell title="产品ID" :value="String(productId)" />
-        <van-cell title="SKU列表数量" :value="String(list.length)" />
-        <van-cell title="加载状态" :value="loading ? '加载中' : '已完成'" />
-        <van-cell title="仓库数量" :value="String(warehouses.length)" />
-        <van-cell title="刷新状态" :value="refreshing ? '刷新中' : '空闲'" />
-      </van-cell-group>
-    </div>
-
     <!-- SKU 列表 -->
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
       <div class="sku-list">
