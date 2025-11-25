@@ -53,6 +53,7 @@ Route::group(function () use ($jwtMiddleware) {
 
     // 商品管理
     Route::group('products', function () {
+
         Route::get('/', 'ProductController/index');                       // 商品列表
         Route::post('/', 'ProductController/save');                       // 添加商品
         Route::get('/:id', 'ProductController/read');                     // 商品详情
@@ -65,6 +66,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::get('/:id/aggregate', 'ProductController/aggregate');
         Route::post('/aggregate', 'ProductController/saveAggregate');
         Route::put('/:id/aggregate', 'ProductController/updateAggregate');
+
     });
     # 新增 SKU 维度路由组（放在原采购、销售、库存分组之前即可）
     Route::group('skus', function () {
@@ -82,6 +84,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::delete('/batch', 'ProductController/skuBatchDelete');      # 批量删除 SKU
     });
 
+    
 
     // 分类管理
     Route::group('categories', function () {

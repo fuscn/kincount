@@ -3,52 +3,26 @@
     <!-- 头部 -->
     <van-nav-bar title="商品库存列表" fixed placeholder>
       <template #right>
-        <van-button 
-          size="small" 
-          type="primary" 
-          @click="handleCreateSku" 
-          v-perm="PERM.PRODUCT_ADD"
-        >
+        <van-button size="small" type="primary" @click="handleCreateSku" v-perm="PERM.PRODUCT_ADD">
           新增商品
         </van-button>
       </template>
     </van-nav-bar>
 
     <!-- 搜索 -->
-    <SearchBar 
-      placeholder="搜索 SKU 编码/规格/商品名称" 
-      @search="handleSearch" 
-      @clear="handleClearSearch" 
-    />
+    <SearchBar placeholder="搜索 SKU 编码/规格/商品名称" @search="handleSearch" @clear="handleClearSearch" />
 
     <!-- 下拉筛选 -->
     <van-dropdown-menu>
-      <van-dropdown-item 
-        v-model="filters.category_id" 
-        :options="categoryOptions" 
-        @change="handleFilterChange" 
-      />
-      <van-dropdown-item 
-        v-model="filters.brand_id" 
-        :options="brandOptions" 
-        @change="handleFilterChange" 
-      />
-      <van-dropdown-item 
-        v-model="filters.warehouse_id" 
-        :options="warehouseOptions" 
-        @change="handleFilterChange" 
-      />
+      <van-dropdown-item v-model="filters.category_id" :options="categoryOptions" @change="handleFilterChange" />
+      <van-dropdown-item v-model="filters.brand_id" :options="brandOptions" @change="handleFilterChange" />
+      <van-dropdown-item v-model="filters.warehouse_id" :options="warehouseOptions" @change="handleFilterChange" />
     </van-dropdown-menu>
 
     <!-- SKU 级库存列表（公共组件） -->
-    <SkuStockList
-      :warehouse-id="filters.warehouse_id"
-      :keyword="filters.keyword"
-      :category-id="filters.category_id"
-      :brand-id="filters.brand_id"
-      :warning-type="filters.warning_type"
-      ref="skuListRef"
-    />
+    <SkuStockList :warehouse-id="filters.warehouse_id" :keyword="filters.keyword" :category-id="filters.category_id"
+      :brand-id="filters.brand_id" :warning-type="filters.warning_type" ref="skuListRef"
+      @click-card="handleSkuItemClick" />
 
     <!-- 首次加载遮罩 -->
     <van-loading v-if="initialLoading" class="page-loading" />
@@ -80,7 +54,24 @@ const filters = reactive({
   warehouse_id: '',
   warning_type: ''
 })
+const handleSkuItemClick = (skuItem) => {
+  
+  // 跳转到商品详情页
 
+  const productId = skuItem.sku?.product_id
+
+console.log('点击了SKU:', productId)
+
+
+  router.push(`/product/${productId}/skus`)
+
+
+  // 或者跳转到SKU详情页
+  // router.push(`/product/sku/${skuItem.sku_id}`)
+
+  // 或者打开编辑弹窗
+  // showEditDialog(skuItem)
+}
 const categoryOptions = ref([{ text: '全部分类', value: '' }])
 const brandOptions = ref([{ text: '全部品牌', value: '' }])
 const warehouseOptions = ref([{ text: '全部仓库', value: '' }])
@@ -92,21 +83,21 @@ const initialLoading = ref(false)
 const loadFilterOptions = async () => {
   try {
     const [cat, brd, wh] = await Promise.all([
-      getCategoryOptions(), 
+      getCategoryOptions(),
       getBrandOptions(),
       getWarehouseOptions() // 获取仓库选项
     ])
-    
+
     categoryOptions.value = [
       { text: '全部分类', value: '' },
       ...(cat || []).map(i => ({ text: i.label || i.name, value: i.value || i.id }))
     ]
-    
+
     brandOptions.value = [
       { text: '全部品牌', value: '' },
       ...(brd || []).map(i => ({ text: i.name, value: i.id }))
     ]
-    
+
     warehouseOptions.value = [
       { text: '全部仓库', value: '' },
       ...(wh || []).map(i => ({ text: i.name, value: i.id }))
@@ -170,6 +161,7 @@ onMounted(async () => {
   background: #f7f8fa;
   min-height: 100vh;
 }
+
 .page-loading {
   position: fixed;
   top: 50%;

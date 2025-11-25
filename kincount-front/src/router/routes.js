@@ -17,42 +17,13 @@ export default [
         component: () => import('@/views/dashboard/Index.vue'),
         meta: { title: '首页', icon: 'home-o' }
       },
+
       {
-        path: '/product/skus',
-        name: 'SkuList',
-        component: () => import('@/views/product/sku/SkuList.vue'),
-        meta: {
-          title: 'SKU总列表',
-          showLayoutNavBar: false // 可使用全局导航栏
-        }
-      },
-      {
-        path: '/product/:id/skus',
+        path: '/product/:productId/skus',
         name: 'ProductSkus',
-        component: () => import('@/views/product/sku/Skus.vue'),
+        component: () => import('@/views/product/SkuForm.vue'),
         meta: {
           title: 'SKU管理', showLayoutNavBar: false
-        }
-      },
-      {
-        path: '/product/:productId/skus/create',
-        name: 'SkuCreate',
-        component: () => import('@/views/product/sku/Form.vue'),
-        meta: {
-          title: '新增SKU', // 页面标题
-          showTabbar: false, // 隐藏底部导航栏（同其他表单页）
-          showLayoutNavBar: false // 使用页面内自定义导航栏
-        }
-      },
-      {
-        path: '/product/:productId/skus/edit/:skuId',
-        name: 'SkuEdit',
-        component: () => import('@/views/product/sku/Form.vue'),
-        meta: {
-          title: '编辑SKU', // 页面标题，浏览器标签和导航栏展示
-          showTabbar: false, // 隐藏移动端底部Tab栏（表单页无需展示）
-          showLayoutNavBar: false, // 不使用布局的公共导航栏，使用页面内自定义导航
-          keepAlive: false // 无需缓存表单页，防止数据残留
         }
       },
       {
@@ -64,7 +35,7 @@ export default [
       {
         path: 'product/create',
         name: 'ProductCreate',
-        component: () => import('@/views/product/Form.vue'),
+        component: () => import('@/views/product/ProductForm.vue'),
         meta: {
           title: '新增商品',
           showTabbar: false,
@@ -74,7 +45,7 @@ export default [
       {
         path: 'product/edit/:id',
         name: 'ProductEdit',
-        component: () => import('@/views/product/Form.vue'),
+        component: () => import('@/views/product/ProductForm.vue'),
         meta: {
           title: '编辑商品',
           showTabbar: false,

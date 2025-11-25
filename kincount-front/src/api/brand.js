@@ -26,7 +26,7 @@ export function deleteBrand(id) {
   return request.delete(`/brands/${id}`)
 }
 
-// 品牌下拉
+// 品牌下拉列表
 export function getBrandOptions() {
   return request.get('/brands/options')
 }

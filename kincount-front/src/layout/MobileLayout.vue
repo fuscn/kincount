@@ -1,8 +1,8 @@
 <!-- src/layout/MobileLayout.vue -->
 <template>
   <div class="mobile-layout">
-    <!-- 添加条件判断，某些页面不显示导航栏 -->
-    <van-nav-bar v-if="showLayoutNavBar" :title="currentTitle" fixed placeholder safe-area-inset-top>
+    <!-- 添加条件判断，某些页面不显示导航栏 移除placeholder -->
+    <van-nav-bar v-if="showLayoutNavBar" :title="currentTitle" fixed  safe-area-inset-top>
       <template #left>
         <van-icon v-if="showBack" name="arrow-left" @click="handleBack" />
       </template>

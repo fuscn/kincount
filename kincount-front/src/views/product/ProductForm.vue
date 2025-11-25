@@ -30,23 +30,25 @@
 
       <!-- 分类品牌 -->
       <van-cell-group title="分类品牌">
-        <!-- 分类选择 -->
+        <!-- 分类选择 - 使用 Cascader -->
         <van-field
+          name="category_id"
           label="商品分类"
           readonly
           is-link
-          :value="getCategoryName(form.category_id)"
+          :model-value="getCategoryFullPath(form.category_id)"
           placeholder="请选择分类"
-          @click="showCategoryPicker = true"
+          @click="showCategoryCascader = true"
           :rules="[{ required: true, message: '请选择商品分类' }]"
         />
         
         <!-- 品牌选择 -->
         <van-field
+          name="brand_id"
           label="品牌"
           readonly
           is-link
-          :value="getBrandName(form.brand_id)"
+          :model-value="getBrandName(form.brand_id)"
           placeholder="请选择品牌"
           @click="showBrandPicker = true"
         />
@@ -71,27 +73,29 @@
       </van-cell-group>
     </van-form>
 
-    <!-- 分类选择器 -->
-    <van-popup v-model:show="showCategoryPicker" position="bottom" round>
-      <van-picker
-        :columns="categoryColumns"
-        @confirm="onCategoryConfirm"
-        @cancel="showCategoryPicker = false"
-        show-toolbar
+    <!-- 分类级联选择器 -->
+    <van-popup v-model:show="showCategoryCascader" position="bottom" round class="category-cascader-popup">
+      <van-cascader
+        v-model="categoryCascaderValue"
+        :options="categoryOptions"
+        :field-names="categoryFieldNames"
+        :closeable="true"
+        active-color="#1989fa"
+        @close="showCategoryCascader = false"
+        @finish="onCategoryFinish"
         title="选择分类"
       />
     </van-popup>
 
-    <!-- 品牌选择器 -->
-    <van-popup v-model:show="showBrandPicker" position="bottom" round>
-      <van-picker
-        :columns="brandColumns"
-        @confirm="onBrandConfirm"
-        @cancel="showBrandPicker = false"
-        show-toolbar
-        title="选择品牌"
-      />
-    </van-popup>
+    <!-- 品牌选择器 - 使用 ActionSheet 实现点击即选择 -->
+    <van-action-sheet 
+      v-model:show="showBrandPicker" 
+      title="选择品牌"
+      :actions="brandActions"
+      @select="onBrandSelect"
+      cancel-text="取消"
+      close-on-click-action
+    />
   </div>
 </template>
 
@@ -99,7 +103,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
-import { getCategoryOptions, getBrandOptions } from '@/api/category'
+import { getCategoryList } from '@/api/category'
+import { getBrandOptions } from '@/api/brand'
 import {
   getProductAggregate,
   saveProductAggregate,
@@ -123,89 +128,116 @@ const form = reactive({
   description: ''
 })
 
-const showCategoryPicker = ref(false)
+const showCategoryCascader = ref(false)
 const showBrandPicker = ref(false)
-const categoryColumns = ref([])
-const brandColumns = ref([])
+const categoryCascaderValue = ref('')
+const categoryOptions = ref([])
+const brandActions = ref([])
+
+// 存储完整的分类数据用于显示名称
+const allCategories = ref([])
+
+// Cascader 字段映射
+const categoryFieldNames = {
+  text: 'name',
+  value: 'id',
+  children: 'children'
+}
 
 /* ===== 处理分类数据 ===== */
-// 根据您提供的分类数据结构，处理为选择器选项
+// 转换分类数据为 Cascader 格式
 const processCategoryData = (categories) => {
   const result = []
   
   categories.forEach(category => {
-    // 根据"--"前缀判断层级，顶级分类不能选择
-    const isTopLevel = !category.label.startsWith('--')
-    
-    if (isTopLevel) {
-      // 顶级分类，显示为不可用状态
-      result.push({
-        text: category.label,
-        value: category.value,
-        disabled: true
-      })
-    } else {
-      // 子分类，去除"--"前缀并添加到选项
-      const displayText = category.label.replace(/^--+/, '')
-      result.push({
-        text: displayText,
-        value: category.value,
-        disabled: false
-      })
+    const categoryItem = {
+      name: category.name,
+      id: category.id
     }
+    
+    // 如果有子分类，递归处理
+    if (category.children && category.children.length > 0) {
+      categoryItem.children = processCategoryData(category.children)
+    } else {
+      // 如果没有子分类，检查是否是顶级分类
+      // 根据您的数据结构，顶级分类的 parent_id 为 0
+      if (category.parent_id === 0) {
+        // 顶级分类且没有子分类，设置为禁用
+        categoryItem.disabled = true
+      }
+    }
+    
+    result.push(categoryItem)
   })
   
   return result
 }
 
-// 获取分类名称
-const getCategoryName = (categoryId) => {
+// 获取分类完整路径（父类->子类）
+const getCategoryFullPath = (categoryId) => {
   if (!categoryId) return ''
   
-  const category = categoryColumns.value.find(item => item.value === categoryId)
-  return category ? category.text : ''
+  // 递归查找分类路径
+  const findCategoryPath = (categories, targetId, path = []) => {
+    for (const category of categories) {
+      const currentPath = [...path, category.name]
+      
+      if (category.id === targetId) {
+        return currentPath
+      }
+      
+      if (category.children && category.children.length > 0) {
+        const found = findCategoryPath(category.children, targetId, currentPath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  
+  const path = findCategoryPath(allCategories.value, categoryId)
+  const fullPath = path ? path.join(' -> ') : ''
+  return fullPath
 }
 
 // 获取品牌名称
 const getBrandName = (brandId) => {
   if (!brandId) return ''
-  const brand = brandColumns.value.find(item => item.value === brandId)
-  return brand ? brand.text : ''
+  const brand = brandActions.value.find(item => item.value === brandId)
+  const name = brand ? brand.name : ''
+  return name
 }
 
 /* ===== 加载选项 ===== */
 onMounted(async () => {
   try {
-    const [cat, brd] = await Promise.all([getCategoryOptions(), getBrandOptions()])
+    // 加载分类数据
+    const categoryResponse = await getCategoryList()
+    const categories = categoryResponse.data || categoryResponse
     
-    console.log('原始分类数据:', cat)
+    
+    // 保存完整的分类数据用于显示名称
+    allCategories.value = JSON.parse(JSON.stringify(categories))
     
     // 处理分类数据
-    const processedCategories = processCategoryData(cat || [])
+    categoryOptions.value = processCategoryData(categories)
     
-    console.log('处理后的分类数据:', processedCategories)
     
-    // 添加"请选择"选项
-    categoryColumns.value = [
-      { text: '请选择分类', value: '', disabled: false },
-      ...processedCategories
-    ]
+    // 加载品牌数据 - 使用新的接口
+    const brandResponse = await getBrandOptions()
+    const brands = brandResponse.data || brandResponse || []
     
-    // 处理品牌数据
-    const brandData = brd || []
-    brandColumns.value = [
-      { text: '请选择品牌', value: '' },
-      ...brandData.map(i => ({ 
-        text: i.name || i.label || i.text, 
-        value: i.id || i.value 
+    
+    // 处理品牌数据为 ActionSheet 格式
+    brandActions.value = [
+      ...brands.map(brand => ({ 
+        name: brand.name, 
+        value: brand.id 
       }))
     ]
     
-    console.log('品牌数据:', brandColumns.value)
     
     if (isEdit.value) await loadAggregate()
   } catch (error) {
-    console.error('加载数据失败:', error)
     showToast('加载数据失败')
   }
 })
@@ -214,31 +246,58 @@ async function loadAggregate() {
   try {
     const data = await getProductAggregate(route.params.id)
     Object.assign(form, data)
+    
+    
+    // 如果编辑模式下有分类ID，设置级联选择器的值
+    if (form.category_id) {
+      categoryCascaderValue.value = form.category_id
+    }
   } catch (error) {
-    console.error('加载商品详情失败:', error)
     showToast('加载商品详情失败')
   }
 }
 
 /* ===== 选择器确认 ===== */
-const onCategoryConfirm = (value) => {
-  // 检查是否选择了被禁用的顶级分类
-  const selectedOption = categoryColumns.value.find(item => item.value === value.value)
-  if (selectedOption && selectedOption.disabled) {
-    showToast('请选择子分类')
-    return
-  }
+const onCategoryFinish = ({ selectedOptions }) => {
   
-  form.category_id = value.value
-  showCategoryPicker.value = false
+  if (selectedOptions.length > 0) {
+    const lastOption = selectedOptions[selectedOptions.length - 1]
+    
+    // 检查是否选择了禁用的分类
+    if (lastOption.disabled) {
+      showToast('该分类不可选择，请选择其他分类')
+      return
+    }
+    
+    // 只提交最后一级子类的ID
+    form.category_id = lastOption.id
+    showCategoryCascader.value = false
+    
+    
+    // 强制更新视图
+    setTimeout(() => {
+      if (formRef.value) {
+        formRef.value.validate('category_id')
+      }
+    }, 100)
+  }
 }
 
-const onBrandConfirm = (value) => {
-  form.brand_id = value.value
+// 品牌选择 - 使用 ActionSheet，点击即选择
+const onBrandSelect = (brand) => {
+  
+  form.brand_id = brand.value
   showBrandPicker.value = false
+  
+  
+  // 强制更新视图
+  setTimeout(() => {
+    // 触发重新渲染
+    form.brand_id = form.brand_id
+  }, 0)
 }
 
-/* ===== 提交 ===== */
+/* ===== 表单提交 ===== */
 const onSubmit = async () => {
   try {
     // 使用 van-form 的 validate 方法
@@ -250,12 +309,12 @@ const onSubmit = async () => {
       return
     }
     
-    // 构建提交数据
+    // 构建提交数据 - 只提交子类ID
     const payload = {
       name: form.name,
       unit: form.unit,
-      category_id: form.category_id,
-      brand_id: form.brand_id || undefined, // 如果为空则设为undefined
+      category_id: form.category_id, // 这里只提交最后一级子类的ID
+      brand_id: form.brand_id || undefined,
       images: form.images || [],
       description: form.description || ''
     }
@@ -267,9 +326,8 @@ const onSubmit = async () => {
       }
     })
 
-    console.log('提交数据:', payload)
 
-    // 直接调用 API，拦截器会返回 data 部分
+    // 调用 API
     let responseData
     if (isEdit.value) {
       payload.id = form.id
@@ -278,29 +336,24 @@ const onSubmit = async () => {
       responseData = await saveProductAggregate(payload)
     }
 
-    console.log('API 响应数据:', responseData)
     
     showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
     
-    // 直接使用 responseData 中的 id 进行跳转
+    // 处理跳转
     if (responseData && responseData.id) {
-      // 确保 id 是字符串格式
       const productId = String(responseData.id)
       
-      // 新增商品后跳转到新增SKU页面
       if (!isEdit.value) {
-        router.replace(`/product/${productId}/skus/create`)
+        router.replace(`/product/${productId}/skus`)
+        // router.replace(`/product/${productId}/skus/create`)
       } else {
-        // 编辑商品后跳转到SKU列表页
         router.replace(`/product/${productId}/skus`)
       }
     } else {
-      console.warn('响应数据中没有找到 ID，跳转到列表页')
       router.replace('/product/list')
     }
     
   } catch (error) {
-    console.error('提交失败:', error)
     
     // 如果是验证错误，不显示 toast，van-form 会自动处理
     if (error && error.length > 0) {
@@ -317,15 +370,12 @@ const onSubmit = async () => {
         if (responseData && responseData.id) {
           const productId = String(responseData.id)
           
-          // 新增商品后跳转到新增SKU页面
           if (!isEdit.value) {
             router.replace(`/product/${productId}/skus/create`)
           } else {
-            // 编辑商品后跳转到SKU列表页
             router.replace(`/product/${productId}/skus`)
           }
         } else {
-          // 如果没有 id，等待后跳转到列表页
           setTimeout(() => {
             router.replace('/product/list')
           }, 1500)
@@ -371,9 +421,14 @@ const onCancel = async () => {
   font-weight: 500;
 }
 
-/* 分类选择器样式 */
-:deep(.van-picker-column__item--disabled) {
-  color: #c8c9cc;
+/* 分类级联选择器样式 */
+:deep(.category-cascader-popup) {
+  height: 50%;
+}
+
+/* 禁用分类项的样式 */
+:deep(.category-cascader-popup .van-cascader__option--disabled) {
+  color: #c8c9cc !important;
   cursor: not-allowed;
 }
 </style>

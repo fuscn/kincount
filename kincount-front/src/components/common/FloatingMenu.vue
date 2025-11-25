@@ -112,7 +112,6 @@ const menuData = [
       { id: 'product-list', name: '商品列表', icon: 'photo-o', path: '/product', perm: PERM.PRODUCT_VIEW },
       { id: 'category', name: '分类管理', icon: 'label-o', path: '/category', perm: PERM.CATEGORY_VIEW },
       { id: 'brand', name: '品牌管理', icon: 'star-o', path: '/brand', perm: PERM.BRAND_VIEW },
-      { id: 'sku-list', name: 'SKU管理', icon: 'barcode', path: '/product/skus', perm: PERM.SKU_VIEW }
     ]
   },
   /* ===== 采购管理 ===== */

@@ -5,13 +5,7 @@ import request from '@/utils/request'
 export function getCategoryList(params) {
   return request.get('/categories', { params })
 }
-// 获取品牌下拉选项（新增）
-export function getBrandOptions() {
-  return request({
-    url: '/brands/options',
-    method: 'get'
-  })
-}
+
 // 分类详情
 export function getCategoryDetail(id) {
   return request.get(`/categories/${id}`)

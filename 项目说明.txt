@@ -1,2 +1,3 @@
+2025-11-23T20:43:27+08:00
 git地址:https://github.com/fuscn/kincount.git
 所有涉及商品选择、库存展示、单据明细的地方，都必须从“商品级”升级为“SKU级”。

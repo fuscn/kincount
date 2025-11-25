@@ -55,14 +55,14 @@ export function deleteSku(skuId) {
   })
 }
 
-// 批量操作 SKU（上下架、删除）
-export function batchSku(data) {
-  return request({
-    url: '/skus/batch',
-    method: 'post',
-    data
-  })
-}
+// // 批量操作 SKU（上下架、删除）
+// export function batchSku(data) {
+//   return request({
+//     url: '/skus/batch',
+//     method: 'post',
+//     data
+//   })
+// }
 
 // SKU 选择器搜索
 export function getSkuSelectList(params) {
@@ -86,7 +86,7 @@ export function searchSkuSelect(params) {
 // 获取某商品下的全部 SKU（用于规格切换）
 export function getProductSkus(productId) {
   return request({
-    url: `/products/${productId}/skus`,
+    url: `/skus/product/${productId}`,
     method: 'get'
   })
 }
@@ -109,10 +109,10 @@ export function getProductAggregate(productId) {
   })
 }
 
-// 批量添加SKU - 使用现有的 batchSku 接口
-export function addMultipleSku(data) {
-  return batchSku(data) // 直接使用 batchSku
-}
+// // 批量添加SKU - 使用现有的 batchSku 接口
+// export function addMultipleSku(data) {
+//   return batchSku(data) // 直接使用 batchSku
+// }
 
 // 批量删除SKU - 修正URL路径
 export function deleteMultipleSku(ids) {
@@ -120,5 +120,19 @@ export function deleteMultipleSku(ids) {
     url: '/skus/batch', // 修正为 /skus/batch
     method: 'delete',
     data: { ids }
+  })
+}
+/**
+ * 批量更新SKU（支持混合操作）
+ * @param {Object} data 提交数据
+ * @returns 
+ */
+export function batchSku(data) {
+  return request({
+    url: `/skus/batch/${data.product_id}`,
+    method: 'put',
+    data: {
+      skus: data.skus
+    }
   })
 }

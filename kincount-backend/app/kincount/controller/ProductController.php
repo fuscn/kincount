@@ -11,6 +11,8 @@ use app\kincount\model\Stock;
 use app\kincount\model\Warehouse;
 use think\facade\Db;
 use think\exception\ValidateException;
+use think\Exception;
+
 
 /**
  * 商品资料控制器
@@ -76,15 +78,48 @@ class ProductController extends BaseController
         $sku->save(request()->put());
         return $this->success([], 'SKU更新成功');
     }
-
+    //删除逻辑：当 SKU 库存为零时，不仅删除 SKU，同时也会删除相关的库存记录。
     public function skuDelete($id)
     {
-        $sku = ProductSku::where('deleted_at', null)->find($id);
-        if (!$sku) return $this->error('SKU不存在');
-        $sku->delete();
-        return $this->success([], 'SKU删除成功');
-    }
+        Db::startTrans();
 
+        try {
+            $sku = ProductSku::where('deleted_at', null)->find($id);
+            if (!$sku) {
+                Db::rollback();
+                return $this->error('SKU不存在');
+            }
+
+            // 检查库存总量
+            $totalStock = Stock::where('sku_id', $id)
+                ->where('deleted_at', null)
+                ->sum('quantity');
+
+            if ($totalStock > 0) {
+                Db::rollback();
+                return $this->error('无法删除SKU，当前库存数量为 ' . $totalStock . '，请先清空库存');
+            }
+
+            // 方案一：手动更新 deleted_at（立即解决问题）
+            $deletedStockCount = Stock::where('sku_id', $id)
+                ->where('deleted_at', null)
+                ->update([
+                    'deleted_at' => date('Y-m-d H:i:s')
+                ]);
+
+            // 删除 SKU
+            $sku->delete();
+
+            Db::commit();
+
+            return $this->success([
+                'deleted_stock_records' => $deletedStockCount
+            ], 'SKU删除成功，同时删除了 ' . $deletedStockCount . ' 条库存记录');
+        } catch (\Exception $e) {
+            Db::rollback();
+            return $this->error('删除失败：' . $e->getMessage());
+        }
+    }
     public function skuSelect()
     {
         $kw   = request()->get('keyword', '');
@@ -368,62 +403,7 @@ class ProductController extends BaseController
         }
     }
 
-    /**
-     * 批量更新 SKU（根据商品ID）（TP8助手函数版）
-     * @param int $product_id 路由参数中的商品ID
-     */
-    public function skuBatchUpdate($product_id)
-    {
-        try {
-            // 1. TP8助手函数：获取PUT参数
-            $post = request()->put();
 
-            // 2. 验证规则
-            $validateRule = [
-                'skus'       => 'require|array',
-                'skus.*.id'  => 'require|integer',
-                'skus.*.cost_price' => 'float|egt:0',
-                'skus.*.sale_price' => 'float|egt:0',
-                'skus.*.unit' => 'chsAlphaNum',
-                'skus.*.status' => 'integer|in:0,1',
-            ];
-            validate($validateRule)->check($post);
-
-            $skusData = $post['skus'];
-
-            // 验证商品是否存在
-            $product = Product::where('id', $product_id)->where('deleted_at', null)->find();
-            if (!$product) {
-                return $this->error('商品不存在');
-            }
-
-            // 数据库事务
-            DB::transaction(function () use ($product_id, $skusData) {
-                foreach ($skusData as $item) {
-                    $sku = ProductSku::where('id', $item['id'])
-                        ->where('product_id', $product_id)
-                        ->where('deleted_at', null)
-                        ->find();
-                    if (!$sku) {
-                        throw new \Exception("SKU ID:{$item['id']} 不存在或不属于当前商品");
-                    }
-
-                    // 过滤更新字段
-                    $updateData = array_filter($item, function ($key) {
-                        return in_array($key, ['spec', 'cost_price', 'sale_price', 'barcode', 'unit', 'status']);
-                    }, ARRAY_FILTER_USE_KEY);
-
-                    $sku->save($updateData);
-                }
-            });
-
-            return $this->success([], '批量更新SKU成功');
-        } catch (ValidateException $e) {
-            return $this->error($e->getMessage());
-        } catch (\Exception $e) {
-            return $this->error($e->getMessage());
-        }
-    }
 
     /**
      * 根据商品ID获取所有SKU（TP8助手函数版）
@@ -438,8 +418,7 @@ class ProductController extends BaseController
         }
 
         // 查询SKU并关联库存、仓库信息
-        $list = ProductSku::with(['stocks.warehouse'])
-            ->where('product_id', $product_id)
+        $list = ProductSku::where('product_id', $product_id)
             ->where('deleted_at', null)
             ->select();
 
@@ -479,6 +458,256 @@ class ProductController extends BaseController
             return $this->success([], '批量删除SKU成功');
         } catch (\Exception $e) {
             return $this->error($e->getMessage());
+        }
+    }
+    public function skuBatchUpdate($product_id)
+    {
+        try {
+            // 验证商品是否存在
+            $product = \app\kincount\model\Product::where('id', $product_id)
+                ->whereNull('deleted_at')
+                ->find();
+
+            if (!$product) {
+                return json(['code' => 404, 'message' => '商品不存在']);
+            }
+
+            // 获取请求数据
+            $input = json_decode(file_get_contents('php://input'), true);
+            $skusData = $input['skus'] ?? [];
+
+            if (empty($skusData)) {
+                return json(['code' => 400, 'message' => 'SKU数据不能为空']);
+            }
+
+            Db::startTrans();
+            $results = [];
+            $successCount = 0;
+            $errorCount = 0;
+
+            // 用于记录已经生成的SKU编码和条码，避免本次批量中的重复
+            $generatedSkuCodes = [];
+            $generatedBarcodes = [];
+
+            foreach ($skusData as $index => $skuData) {
+                try {
+                    // 基本验证
+                    if (empty($skuData['spec']) || !is_array($skuData['spec'])) {
+                        throw new Exception("第" . ($index + 1) . "个SKU规格信息无效");
+                    }
+
+                    if (!isset($skuData['cost_price']) || $skuData['cost_price'] === '') {
+                        throw new Exception("第" . ($index + 1) . "个SKU成本价不能为空");
+                    }
+
+                    if (!isset($skuData['sale_price']) || $skuData['sale_price'] === '') {
+                        throw new Exception("第" . ($index + 1) . "个SKU销售价不能为空");
+                    }
+
+                    if (empty($skuData['unit'])) {
+                        throw new Exception("第" . ($index + 1) . "个SKU单位不能为空");
+                    }
+
+                    $specJson = json_encode($skuData['spec'], JSON_UNESCAPED_UNICODE);
+
+                    // 查找现有SKU - 关键修复：正确识别哪些是更新，哪些是新增
+                    $existingSku = null;
+
+                    // 情况1：如果请求中明确提供了id，说明是更新已有SKU
+                    if (isset($skuData['id']) && !empty($skuData['id'])) {
+                        $existingSku = \app\kincount\model\ProductSku::where('product_id', $product_id)
+                            ->where('id', $skuData['id'])
+                            ->whereNull('deleted_at')
+                            ->find();
+
+                        if (!$existingSku) {
+                            throw new Exception("第" . ($index + 1) . "个SKU不存在（ID: {$skuData['id']}）");
+                        }
+                    }
+                    // 情况2：如果没有提供id，但根据规格找到了匹配的SKU，也是更新
+                    else {
+                        $existingSku = \app\kincount\model\ProductSku::where('product_id', $product_id)
+                            ->where('spec', $specJson)
+                            ->whereNull('deleted_at')
+                            ->find();
+                    }
+
+                    if ($existingSku) {
+                        // 更新已有SKU
+                        $updateData = [
+                            'cost_price' => floatval($skuData['cost_price']),
+                            'sale_price' => floatval($skuData['sale_price']),
+                            'unit' => $skuData['unit'],
+                            'status' => isset($skuData['status']) ? intval($skuData['status']) : 1
+                        ];
+
+                        // 记录更新前的条码，用于后续检查
+                        $oldBarcode = $existingSku->barcode;
+
+                        // 如果提供了条码且不为空，则更新条码
+                        if (isset($skuData['barcode']) && !empty(trim($skuData['barcode']))) {
+                            $newBarcode = trim($skuData['barcode']);
+
+                            // 只有当新旧条码不同时才需要检查
+                            if ($newBarcode !== $oldBarcode) {
+                                // 检查条码是否被其他SKU使用（排除自己）
+                                $barcodeExists = \app\kincount\model\ProductSku::where('barcode', $newBarcode)
+                                    ->where('id', '<>', $existingSku->id)
+                                    ->whereNull('deleted_at')
+                                    ->find();
+
+                                if ($barcodeExists) {
+                                    throw new Exception("条码 '{$newBarcode}' 已被其他SKU使用");
+                                }
+                            }
+                            $updateData['barcode'] = $newBarcode;
+                        }
+
+                        $existingSku->save($updateData);
+
+                        $results[] = [
+                            'index' => $index,
+                            'spec' => $skuData['spec'],
+                            'action' => 'updated',
+                            'id' => $existingSku->id,
+                            'sku_code' => $existingSku->sku_code,
+                            'barcode' => $existingSku->barcode,
+                            'success' => true
+                        ];
+                        $successCount++;
+                    } else {
+                        // 创建新SKU - 只有在前端没有提供id且数据库中没有匹配规格时才执行
+                        $newSkuData = [
+                            'product_id' => $product_id,
+                            'spec' => $skuData['spec'],
+                            'cost_price' => floatval($skuData['cost_price']),
+                            'sale_price' => floatval($skuData['sale_price']),
+                            'unit' => $skuData['unit'],
+                            'status' => isset($skuData['status']) ? intval($skuData['status']) : 1
+                        ];
+
+                        // 生成SKU编码（使用修复后的方法）
+                        $skuCode = \app\kincount\model\ProductSku::generateSkuCode($product_id, $skuData['spec']);
+
+                        // 检查SKU编码是否在本次批量中已生成
+                        if (in_array($skuCode, $generatedSkuCodes)) {
+                            throw new Exception("SKU编码 '{$skuCode}' 在本次批量中重复");
+                        }
+
+                        // 检查SKU编码是否在数据库中已存在
+                        $skuCodeExists = \app\kincount\model\ProductSku::where('sku_code', $skuCode)
+                            ->whereNull('deleted_at')
+                            ->find();
+
+                        if ($skuCodeExists) {
+                            throw new Exception("SKU编码 '{$skuCode}' 在数据库中已存在");
+                        }
+
+                        $generatedSkuCodes[] = $skuCode;
+                        $newSkuData['sku_code'] = $skuCode;
+
+                        // 处理条码
+                        $barcode = '';
+                        if (isset($skuData['barcode']) && !empty(trim($skuData['barcode']))) {
+                            $barcode = trim($skuData['barcode']);
+
+                            // 检查条码是否在本次批量中已生成
+                            if (in_array($barcode, $generatedBarcodes)) {
+                                throw new Exception("条码 '{$barcode}' 在本次批量中重复");
+                            }
+
+                            // 检查条码是否在数据库中已存在
+                            $barcodeExists = \app\kincount\model\ProductSku::where('barcode', $barcode)
+                                ->whereNull('deleted_at')
+                                ->find();
+
+                            if ($barcodeExists) {
+                                throw new Exception("条码 '{$barcode}' 在数据库中已存在");
+                            }
+
+                            $generatedBarcodes[] = $barcode;
+                            $newSkuData['barcode'] = $barcode;
+                        } else {
+                            // 自动生成条码
+                            $barcode = \app\kincount\model\ProductSku::generateBarcode();
+
+                            // 检查生成的条码是否重复
+                            $attempts = 0;
+                            while (in_array($barcode, $generatedBarcodes) && $attempts < 5) {
+                                $barcode = \app\kincount\model\ProductSku::generateBarcode();
+                                $attempts++;
+                            }
+
+                            if ($attempts >= 5) {
+                                throw new Exception("无法生成唯一的条码");
+                            }
+
+                            $generatedBarcodes[] = $barcode;
+                            $newSkuData['barcode'] = $barcode;
+                        }
+
+                        $newSku = new \app\kincount\model\ProductSku($newSkuData);
+                        $newSku->save();
+
+                        $results[] = [
+                            'index' => $index,
+                            'spec' => $skuData['spec'],
+                            'action' => 'created',
+                            'id' => $newSku->id,
+                            'sku_code' => $newSku->sku_code,
+                            'barcode' => $newSku->barcode,
+                            'success' => true
+                        ];
+                        $successCount++;
+                    }
+                } catch (Exception $e) {
+                    $results[] = [
+                        'index' => $index,
+                        'spec' => $skuData['spec'] ?? [],
+                        'action' => 'error',
+                        'success' => false,
+                        'error' => $e->getMessage()
+                    ];
+                    $errorCount++;
+                }
+            }
+
+            // 如果有错误且没有成功操作，则回滚
+            if ($errorCount > 0 && $successCount === 0) {
+                Db::rollback();
+                return json([
+                    'code' => 400,
+                    'message' => '所有SKU操作失败',
+                    'data' => $results
+                ]);
+            }
+
+            Db::commit();
+
+            $message = "批量操作完成";
+            if ($successCount > 0 && $errorCount > 0) {
+                $message = "成功{$successCount}个，失败{$errorCount}个";
+            } elseif ($successCount > 0) {
+                $message = "全部{$successCount}个SKU操作成功";
+            }
+
+            return json([
+                'code' => 200,
+                'message' => $message,
+                'data' => [
+                    'total' => count($skusData),
+                    'success' => $successCount,
+                    'error' => $errorCount,
+                    'results' => $results
+                ]
+            ]);
+        } catch (Exception $e) {
+            Db::rollback();
+            return json([
+                'code' => 500,
+                'message' => '操作失败: ' . $e->getMessage(),
+                'data' => null
+            ]);
         }
     }
 }
