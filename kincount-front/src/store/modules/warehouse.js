@@ -12,15 +12,82 @@ export const useWarehouseStore = defineStore('warehouse', {
   }),
 
   actions: {
-    async loadList(params) {
-      const { list, total } = await getWarehouseList(params)
-      this.list = list
-      this.total = total
+    async loadList(params = {}) {
+      try {
+        const response = await getWarehouseList(params)
+        console.log('仓库列表API响应:', response)
+        
+        // 处理不同的响应结构
+        let listData = []
+        let totalCount = 0
+        
+        if (response && response.list) {
+          // 格式: { list: [], total: number }
+          listData = response.list
+          totalCount = response.total || 0
+        } else if (response && response.data) {
+          // 格式: { code: 200, data: { list: [], total: number } }
+          if (response.data.list) {
+            listData = response.data.list
+            totalCount = response.data.total || 0
+          } else {
+            // 如果data直接是数组
+            listData = Array.isArray(response.data) ? response.data : []
+            totalCount = listData.length
+          }
+        } else if (Array.isArray(response)) {
+          // 直接返回数组
+          listData = response
+          totalCount = response.length
+        } else {
+          listData = []
+          totalCount = 0
+        }
+        
+        this.list = listData
+        this.total = totalCount
+        
+        console.log('处理后的仓库数据:', this.list)
+        return { list: listData, total: totalCount }
+      } catch (error) {
+        console.error('加载仓库列表失败:', error)
+        this.list = []
+        this.total = 0
+        throw error
+      }
     },
 
     async loadOptions() {
-      this.options = await getWarehouseOptions()
+      try {
+        const response = await getWarehouseOptions()
+        console.log('仓库选项API响应:', response)
+        
+        // 处理不同的响应结构
+        let optionsData = []
+        
+        if (Array.isArray(response)) {
+          optionsData = response
+        } else if (response && response.data) {
+          optionsData = Array.isArray(response.data) ? response.data : []
+        } else if (response && response.list) {
+          optionsData = response.list
+        } else {
+          optionsData = []
+        }
+        
+        // 转换格式为 { text: name, value: id }
+        this.options = optionsData.map(item => ({
+          text: item.name,
+          value: item.id
+        }))
+        return this.options
+      } catch (error) {
+        console.error('加载仓库选项失败:', error)
+        this.options = []
+        throw error
+      }
     },
+    
     async deleteWarehouse(id) {
       try {
         const response = await deleteWarehouse(id)
@@ -30,12 +97,20 @@ export const useWarehouseStore = defineStore('warehouse', {
         return true
       } catch (error) {
         console.error('删除仓库失败:', error)
-        // 将错误信息传递给组件
         throw new Error(error.message || '删除失败')
       }
     },
+    
     async loadStatistics(id) {
-      this.statistics = await getWarehouseStatistics(id)
+      try {
+        const response = await getWarehouseStatistics(id)
+        this.statistics = response.data || response || {}
+        return this.statistics
+      } catch (error) {
+        console.error('加载仓库统计失败:', error)
+        this.statistics = {}
+        throw error
+      }
     },
 
     setCurrent(row) {

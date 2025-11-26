@@ -120,17 +120,55 @@ class ProductController extends BaseController
             return $this->error('删除失败：' . $e->getMessage());
         }
     }
-    public function skuSelect()
-    {
-        $kw   = request()->get('keyword', '');
-        $list = ProductSku::with('product')
-            ->where('status', 1)
-            ->where('deleted_at', null)
-            ->whereLike('sku_code|spec_text', "%{$kw}%")
-            ->limit((int)request()->get('limit', 10))
-            ->select();
-        return $this->success($list);
+
+    /*----------  列表 + 搜索 + 分页+品牌过滤+分类过滤  ----------*/
+public function skuSelect()
+{
+    $kw = request()->get('keyword', '');
+    $categoryId = request()->get('category_id', '');
+    $brandId = request()->get('brand_id', '');
+    $limit = (int)request()->get('limit', 20);
+    $page = (int)request()->get('page', 1);
+
+    $query = ProductSku::with(['product' => function ($q) {
+        $q->field('id,name,category_id,brand_id,product_no,spec,unit');
+    }])
+        ->where('status', 1)
+        ->where('deleted_at', null);
+
+    // 关键词搜索
+    if (!empty($kw)) {
+        $query->where(function ($q) use ($kw) {
+            $q->whereLike('sku_code', "%{$kw}%")
+                ->whereOr('spec', 'like', "%{$kw}%");
+        });
     }
+
+    // 分类过滤 - 修复表名引用
+    if (!empty($categoryId)) {
+        $query->whereExists(function ($query) use ($categoryId) {
+            $query->table('products')
+                ->whereRaw('products.id = product_skus.product_id')  // 修复表名
+                ->where('products.category_id', $categoryId);
+        });
+    }
+
+    // 品牌过滤 - 修复表名引用
+    if (!empty($brandId)) {
+        $query->whereExists(function ($query) use ($brandId) {
+            $query->table('products')
+                ->whereRaw('products.id = product_skus.product_id')  // 修复表名
+                ->where('products.brand_id', $brandId);
+        });
+    }
+
+    // 分页
+    $list = $query->page($page, $limit)->select();
+
+    return $this->success($list);
+}
+
+
     /*----------  列表 + 搜索 + 分页  ----------*/
     public function index()
     {

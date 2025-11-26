@@ -5,7 +5,9 @@ namespace app\kincount\model;
 
 
 class Product extends BaseModel
+
 {
+    protected $table = 'products';
     protected static function onBeforeInsert($model)
     {
         if (empty($model->product_no)) {

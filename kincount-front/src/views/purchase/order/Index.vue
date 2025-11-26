@@ -1,181 +1,369 @@
-<!-- src/views/purchase/order/Index.vue -->
 <template>
-  <div class="purchase-order-page">
-    <van-nav-bar title="采购订单" fixed placeholder>
+  <div class="purchase-order-index">
+    <!-- 导航栏 -->
+    <van-nav-bar title="采购订单管理" fixed placeholder>
       <template #right>
-        <van-button 
-          size="small" 
-          type="primary" 
-          @click="handleCreateOrder"
-          v-perm="PERM.PURCHASE_ADD"
-        >
-          新建订单
+        <van-button size="small" type="primary" @click="handleCreate">
+          新增订单
         </van-button>
       </template>
     </van-nav-bar>
 
-    <!-- 状态筛选 -->
-    <van-tabs v-model="filters.status" @change="loadOrderList(true)">
-      <van-tab 
-        v-for="tab in statusTabs" 
-        :key="tab.value" 
-        :name="tab.value" 
-        :title="tab.title" 
-      />
-    </van-tabs>
+    <!-- 筛选区域 -->
+    <div class="filter-wrapper">
+      <!-- 状态标签筛选 -->
+      <van-tabs v-model="activeStatus" @change="handleStatusChange">
+        <van-tab title="全部" name="" />
+        <van-tab title="待审核" name="1" />
+        <van-tab title="已审核" name="2" />
+        <van-tab title="已完成" name="4" />
+        <van-tab title="已取消" name="5" />
+      </van-tabs>
+
+      <!-- 搜索与高级筛选 -->
+      <div class="search-filter">
+        <van-search
+          v-model="keyword"
+          placeholder="搜索订单号/供应商名称"
+          @search="handleSearch"
+          @clear="handleClearSearch"
+        />
+        <van-dropdown-menu>
+          <!-- 供应商筛选 -->
+          <van-dropdown-item
+            v-model="selectedSupplier"
+            :options="supplierOptions"
+            placeholder="选择供应商"
+            @change="handleFilterChange"
+          />
+          <!-- 时间筛选（可选） -->
+          <van-dropdown-item
+            v-model="dateRange"
+            :options="dateOptions"
+            placeholder="选择时间"
+            @change="handleFilterChange"
+          />
+        </van-dropdown-menu>
+      </div>
+    </div>
 
     <!-- 订单列表 -->
-    <van-pull-refresh v-model="loading" @refresh="loadOrderList(true)">
+    <van-pull-refresh v-model="refreshing" @refresh="handleRefresh">
       <van-list
-        v-model:loading="listLoading"
+        v-model:loading="loading"
         :finished="finished"
-        finished-text="没有更多了"
-        @load="loadOrderList"
+        finished-text="没有更多订单了"
+        @load="handleLoadMore"
+        :immediate-check="false"
       >
-        <van-cell-group>
+        <!-- 订单项 -->
+        <van-cell-group class="order-list">
           <van-cell
             v-for="order in orderList"
             :key="order.id"
-            :title="`订单号: ${order.orderNo}`"
-            :label="`供应商: ${order.supplierName} | 金额: ¥${order.totalAmount}`"
-            :value="getStatusText(order.status)"
-            @click="handleViewDetail(order)"
+            :title="`订单号：${order.orderNo || '未生成'}`"
+            :label="getOrderLabel(order)"
+            @click="handleDetail(order.id)"
+            is-link
           >
             <template #extra>
-              <van-tag :type="getStatusTagType(order.status)">
-                {{ getStatusText(order.status) }}
-              </van-tag>
+              <div class="order-extra">
+                <van-tag :type="getStatusTagType(order.status)">
+                  {{ getStatusText(order.status) }}
+                </van-tag>
+                <div class="amount">¥{{ order.totalAmount || 0 }}</div>
+              </div>
             </template>
           </van-cell>
         </van-cell-group>
+
+        <!-- 空状态 -->
+        <van-empty
+          v-if="!loading && !refreshing && orderList.length === 0"
+          image="search"
+          description="暂无采购订单数据"
+        />
       </van-list>
     </van-pull-refresh>
 
-    <!-- 分页 -->
-    <Pagination
-      v-model:page="pagination.page"
-      :total="pagination.total"
-      :page-size="pagination.pageSize"
-      @change="handlePageChange"
-    />
+    <!-- 初始加载状态 -->
+    <van-loading v-if="initialLoading" class="initial-loading" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  NavBar, 
-  Button, 
-  Tabs, 
-  Tab, 
-  Cell, 
-  CellGroup, 
-  List, 
-  PullRefresh,
-  Tag 
-} from 'vant'
-import { PERM } from '@/constants/permissions'
+import { showToast } from 'vant'
 import { usePurchaseStore } from '@/store/modules/purchase'
-import { ORDER_STATUS } from '@/constants'
+// 引入订单状态常量（建议在constants/index.js中定义）
+import { PURCHASE_ORDER_STATUS } from '@/constants/purchase'
+// 引入供应商API（按需替换为真实接口）
+import { getSupplierList } from '@/api/supplier'
 
+// 路由实例
 const router = useRouter()
+// 采购Store实例
 const purchaseStore = usePurchaseStore()
 
 // 响应式数据
-const filters = reactive({
-  status: ''
-})
+const initialLoading = ref(true) // 初始加载状态
+const refreshing = ref(false) // 下拉刷新状态
+const loading = ref(false) // 上拉加载状态
+const finished = ref(false) // 加载完成标记
+const activeStatus = ref('') // 选中的状态标签
+const keyword = ref('') // 搜索关键词
+const selectedSupplier = ref('') // 选中的供应商ID
+const dateRange = ref('') // 选中的时间范围
 
+// 分页参数
 const pagination = reactive({
   page: 1,
-  pageSize: 15,
-  total: 0
+  pageSize: 10
 })
 
-const statusTabs = ref([
-  { title: '全部', value: '' },
-  { title: '待审核', value: '1' },
-  { title: '已审核', value: '2' },
-  { title: '部分入库', value: '3' },
-  { title: '已完成', value: '4' },
-  { title: '已取消', value: '5' }
+// 供应商选项（初始化含“全部”）
+const supplierOptions = ref([{ text: '全部供应商', value: '' }])
+// 时间范围选项（可选）
+const dateOptions = ref([
+  { text: '全部时间', value: '' },
+  { text: '今日', value: 'today' },
+  { text: '本周', value: 'week' },
+  { text: '本月', value: 'month' },
+  { text: '近3个月', value: 'quarter' }
 ])
 
-const orderList = ref([])
-const loading = ref(false)
-const listLoading = ref(false)
-const finished = ref(false)
+// 计算属性：获取订单列表（从Store中读取）
+const orderList = computed(() => purchaseStore.orderList)
 
-// 加载订单列表
+/**
+ * 加载供应商列表（初始化调用）
+ */
+const loadSuppliers = async () => {
+  try {
+    const res = await getSupplierList()
+    const list = res.list || []
+    supplierOptions.value = [
+      { text: '全部供应商', value: '' },
+      ...list.map(item => ({ text: item.name, value: item.id }))
+    ]
+  } catch (error) {
+    showToast('加载供应商列表失败')
+    console.error('loadSuppliers error:', error)
+  }
+}
+
+/**
+ * 加载采购订单列表
+ * @param {Boolean} isRefresh - 是否为刷新（重置分页）
+ */
 const loadOrderList = async (isRefresh = false) => {
+  if (loading.value && !isRefresh) return // 防止重复加载
+
+  // 刷新时重置分页和加载状态
   if (isRefresh) {
     pagination.page = 1
     finished.value = false
+    refreshing.value = true
+  } else {
+    loading.value = true
   }
 
   try {
+    // 构造筛选参数
     const params = {
       page: pagination.page,
-      limit: pagination.pageSize,
-      status: filters.status
+      pageSize: pagination.pageSize,
+      status: activeStatus.value,
+      keyword: keyword.value,
+      supplierId: selectedSupplier.value,
+      dateRange: dateRange.value
     }
+    // 移除空值参数
+    Object.keys(params).forEach(key => {
+      if (params[key] === '' || params[key] == null) delete params[key]
+    })
 
-    await purchaseStore.loadOrderList(params)
-    orderList.value = purchaseStore.orderList
-    pagination.total = purchaseStore.orderTotal
-    
-    // 检查是否加载完成
-    if (orderList.value.length >= pagination.total) {
+    // 调用Store的加载方法
+    const res = await purchaseStore.loadOrderList(params)
+    const total = purchaseStore.orderTotal || 0
+
+    // 判断是否加载完成（无更多数据）
+    if (orderList.value.length >= total) {
       finished.value = true
+    } else {
+      pagination.page++ // 页码自增，准备下一页加载
     }
+    return res
   } catch (error) {
-    console.error('加载订单列表失败:', error)
+    showToast('加载采购订单失败')
+    console.error('loadOrderList error:', error)
+    return null
   } finally {
+    // 重置加载状态
+    initialLoading.value = false
+    refreshing.value = false
     loading.value = false
-    listLoading.value = false
   }
 }
 
-// 获取状态文本
-const getStatusText = (status) => {
-  return ORDER_STATUS[status] || '未知状态'
+/**
+ * 状态标签变更事件
+ */
+const handleStatusChange = () => {
+  loadOrderList(true)
 }
 
-// 获取状态标签类型
+/**
+ * 搜索事件
+ */
+const handleSearch = () => {
+  loadOrderList(true)
+}
+
+/**
+ * 清空搜索框
+ */
+const handleClearSearch = () => {
+  keyword.value = ''
+  loadOrderList(true)
+}
+
+/**
+ * 筛选条件变更（供应商/时间）
+ */
+const handleFilterChange = () => {
+  loadOrderList(true)
+}
+
+/**
+ * 下拉刷新
+ */
+const handleRefresh = () => {
+  loadOrderList(true)
+}
+
+/**
+ * 上拉加载更多
+ */
+const handleLoadMore = () => {
+  loadOrderList(false)
+}
+
+/**
+ * 跳转到新增订单页
+ */
+const handleCreate = () => {
+  router.push('/purchase/order/create')
+}
+
+/**
+ * 跳转到订单详情页
+ * @param {Number|String} id - 订单ID
+ */
+const handleDetail = (id) => {
+  router.push(`/purchase/order/detail/${id}`)
+}
+
+/**
+ * 获取订单状态文本
+ * @param {String|Number} status - 状态码
+ */
+const getStatusText = (status) => {
+  return PURCHASE_ORDER_STATUS[status] || '未知状态'
+}
+
+/**
+ * 获取状态标签类型（适配Vant Tag）
+ * @param {String|Number} status - 状态码
+ */
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',   // 待审核
-    2: 'primary',   // 已审核
-    3: 'success',   // 部分入库
-    4: 'success',   // 已完成
-    5: 'danger'     // 已取消
+    1: 'warning', // 待审核
+    2: 'primary', // 已审核
+    4: 'success', // 已完成
+    5: 'danger'   // 已取消
   }
   return typeMap[status] || 'default'
 }
 
-// 事件处理
-const handlePageChange = (page) => {
-  pagination.page = page
-  loadOrderList()
+/**
+ * 构造订单列表的标签描述
+ * @param {Object} order - 订单对象
+ */
+const getOrderLabel = (order) => {
+  const labels = []
+  if (order.supplierName) labels.push(`供应商：${order.supplierName}`)
+  if (order.createTime) labels.push(`创建时间：${formatTime(order.createTime)}`) // 需引入时间格式化工具
+  if (order.warehouseName) labels.push(`目标仓库：${order.warehouseName}`)
+  return labels.join(' | ')
 }
 
-const handleCreateOrder = () => {
-  router.push('/purchase/order/create')
+/**
+ * 简易时间格式化（按需替换为@/utils/date中的方法）
+ * @param {String} time - 时间字符串
+ */
+const formatTime = (time) => {
+  if (!time) return ''
+  return new Date(time).toLocaleDateString()
 }
 
-const handleViewDetail = (order) => {
-  router.push(`/purchase/order/detail/${order.id}`)
-}
-
-onMounted(() => {
-  loadOrderList(true)
+// 页面初始化：先加载供应商，再加载订单列表
+onMounted(async () => {
+  await loadSuppliers()
+  await loadOrderList(true)
 })
 </script>
 
 <style scoped lang="scss">
-.purchase-order-page {
-  background: #f7f8fa;
+.purchase-order-index {
   min-height: 100vh;
+  background-color: #f5f5f5;
+  padding-top: 46px; // 适配fixed导航栏
+
+  // 筛选区域样式
+  .filter-wrapper {
+    background-color: #fff;
+    margin-bottom: 10px;
+
+    .search-filter {
+      padding: 0 10px 10px;
+
+      :deep(.van-dropdown-menu) {
+        margin-top: 10px;
+      }
+    }
+  }
+
+  // 订单列表样式
+  .order-list {
+    .van-cell {
+      padding: 15px 10px;
+      margin-bottom: 10px;
+      background-color: #fff;
+      border-radius: 8px;
+
+      .order-extra {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+
+        .amount {
+          font-size: 14px;
+          font-weight: 600;
+          color: #ee0a24;
+        }
+      }
+    }
+  }
+
+  // 初始加载样式
+  .initial-loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
 }
 </style>

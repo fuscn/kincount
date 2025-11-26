@@ -60,7 +60,15 @@ class BaseModel extends Model
         // 动态设置表名
         if (empty($this->table)) {
             $className = basename(str_replace('\\', '/', static::class));
-            $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $className)) . 's';
+
+            // 将驼峰转换为下划线
+            $tableName = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $className));
+
+            // 确保表名是复数形式
+            if (!str_ends_with($tableName, 's')) {
+                $tableName .= 's';
+            }
+
             $this->table = $tableName;
         }
     }

@@ -153,12 +153,48 @@ export default [
         component: () => import('@/views/warehouse/Form.vue'),
         meta: { title: '编辑仓库', showTabbar: false, showLayoutNavBar: false }
       },
-      // 采购管理
+      // 采购管理模块路由配置
       {
+        // 采购订单列表
         path: 'purchase/order',
         name: 'PurchaseOrder',
-        component: () => import('@/views/Placeholder.vue'),
+        component: () => import('@/views/purchase/order/Index.vue'),
         meta: { title: '采购订单', showTabbar: false }
+      },
+      {
+        // 新建采购订单
+        path: 'purchase/order/create',
+        name: 'PurchaseOrderCreate',
+        component: () => import('@/views/purchase/order/OrderForm.vue'),
+        meta: { title: '新建采购订单', showTabbar: false }
+      },
+      {
+        // 采购订单详情
+        path: 'purchase/order/detail/:id',
+        name: 'PurchaseOrderDetail',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '采购订单详情', showTabbar: false }
+      },
+      {
+        // 采购入库列表
+        path: 'purchase/stock',
+        name: 'PurchaseStock',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '采购入库', showTabbar: false }
+      },
+      {
+        // 新建采购入库单
+        path: 'purchase/stock/create',
+        name: 'PurchaseStockCreate',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '新建采购入库', showTabbar: false }
+      },
+      {
+        // 采购入库单详情
+        path: 'purchase/stock/detail/:id',
+        name: 'PurchaseStockDetail',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '采购入库详情', showTabbar: false }
       },
       {
         path: 'purchase/stock',

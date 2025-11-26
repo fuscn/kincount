@@ -228,8 +228,6 @@ const menuTreeData = computed(() =>
 const currentCategoryItems = computed(() => {
   const items = menuData[activeCategoryIndex.value]?.items || []
   let list = items.filter(it => hasPermission(it.perm))
-  console.log('菜单原始项', items)
-  console.log('当前用户权限', authStore.permissions)
 
   if (searchKeyword.value) {
     const kw = searchKeyword.value.toLowerCase()

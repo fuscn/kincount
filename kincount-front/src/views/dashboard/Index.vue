@@ -125,7 +125,6 @@ const chartData = computed(() => {
 
 // 修复：点击卡片跳转
 function handleViewSku(item) {
-  console.log('点击的SKU数据:', item)
 
   // // 获取商品ID - 从多个可能的路径获取
   // const productId = item.product_id || item.sku?.product_id || item.id
@@ -170,10 +169,8 @@ const loadHotSkus = async () => {
       hotSkus.value = res?.list || res || []
     }
 
-    console.log('热销SKU数据:', hotSkus.value)
   } catch (error) {
     hotSkus.value = []
-    console.error('加载热销SKU失败:', error)
   }
 }
 
@@ -183,7 +180,6 @@ const loadDashboardData = async () => {
     loading.value = true
     await loadOverviewData()
   } catch (error) {
-    console.error('加载仪表盘数据失败:', error)
   } finally {
     loading.value = false
   }

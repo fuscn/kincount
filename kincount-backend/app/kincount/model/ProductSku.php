@@ -7,7 +7,7 @@ use think\facade\Validate;
 
 class ProductSku extends BaseModel
 {
-
+    protected $table = 'product_skus';
     // 定义验证规则
     protected $rule = [
         'sku_code'    => 'require|unique:product_skus,sku_code^deleted_at',

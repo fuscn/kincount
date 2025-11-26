@@ -32,15 +32,12 @@ const loadWarningData = async () => {
   // 防止重复加载和组件卸载后的加载
   if (loading.value || hasLoaded.value || !isMounted.value) return
   
-  console.log('🔄 StockWarning 开始加载预警数据')
   loading.value = true
   
   try {
     await stockStore.loadWarning({ page: 1, limit: 1 })
     hasLoaded.value = true
-    console.log('✅ StockWarning 预警数据加载完成')
   } catch (error) {
-    console.error('❌ StockWarning 加载预警数据失败:', error.message)
     // 出错时也标记为已加载，避免重复尝试
     hasLoaded.value = true
   } finally {
