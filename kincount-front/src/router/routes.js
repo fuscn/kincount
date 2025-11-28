@@ -169,17 +169,23 @@ export default [
         meta: { title: '新建采购订单', showTabbar: false }
       },
       {
+        path: '/purchase/order/edit/:id',
+        name: 'PurchaseOrderEdit',
+        component: () => import('@/views/purchase/order/OrderForm.vue'),
+        meta: { title: '编辑采购订单', showTabbar: false }
+      },
+      {
         // 采购订单详情
         path: 'purchase/order/detail/:id',
         name: 'PurchaseOrderDetail',
-        component: () => import('@/views/Placeholder.vue'),
+        component: () => import('@/views/purchase/order/OrderDetail.vue'),
         meta: { title: '采购订单详情', showTabbar: false }
       },
       {
         // 采购入库列表
         path: 'purchase/stock',
         name: 'PurchaseStock',
-        component: () => import('@/views/Placeholder.vue'),
+        component: () => import('@/views/purchase/stock/Index.vue'),
         meta: { title: '采购入库', showTabbar: false }
       },
       {
@@ -196,12 +202,12 @@ export default [
         component: () => import('@/views/Placeholder.vue'),
         meta: { title: '采购入库详情', showTabbar: false }
       },
-      {
-        path: 'purchase/stock',
-        name: 'PurchaseStock',
-        component: () => import('@/views/Placeholder.vue'),
-        meta: { title: '采购入库', showTabbar: false }
-      },
+      // {
+      //   path: 'purchase/stock',
+      //   name: 'PurchaseStock',
+      //   component: () => import('@/views/Placeholder.vue'),
+      //   meta: { title: '采购入库', showTabbar: false }
+      // },
       // 销售管理
       {
         path: 'sale/order',

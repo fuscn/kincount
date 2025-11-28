@@ -76,24 +76,26 @@ export const usePurchaseStore = defineStore('purchase', {
      * 获取采购订单详情
      * @param {Number|String} id - 订单ID
      */
+    // src/store/modules/purchase.js
+
     async loadOrderDetail(id) {
-      this.orderLoading = true
+      this.orderLoading = true;
       try {
-        const res = await getPurchaseOrderDetail(id)
-        // 修复：检查返回的数据结构
+        const res = await getPurchaseOrderDetail(id);
         if (res.code === 200) {
-          this.currentOrder = res.data || res || null
-          // 同时加载订单的SKU明细
-          await this.loadOrderItems(id)
-          return res.data || res
-        } else {
-          throw new Error(res.msg || '加载采购订单详情失败')
+          // 确保这里一次性获取所有数据，包括 items
+          this.currentOrder = res.data;
+          // 如果有单独的 items 字段，设置它
+          if (res.data.items) {
+            this.currentOrderItems = res.data.items;
+          }
+          return res.data;
         }
       } catch (error) {
-        showToast(error.message || '加载采购订单详情失败')
-        return null
+        console.error('加载订单详情失败:', error);
+        throw error;
       } finally {
-        this.orderLoading = false
+        this.orderLoading = false;
       }
     },
 

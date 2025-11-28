@@ -1,4 +1,3 @@
-<!-- src/views/purchase/order/OrderForm.vue -->
 <template>
   <div class="purchase-order-form">
     <van-nav-bar :title="isEdit ? '编辑采购订单' : '新增采购订单'" fixed placeholder left-text="取消" right-text="保存"
@@ -21,15 +20,15 @@
         <div class="sku-section">
           <div class="section-title">
             <span>采购商品明细</span>
-            <van-button size="small" type="primary" @click="showSkuSelect = true">
+            <van-button size="small" type="primary" @click="showSkuSelect = true" icon="plus">
               添加商品
             </van-button>
           </div>
           <!-- SKU列表 -->
           <van-empty v-if="form.items.length === 0" description="请添加采购商品" />
-          <van-cell-group v-else>
-            <van-swipe-cell v-for="(item, index) in form.items" :key="item.sku_id + '_' + index">
-              <van-cell>
+          <van-cell-group v-else class="sku-list">
+            <van-swipe-cell v-for="(item, index) in form.items" :key="item.sku_id + '_' + index" class="sku-item">
+              <van-cell class="sku-cell">
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
@@ -39,35 +38,51 @@
                 <template #label>
                   <div class="product-label">
                     <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
-                    <!-- <div class="unit-text">单位: {{ item.unit || '个' }}</div> -->
+                    <div class="unit-text">单位: {{ item.unit || '个' }}</div>
                   </div>
                 </template>
                 <template #default>
                   <div class="item-details">
                     <div class="price-quantity">
-                      <van-field v-model.number="item.price" type="number" placeholder="单价" style="width: 100px"
-                        @blur="validatePrice(item)" :error-message="item.priceError">
-                        <template #extra>元</template>
-                      </van-field>
-                      <van-field v-model.number="item.quantity" type="number" placeholder="数量" style="width: 100px"
-                        @blur="validateQuantity(item)" :error-message="item.quantityError">
-                        <template #extra>{{ item.unit || '个' }}</template>
-                      </van-field>
+                      <!-- 修改价格输入框 -->
+                      <div class="input-field price-field">
+                        <van-field 
+                          v-model.number="item.price" 
+                          type="number" 
+                          placeholder="0.00" 
+                          class="editable-field compact-field"
+                          @blur="validatePrice(item)" 
+                          :error-message="item.priceError">
+                          <template #extra>元</template>
+                        </van-field>
+                      </div>
+                      <!-- 修改数量输入框 -->
+                      <div class="input-field quantity-field">
+                        <van-field 
+                          v-model.number="item.quantity" 
+                          type="number" 
+                          placeholder="0" 
+                          class="editable-field compact-field"
+                          @blur="validateQuantity(item)" 
+                          :error-message="item.quantityError">
+                          <template #extra>{{ item.unit || '个' }}</template>
+                        </van-field>
+                      </div>
                     </div>
                     <div class="item-total">
-                      ¥{{ ((item.price || 0) * (item.quantity || 0)).toFixed(2) }}
+                      <div class="total-amount">¥{{ ((item.price || 0) * (item.quantity || 0)).toFixed(2) }}</div>
                     </div>
                   </div>
                 </template>
               </van-cell>
               <template #right>
-                <van-button square type="danger" text="删除" @click="deleteSku(index)" />
+                <van-button square type="danger" text="删除" class="delete-btn" @click="deleteSku(index)" />
               </template>
             </van-swipe-cell>
           </van-cell-group>
         </div>
         <!-- 合计金额 -->
-        <div class="total-amount" v-if="form.items.length > 0">
+        <div class="total-section" v-if="form.items.length > 0">
           <span>订单总金额：</span>
           <span class="amount">¥{{ totalAmount.toFixed(2) }}</span>
         </div>
@@ -120,7 +135,8 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   showToast,
   showConfirmDialog,
-  showSuccessToast
+  showSuccessToast,
+  showFailToast
 } from 'vant'
 import { usePurchaseStore } from '@/store/modules/purchase'
 import { useSupplierStore } from '@/store/modules/supplier'
@@ -228,13 +244,13 @@ const getProductDisplayName = (item) => {
   if (item.product && item.product.name) {
     return item.product.name
   }
-  // 其次从 sku_name 获取
-  if (item.sku_name) {
-    return item.sku_name
-  }
-  // 然后从 product_name 获取
+  // 其次从 product_name 获取
   if (item.product_name) {
     return item.product_name
+  }
+  // 然后从 sku_name 获取
+  if (item.sku_name) {
+    return item.sku_name
   }
   // 最后从 sku 的其他字段获取
   return item.name || '未知商品'
@@ -249,6 +265,14 @@ const getItemSpecText = (item) => {
     return Object.entries(item.spec)
       .map(([key, value]) => `${key}:${value}`)
       .join(' ')
+  }
+  if (item.product && item.product.spec) {
+    if (typeof item.product.spec === 'object') {
+      return Object.entries(item.product.spec)
+        .map(([key, value]) => `${key}:${value}`)
+        .join(' ')
+    }
+    return String(item.product.spec)
   }
   return ''
 }
@@ -267,43 +291,76 @@ const getSkuProductName = (sku) => {
   return sku.name || '未知商品'
 }
 
-// 初始化表单数据
+// 初始化表单数据 - 修复编辑模式数据回显
 const initForm = async () => {
   if (isEdit) {
     // 编辑模式：加载订单详情
     const id = route.params.id
-    const orderDetail = await purchaseStore.loadOrderDetail(id)
-    if (orderDetail) {
-      form.supplier_id = orderDetail.supplier_id
-      form.supplier_name = orderDetail.supplier?.name || ''
-      form.warehouse_id = orderDetail.warehouse_id
-      form.warehouse_name = orderDetail.warehouse?.name || ''
-      form.expected_date = orderDetail.expected_date
-      form.remark = orderDetail.remark
-      // 转换订单明细格式 - 修复版本，确保包含 product_id
-      form.items = purchaseStore.currentOrderItems.map(item => {
-        const sku = item.sku || {}
-        const product = sku.product || {}
-        return {
-          sku_id: item.sku_id,
-          product_id: item.product_id || (product && product.id), // 确保包含 product_id
-          sku_code: sku.sku_code || '',
-          product: product, // 保存完整的product对象
-          product_name: product.name || '',
-          sku_name: sku.name || '',
-          spec_text: sku.spec_text || '',
-          spec: sku.spec || {},
-          unit: sku.unit || '个',
-          price: item.price,
-          quantity: item.quantity,
-          priceError: '',
-          quantityError: ''
+    try {
+      const orderDetail = await purchaseStore.loadOrderDetail(id)
+      console.log('订单详情数据:', orderDetail) // 调试日志
+      
+      if (orderDetail) {
+        form.supplier_id = orderDetail.supplier_id
+        form.supplier_name = orderDetail.supplier?.name || ''
+        form.warehouse_id = orderDetail.warehouse_id
+        form.warehouse_name = orderDetail.warehouse?.name || ''
+        form.expected_date = orderDetail.expected_date
+        form.remark = orderDetail.remark || ''
+        
+        // 修复：直接从 orderDetail.items 获取数据
+        // 根据后端返回的数据结构调整
+        form.items = (orderDetail.items || []).map(item => {
+          const product = item.product || {}
+          console.log('订单项数据:', item) // 调试日志
+          
+          // 构建规格文本
+          let specText = ''
+          if (product.spec) {
+            if (typeof product.spec === 'object') {
+              specText = Object.entries(product.spec)
+                .map(([key, value]) => `${key}:${value}`)
+                .join(' ')
+            } else {
+              specText = String(product.spec)
+            }
+          }
+          
+          return {
+            id: item.id, // 订单项ID，用于更新
+            sku_id: item.sku_id,
+            product_id: item.product_id,
+            sku_code: product.product_no || '', // 使用商品编码
+            product: product,
+            product_name: product.name || '',
+            sku_name: product.name || '', // 使用商品名称
+            spec_text: specText,
+            spec: product.spec || {},
+            unit: product.unit || '个',
+            price: item.price || 0,
+            quantity: item.quantity || 0,
+            priceError: '',
+            quantityError: ''
+          }
+        })
+        
+        // 设置选中的SKU ID
+        selectedSkuIds.value = form.items.map(item => item.sku_id).filter(Boolean)
+        console.log('表单items数据:', form.items) // 调试日志
+        console.log('选中的SKU IDs:', selectedSkuIds.value) // 调试日志
+        
+        // 设置日期选择器的当前值
+        if (orderDetail.expected_date) {
+          const date = new Date(orderDetail.expected_date)
+          currentDate.value = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
         }
-      })
-      // 设置选中的SKU ID
-      selectedSkuIds.value = form.items.map(item => item.sku_id)
-    } else {
-      showToast('加载订单详情失败')
+      } else {
+        showFailToast('加载订单详情失败')
+        router.back()
+      }
+    } catch (error) {
+      console.error('加载订单详情失败:', error)
+      showFailToast('加载订单详情失败')
       router.back()
     }
   } else {
@@ -326,8 +383,6 @@ const loadSuppliers = async (page = 1, keyword = '') => {
     }
     const res = await supplierStore.loadList(params)
 
-
-    
     // 适配标准响应结构：从 res.data 中获取数据
     let list = []
     if (res && res.code === 200) {
@@ -348,8 +403,6 @@ const loadSuppliers = async (page = 1, keyword = '') => {
       list = supplierStore.list || []
     }
 
-
-    
     if (page === 1) {
       supplierList.value = list
     } else {
@@ -358,13 +411,14 @@ const loadSuppliers = async (page = 1, keyword = '') => {
     supplierFinished.value = list.length < 20
     return list
   } catch (error) {
-
-    showToast('加载供应商失败')
+    console.error('加载供应商失败:', error)
+    showFailToast('加载供应商失败')
     return []
   } finally {
     supplierLoading.value = false
   }
 }
+
 // 搜索供应商
 const searchSuppliers = () => {
   supplierPage.value = 1
@@ -409,7 +463,6 @@ const loadWarehouses = async (page = 1, keyword = '') => {
     }
     const res = await warehouseStore.loadList(params)
 
-
     // 适配标准响应结构：从 res.data 中获取数据
     let list = []
     if (res && res.code === 200) {
@@ -430,7 +483,6 @@ const loadWarehouses = async (page = 1, keyword = '') => {
       list = warehouseStore.list || []
     }
 
-
     if (page === 1) {
       warehouseList.value = list
     } else {
@@ -439,12 +491,14 @@ const loadWarehouses = async (page = 1, keyword = '') => {
     warehouseFinished.value = list.length < 20
     return list
   } catch (error) {
-    showToast('加载仓库失败')
+    console.error('加载仓库失败:', error)
+    showFailToast('加载仓库失败')
     return []
   } finally {
     warehouseLoading.value = false
   }
 }
+
 // 搜索仓库
 const searchWarehouses = () => {
   warehousePage.value = 1
@@ -533,6 +587,7 @@ const handleSkuSelectConfirm = async (result) => {
           form.items.push(newItem)
         }
       } catch (error) {
+        console.error('添加SKU失败:', error)
       }
     }
 
@@ -624,14 +679,14 @@ const handleSubmit = async () => {
   }
   submitting.value = true
   try {
-    // 准备提交数据 - 修复：确保包含 product_id
+    // 准备提交数据 - 根据后端数据结构调整
     const submitData = {
       supplier_id: form.supplier_id,
       warehouse_id: form.warehouse_id,
       expected_date: form.expected_date,
       remark: form.remark,
       items: form.items.map(item => {
-        // 确保同时包含 product_id 和 sku_id
+        // 确保包含必要字段
         const productId = item.product_id || (item.product && item.product.id)
         if (!productId) {
           throw new Error(`商品"${getProductDisplayName(item)}"缺少商品ID`)
@@ -639,15 +694,24 @@ const handleSubmit = async () => {
         if (!item.sku_id) {
           throw new Error(`商品"${getProductDisplayName(item)}"缺少SKU ID`)
         }
-        return {
-          product_id: productId,  // 商品ID
-          sku_id: item.sku_id,    // SKU ID
+        
+        const itemData = {
+          product_id: productId,
+          sku_id: item.sku_id,
           quantity: Number(item.quantity),
           price: Number(item.price)
         }
+        
+        // 编辑模式下，如果有订单项ID，则包含它
+        if (isEdit && item.id) {
+          itemData.id = item.id
+        }
+        
+        return itemData
       })
     }
 
+    console.log('提交数据:', submitData) // 调试日志
 
     let result
     if (isEdit) {
@@ -667,9 +731,9 @@ const handleSubmit = async () => {
     // 操作成功后返回列表页
     router.push('/purchase/order')
   } catch (error) {
-
+    console.error('提交订单失败:', error)
     // 显示具体的错误信息，而不是通用的"操作失败"
-    showToast(error.message || '操作失败')
+    showFailToast(error.message || '操作失败')
   } finally {
     submitting.value = false
   }
@@ -710,6 +774,7 @@ onMounted(async () => {
 
 .form-container {
   padding: 16px;
+  background-color: #f7f8fa;
 }
 
 .sku-section {
@@ -717,6 +782,7 @@ onMounted(async () => {
   background-color: #fff;
   border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .section-title {
@@ -724,7 +790,45 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #f0f0f0;
+  background-color: #fafafa;
+  
+  span {
+    font-size: 15px;
+    font-weight: 600;
+    color: #323233;
+  }
+  
+  .van-button {
+    border-radius: 6px;
+    font-weight: 500;
+    height: 32px;
+    font-size: 13px;
+    
+    :deep(.van-icon) {
+      margin-right: 4px;
+    }
+  }
+}
+
+// 商品列表样式优化
+.sku-list {
+  .sku-item {
+    margin-bottom: 1px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .sku-cell {
+    padding: 10px 16px;
+    align-items: flex-start;
+    
+    &:after {
+      border-bottom: 1px solid #f5f5f5;
+    }
+  }
 }
 
 .product-title {
@@ -739,69 +843,135 @@ onMounted(async () => {
   font-weight: bold;
   color: #323233;
   font-size: 14px;
+  line-height: 1.4;
 }
 
 .sku-code {
   color: #646566;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: normal;
+  background: #f5f5f5;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .product-label {
   font-size: 12px;
   color: #969799;
-}
-
-.spec-text {
-  margin-bottom: 2px;
-}
-
-.unit-text {
-  color: #646566;
+  
+  .spec-text {
+    margin-bottom: 2px;
+    color: #646566;
+    line-height: 1.3;
+  }
+  
+  .unit-text {
+    color: #969799;
+    line-height: 1.3;
+  }
 }
 
 .item-details {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
+  gap: 8px;
 }
 
 .price-quantity {
   display: flex;
   gap: 8px;
-  align-items: center;
-
-  :deep(.van-field) {
-    padding: 4px 8px;
-
-    .van-field__body {
-      min-height: auto;
+  align-items: flex-start;
+  
+  .input-field {
+    display: flex;
+    flex-direction: column;
+    
+    .editable-field {
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      background: #fff;
+      transition: all 0.2s;
+      height: 32px;
+      
+      &:deep(.van-field__body) {
+        min-height: auto;
+      }
+      
+      &:deep(.van-field__control) {
+        font-size: 13px;
+        font-weight: 500;
+        color: #323233;
+        text-align: center;
+        padding: 0 4px;
+      }
+      
+      &:deep(.van-field__extra) {
+        color: #969799;
+        font-size: 11px;
+        padding-left: 2px;
+      }
+      
+      &:focus-within {
+        border-color: #1989fa;
+        box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
+      }
+      
+      // 紧凑字段样式
+      &.compact-field {
+        width: 80px;
+        
+        &:deep(.van-field__control) {
+          font-size: 12px;
+        }
+      }
+    }
+    
+    &.price-field {
+      .editable-field {
+        width: 85px;
+      }
+    }
+    
+    &.quantity-field {
+      .editable-field {
+        width: 85px;
+      }
     }
   }
 }
 
 .item-total {
-  color: #f53f3f;
-  font-weight: bold;
-  font-size: 14px;
-  min-width: 80px;
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 70px;
+  
+  .total-amount {
+    color: #f53f3f;
+    font-weight: bold;
+    font-size: 13px;
+    line-height: 1.3;
+  }
 }
 
-.total-amount {
-  padding: 16px;
+.total-section {
+  padding: 12px 16px;
   text-align: right;
-  font-size: 16px;
-  background-color: #fff;
+  font-size: 15px;
+  background-color: #f8f9fa;
   border-radius: 8px;
-  margin-bottom: 16px;
-  border: 1px solid #ebedf0;
+  margin: 16px 0;
+  border: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   .amount {
     color: #f53f3f;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 16px;
   }
 }
 
@@ -817,21 +987,15 @@ onMounted(async () => {
   }
 }
 
-.popup-header {
-  background: white;
-
-  .van-nav-bar {
-    background: white;
-  }
-}
-
+// 滑动单元格样式优化
 :deep(.van-swipe-cell) {
   .van-swipe-cell__wrapper {
-    padding: 8px 0;
+    padding: 0;
   }
-
-  .van-cell {
-    padding: 12px 16px;
+  
+  .delete-btn {
+    height: 100%;
+    border-radius: 0;
   }
 }
 
@@ -841,6 +1005,36 @@ onMounted(async () => {
 
   .sku-list-container {
     height: calc(100% - 120px); // 为底部操作栏留出空间
+  }
+}
+
+// 修改字段样式，使其更突出
+:deep(.van-field) {
+  &.van-field--readonly {
+    .van-field__control {
+      color: #323233;
+      font-weight: 500;
+    }
+  }
+  
+  .van-field__label {
+    color: #646566;
+    font-weight: 500;
+  }
+}
+
+// 修改空状态样式
+:deep(.van-empty) {
+  padding: 30px 0;
+  
+  .van-empty__image {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .van-empty__description {
+    color: #969799;
+    font-size: 13px;
   }
 }
 </style>

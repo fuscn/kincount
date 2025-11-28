@@ -9,32 +9,68 @@ use app\kincount\model\PurchaseOrderItem;
 use app\kincount\model\Product;
 use app\kincount\model\Supplier;
 use app\kincount\model\Warehouse;
+use app\kincount\model\ProductSku;
 use think\facade\Db;
 
 class PurchaseOrderController extends BaseController
 {
-    public function index()
-    {
-        $page  = (int)input('page', 1);
-        $limit = (int)input('limit', 15);
-        $kw    = input('keyword', '');
-        $supId = (int)input('supplier_id', 0);
-        $status = input('status', '');
-        $sDate = input('start_date', '');
-        $eDate = input('end_date', '');
+public function index()
+{
+    try {
+        $params = input('get.');
+        $page = $params['page'] ?? 1;
+        $pageSize = $params['pageSize'] ?? 10;
+        
+        // 构建查询条件
+        $query = PurchaseOrder::with([
+            'supplier', 
+            'warehouse', 
+            'creator', 
+            'auditor',
+            'items' => function($query) {
+                $query->whereNull('deleted_at')
+                      ->with(['product.category']);
+            }
+        ])->whereNull('deleted_at');
 
-        $query = PurchaseOrder::with(['supplier', 'warehouse', 'creator'])
-            ->where('deleted_at', null);
+        // 处理状态筛选 - 修复数组处理方式
+        if (!empty($params['status'])) {
+            // 统一处理状态参数，确保是数组
+            $status = is_array($params['status']) ? $params['status'] : [$params['status']];
+            // 过滤空值
+            $status = array_filter($status);
+            
+            if (!empty($status)) {
+                $query->whereIn('status', $status);
+            }
+        }
 
-        if ($kw) $query->whereLike('order_no', "%{$kw}%");
-        if ($supId) $query->where('supplier_id', $supId);
-        if ($status !== '') $query->where('status', $status);
-        if ($sDate) $query->where('created_at', '>=', $sDate);
-        if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
+        // 处理关键词搜索
+        if (!empty($params['keyword'])) {
+            $keyword = trim($params['keyword']);
+            $query->where(function($q) use ($keyword) {
+                $q->where('order_no', 'like', "%{$keyword}%")
+                  ->orWhereHas('supplier', function($q2) use ($keyword) {
+                      $q2->where('name', 'like', "%{$keyword}%");
+                  });
+            });
+        }
 
-        return $this->paginate($query->order('id', 'desc')
-            ->paginate(['list_rows' => $limit, 'page' => $page]));
+        // 排序
+        $query->order('id', 'desc');
+
+        $list = $query->paginate([
+            'list_rows' => $pageSize,
+            'page' => $page
+        ]);
+
+        return $this->success($list);
+
+    } catch (\Exception $e) {
+        \think\facade\Log::error('采购订单列表查询失败: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        return $this->error('查询失败，请稍后重试');
     }
+}
 
     public function read($id)
     {
@@ -150,41 +186,147 @@ class PurchaseOrderController extends BaseController
 
     public function update($id)
     {
-        $order = PurchaseOrder::where('deleted_at', null)->find($id);
-        if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核状态可修改');
+        try {
+            // 验证采购订单是否存在且可编辑
+            $order = PurchaseOrder::where('deleted_at', null)->find($id);
+            if (!$order) {
+                return $this->error('采购订单不存在');
+            }
+            if ($order->status != 1) {
+                return $this->error('只有待审核状态的采购订单可修改');
+            }
 
-        $post = input('post.');
-        Db::transaction(function () use ($order, $post) {
-            /* 基础信息 */
-            $order->save([
-                'supplier_id'  => $post['supplier_id'] ?? $order->supplier_id,
-                'warehouse_id' => $post['warehouse_id'] ?? $order->warehouse_id,
-                'remark'       => $post['remark'] ?? $order->remark,
-                'expected_date' => $post['expected_date'] ?? $order->expected_date,
+            $post = input('post.');
+
+            // 基础数据验证
+            $validate = new \think\Validate([
+                'supplier_id'   => 'require|number|gt:0',
+                'warehouse_id'  => 'require|number|gt:0',
+                'expected_date' => 'require|date',
+                'items'         => 'require|array|min:1',
+                'items.*.product_id' => 'require|number|gt:0',
+                'items.*.sku_id'     => 'require|number|gt:0',
+                'items.*.quantity'   => 'require|number|gt:0',
+                'items.*.price'      => 'require|float|gt:0',
             ]);
 
-            /* 若传了 items 则整体替换 */
-            if (!empty($post['items']) && is_array($post['items'])) {
-                PurchaseOrderItem::where('purchase_order_id', $order->id)->delete();
+            $validate->message([
+                'supplier_id.require'   => '供应商不能为空',
+                'supplier_id.gt'        => '供应商选择无效',
+                'warehouse_id.require'  => '仓库不能为空',
+                'warehouse_id.gt'       => '仓库选择无效',
+                'expected_date.require' => '预计到货日期不能为空',
+                'expected_date.date'    => '预计到货日期格式错误',
+                'items.require'         => '采购商品不能为空',
+                'items.min'             => '至少需要一个采购商品',
+                'items.*.product_id.require' => '商品ID不能为空',
+                'items.*.product_id.gt'      => '商品选择无效',
+                'items.*.sku_id.require'     => '商品SKU不能为空',
+                'items.*.sku_id.gt'          => '商品SKU选择无效',
+                'items.*.quantity.require'   => '采购数量不能为空',
+                'items.*.quantity.gt'        => '采购数量必须大于0',
+                'items.*.price.require'      => '采购单价不能为空',
+                'items.*.price.gt'           => '采购单价必须大于0',
+            ]);
+
+            if (!$validate->check($post)) {
+                return $this->error($validate->getError());
+            }
+
+            // 验证供应商是否存在
+            $supplier = Supplier::where('id', $post['supplier_id'])->find();
+            if (!$supplier) {
+                return $this->error('选择的供应商不存在');
+            }
+
+            // 验证仓库是否存在
+            $warehouse = Warehouse::where('id', $post['warehouse_id'])->find();
+            if (!$warehouse) {
+                return $this->error('选择的仓库不存在');
+            }
+
+            // 验证商品和SKU是否存在且匹配
+            $productIds = array_column($post['items'], 'product_id');
+            $skuIds = array_column($post['items'], 'sku_id');
+
+            $products = Product::whereIn('id', $productIds)->select();
+            $skus = ProductSku::whereIn('id', $skuIds)->select();
+
+            if (count($products) != count(array_unique($productIds))) {
+                return $this->error('部分商品不存在');
+            }
+
+            if (count($skus) != count(array_unique($skuIds))) {
+                return $this->error('部分商品SKU不存在');
+            }
+
+            // 验证SKU与商品的匹配关系
+            $skuProductMap = [];
+            foreach ($skus as $sku) {
+                $skuProductMap[$sku->id] = $sku->product_id;
+            }
+
+            foreach ($post['items'] as $index => $item) {
+                if (!isset($skuProductMap[$item['sku_id']]) || $skuProductMap[$item['sku_id']] != $item['product_id']) {
+                    return $this->error("第" . ($index + 1) . "个商品的SKU与商品不匹配");
+                }
+            }
+
+            // 验证重复的SKU
+            $skuCounts = array_count_values(array_column($post['items'], 'sku_id'));
+            foreach ($skuCounts as $skuId => $count) {
+                if ($count > 1) {
+                    $sku = ProductSku::find($skuId);
+                    return $this->error("商品SKU【{$sku->sku_name}】重复添加");
+                }
+            }
+
+            Db::transaction(function () use ($order, $post) {
+                // 更新基础信息
+                $order->save([
+                    'supplier_id'   => $post['supplier_id'],
+                    'warehouse_id'  => $post['warehouse_id'],
+                    'remark'        => $post['remark'] ?? '',
+                    'expected_date' => $post['expected_date'],
+                ]);
+
+                // 替换订单项
+                $currentTime = date('Y-m-d H:i:s');
+                PurchaseOrderItem::where('purchase_order_id', $order->id)
+                    ->whereNull('deleted_at')
+                    ->update(['deleted_at' => $currentTime]);
+
                 $total = 0;
-                foreach ($post['items'] as $v) {
-                    $rowTotal = $v['quantity'] * $v['price'];
+                foreach ($post['items'] as $item) {
+                    // 修复：将数值转换为字符串再使用 bcmul
+                    $quantity = (string)$item['quantity'];
+                    $price = (string)$item['price'];
+                    $rowTotal = bcmul($quantity, $price, 2);
+
                     PurchaseOrderItem::create([
                         'purchase_order_id' => $order->id,
-                        'product_id'        => $v['product_id'],
-                        'quantity'          => $v['quantity'],
+                        'product_id'        => $item['product_id'],
+                        'sku_id'            => $item['sku_id'],
+                        'quantity'          => $item['quantity'],
                         'received_quantity' => 0,
-                        'price'             => $v['price'],
+                        'price'             => $item['price'],
                         'total_amount'      => $rowTotal,
                     ]);
-                    $total += $rowTotal;
-                }
-                $order->save(['total_amount' => $total]);
-            }
-        });
 
-        return $this->success([], '采购订单更新成功');
+                    // 修复：将数值转换为字符串再使用 bcadd
+                    $total = bcadd((string)$total, $rowTotal, 2);
+                }
+
+                // 更新总金额
+                $order->save(['total_amount' => $total]);
+            });
+
+            return $this->success([], '采购订单更新成功');
+        } catch (\Exception $e) {
+            // 记录错误日志
+            \think\facade\Log::error('采购订单更新失败: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            return $this->error('系统错误，请稍后重试');
+        }
     }
 
     public function delete($id)
