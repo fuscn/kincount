@@ -11,6 +11,16 @@ export function updateProductAggregate(id, data) {
   return request({ url: `/products/${id}/aggregate`, method: 'put', data })
 }
 
+/* ====== 商品聚合维度：列表接口 ====== */
+// 获取商品列表（非SKU，聚合信息）
+export function getProductList(params) {
+  return request({
+    url: '/products',
+    method: 'get',
+    params
+  })
+}
+
 /* ====== SKU 维度：核心接口 ====== */
 // SKU 分页列表
 export function getSkuList(params) {

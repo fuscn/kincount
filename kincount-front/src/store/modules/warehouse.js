@@ -15,7 +15,6 @@ export const useWarehouseStore = defineStore('warehouse', {
     async loadList(params = {}) {
       try {
         const response = await getWarehouseList(params)
-        console.log('仓库列表API响应:', response)
         
         // 处理不同的响应结构
         let listData = []
@@ -47,10 +46,8 @@ export const useWarehouseStore = defineStore('warehouse', {
         this.list = listData
         this.total = totalCount
         
-        console.log('处理后的仓库数据:', this.list)
         return { list: listData, total: totalCount }
       } catch (error) {
-        console.error('加载仓库列表失败:', error)
         this.list = []
         this.total = 0
         throw error
@@ -60,7 +57,6 @@ export const useWarehouseStore = defineStore('warehouse', {
     async loadOptions() {
       try {
         const response = await getWarehouseOptions()
-        console.log('仓库选项API响应:', response)
         
         // 处理不同的响应结构
         let optionsData = []
@@ -82,7 +78,6 @@ export const useWarehouseStore = defineStore('warehouse', {
         }))
         return this.options
       } catch (error) {
-        console.error('加载仓库选项失败:', error)
         this.options = []
         throw error
       }
@@ -96,7 +91,6 @@ export const useWarehouseStore = defineStore('warehouse', {
         this.total -= 1
         return true
       } catch (error) {
-        console.error('删除仓库失败:', error)
         throw new Error(error.message || '删除失败')
       }
     },
@@ -107,7 +101,6 @@ export const useWarehouseStore = defineStore('warehouse', {
         this.statistics = response.data || response || {}
         return this.statistics
       } catch (error) {
-        console.error('加载仓库统计失败:', error)
         this.statistics = {}
         throw error
       }

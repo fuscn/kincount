@@ -56,12 +56,16 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await getPurchaseOrderList(params)
-        this.orderList = res.data?.list || []
-        this.orderTotal = res.data?.total || 0
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.orderList = res.data?.list || res.list || []
+          this.orderTotal = res.data?.total || res.total || 0
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载采购订单列表失败')
+        }
       } catch (error) {
-        showToast('加载采购订单列表失败')
-        console.error('loadOrderList error:', error)
+        showToast(error.message || '加载采购订单列表失败')
         return null
       } finally {
         this.orderLoading = false
@@ -76,13 +80,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await getPurchaseOrderDetail(id)
-        this.currentOrder = res.data || null
-        // 同时加载订单的SKU明细
-        await this.loadOrderItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.currentOrder = res.data || res || null
+          // 同时加载订单的SKU明细
+          await this.loadOrderItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载采购订单详情失败')
+        }
       } catch (error) {
-        showToast('加载采购订单详情失败')
-        console.error('loadOrderDetail error:', error)
+        showToast(error.message || '加载采购订单详情失败')
         return null
       } finally {
         this.orderLoading = false
@@ -97,12 +105,22 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await addPurchaseOrder(data)
-        showToast('新增采购订单成功')
-        return res.data
+
+        // 修复：更灵活的响应结构处理
+        if (res.code === 200 || res.status === 200) {
+          showToast(res.msg || '新增采购订单成功')
+          // 返回完整响应数据，确保包含 id
+          return res.data || res
+        } else {
+          // 如果后端返回了 msg，使用后端的错误信息
+          throw new Error(res.msg || '新增采购订单失败')
+        }
       } catch (error) {
-        showToast('新增采购订单失败')
         console.error('addOrder error:', error)
-        return null
+        // 显示具体的错误信息
+        const errorMsg = error.message || '新增采购订单失败'
+        showToast(errorMsg)
+        throw error // 重新抛出错误，让调用方处理
       } finally {
         this.orderLoading = false
       }
@@ -117,14 +135,19 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await updatePurchaseOrder(id, data)
-        showToast('编辑采购订单成功')
-        // 编辑后刷新当前订单详情
-        await this.loadOrderDetail(id)
-        return res.data
+
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('编辑采购订单成功')
+          // 编辑后刷新当前订单详情
+          await this.loadOrderDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑采购订单失败')
+        }
       } catch (error) {
-        showToast('编辑采购订单失败')
-        console.error('updateOrder error:', error)
-        return null
+        showToast(error.message || '编辑采购订单失败')
+        throw error // 重新抛出错误，让调用方处理
       } finally {
         this.orderLoading = false
       }
@@ -138,13 +161,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await deletePurchaseOrder(id)
-        showToast('删除采购订单成功')
-        // 删除后刷新订单列表（默认第一页）
-        await this.loadOrderList()
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('删除采购订单成功')
+          // 删除后刷新订单列表（默认第一页）
+          await this.loadOrderList()
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除采购订单失败')
+        }
       } catch (error) {
-        showToast('删除采购订单失败')
-        console.error('deleteOrder error:', error)
+        showToast(error.message || '删除采购订单失败')
         return null
       } finally {
         this.orderLoading = false
@@ -159,13 +186,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await auditPurchaseOrder(id)
-        showToast('审核采购订单成功')
-        // 审核后刷新当前订单详情
-        await this.loadOrderDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('审核采购订单成功')
+          // 审核后刷新当前订单详情
+          await this.loadOrderDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '审核采购订单失败')
+        }
       } catch (error) {
-        showToast('审核采购订单失败')
-        console.error('auditOrder error:', error)
+        showToast(error.message || '审核采购订单失败')
         return null
       } finally {
         this.orderLoading = false
@@ -180,13 +211,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await cancelPurchaseOrder(id)
-        showToast('取消采购订单成功')
-        // 取消后刷新当前订单详情
-        await this.loadOrderDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('取消采购订单成功')
+          // 取消后刷新当前订单详情
+          await this.loadOrderDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '取消采购订单失败')
+        }
       } catch (error) {
-        showToast('取消采购订单失败')
-        console.error('cancelOrder error:', error)
+        showToast(error.message || '取消采购订单失败')
         return null
       } finally {
         this.orderLoading = false
@@ -201,13 +236,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await completePurchaseOrder(id)
-        showToast('完成采购订单成功')
-        // 完成后刷新当前订单详情
-        await this.loadOrderDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('完成采购订单成功')
+          // 完成后刷新当前订单详情
+          await this.loadOrderDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '完成采购订单失败')
+        }
       } catch (error) {
-        showToast('完成采购订单失败')
-        console.error('completeOrder error:', error)
+        showToast(error.message || '完成采购订单失败')
         return null
       } finally {
         this.orderLoading = false
@@ -222,11 +261,15 @@ export const usePurchaseStore = defineStore('purchase', {
     async loadOrderItems(id) {
       try {
         const res = await getPurchaseOrderItems(id)
-        this.currentOrderItems = res.data || []
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.currentOrderItems = res.data || res || []
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载订单明细失败')
+        }
       } catch (error) {
-        showToast('加载订单明细失败')
-        console.error('loadOrderItems error:', error)
+        showToast(error.message || '加载订单明细失败')
         return null
       }
     },
@@ -239,13 +282,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async addOrderItem(id, data) {
       try {
         const res = await addPurchaseOrderItem(id, data)
-        showToast('新增订单明细成功')
-        // 新增后刷新订单明细
-        await this.loadOrderItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('新增订单明细成功')
+          // 新增后刷新订单明细
+          await this.loadOrderItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '新增订单明细失败')
+        }
       } catch (error) {
-        showToast('新增订单明细失败')
-        console.error('addOrderItem error:', error)
+        showToast(error.message || '新增订单明细失败')
         return null
       }
     },
@@ -259,13 +306,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async updateOrderItem(id, itemId, data) {
       try {
         const res = await updatePurchaseOrderItem(id, itemId, data)
-        showToast('编辑订单明细成功')
-        // 编辑后刷新订单明细
-        await this.loadOrderItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('编辑订单明细成功')
+          // 编辑后刷新订单明细
+          await this.loadOrderItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑订单明细失败')
+        }
       } catch (error) {
-        showToast('编辑订单明细失败')
-        console.error('updateOrderItem error:', error)
+        showToast(error.message || '编辑订单明细失败')
         return null
       }
     },
@@ -278,13 +329,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async deleteOrderItem(id, itemId) {
       try {
         const res = await deletePurchaseOrderItem(id, itemId)
-        showToast('删除订单明细成功')
-        // 删除后刷新订单明细
-        await this.loadOrderItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('删除订单明细成功')
+          // 删除后刷新订单明细
+          await this.loadOrderItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除订单明细失败')
+        }
       } catch (error) {
-        showToast('删除订单明细失败')
-        console.error('deleteOrderItem error:', error)
+        showToast(error.message || '删除订单明细失败')
         return null
       }
     },
@@ -298,12 +353,16 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await getPurchaseStockList(params)
-        this.stockList = res.data?.list || []
-        this.stockTotal = res.data?.total || 0
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.stockList = res.data?.list || res.list || []
+          this.stockTotal = res.data?.total || res.total || 0
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载采购入库单列表失败')
+        }
       } catch (error) {
-        showToast('加载采购入库单列表失败')
-        console.error('loadStockList error:', error)
+        showToast(error.message || '加载采购入库单列表失败')
         return null
       } finally {
         this.stockLoading = false
@@ -318,13 +377,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await getPurchaseStockDetail(id)
-        this.currentStock = res.data || null
-        // 同时加载入库单的SKU明细
-        await this.loadStockItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.currentStock = res.data || res || null
+          // 同时加载入库单的SKU明细
+          await this.loadStockItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载采购入库单详情失败')
+        }
       } catch (error) {
-        showToast('加载采购入库单详情失败')
-        console.error('loadStockDetail error:', error)
+        showToast(error.message || '加载采购入库单详情失败')
         return null
       } finally {
         this.stockLoading = false
@@ -339,11 +402,15 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await addPurchaseStock(data)
-        showToast('新增采购入库单成功')
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('新增采购入库单成功')
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '新增采购入库单失败')
+        }
       } catch (error) {
-        showToast('新增采购入库单失败')
-        console.error('addStock error:', error)
+        showToast(error.message || '新增采购入库单失败')
         return null
       } finally {
         this.stockLoading = false
@@ -359,13 +426,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await updatePurchaseStock(id, data)
-        showToast('编辑采购入库单成功')
-        // 编辑后刷新当前入库单详情
-        await this.loadStockDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('编辑采购入库单成功')
+          // 编辑后刷新当前入库单详情
+          await this.loadStockDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑采购入库单失败')
+        }
       } catch (error) {
-        showToast('编辑采购入库单失败')
-        console.error('updateStock error:', error)
+        showToast(error.message || '编辑采购入库单失败')
         return null
       } finally {
         this.stockLoading = false
@@ -380,13 +451,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await deletePurchaseStock(id)
-        showToast('删除采购入库单成功')
-        // 删除后刷新入库单列表
-        await this.loadStockList()
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('删除采购入库单成功')
+          // 删除后刷新入库单列表
+          await this.loadStockList()
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除采购入库单失败')
+        }
       } catch (error) {
-        showToast('删除采购入库单失败')
-        console.error('deleteStock error:', error)
+        showToast(error.message || '删除采购入库单失败')
         return null
       } finally {
         this.stockLoading = false
@@ -401,13 +476,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await auditPurchaseStock(id)
-        showToast('审核采购入库单成功')
-        // 审核后刷新当前入库单详情
-        await this.loadStockDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('审核采购入库单成功')
+          // 审核后刷新当前入库单详情
+          await this.loadStockDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '审核采购入库单失败')
+        }
       } catch (error) {
-        showToast('审核采购入库单失败')
-        console.error('auditStock error:', error)
+        showToast(error.message || '审核采购入库单失败')
         return null
       } finally {
         this.stockLoading = false
@@ -422,13 +501,17 @@ export const usePurchaseStore = defineStore('purchase', {
       this.stockLoading = true
       try {
         const res = await cancelPurchaseStock(id)
-        showToast('取消采购入库单成功')
-        // 取消后刷新当前入库单详情
-        await this.loadStockDetail(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('取消采购入库单成功')
+          // 取消后刷新当前入库单详情
+          await this.loadStockDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '取消采购入库单失败')
+        }
       } catch (error) {
-        showToast('取消采购入库单失败')
-        console.error('cancelStock error:', error)
+        showToast(error.message || '取消采购入库单失败')
         return null
       } finally {
         this.stockLoading = false
@@ -443,11 +526,15 @@ export const usePurchaseStore = defineStore('purchase', {
     async loadStockItems(id) {
       try {
         const res = await getPurchaseStockItems(id)
-        this.currentStockItems = res.data || []
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          this.currentStockItems = res.data || res || []
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载入库明细失败')
+        }
       } catch (error) {
-        showToast('加载入库明细失败')
-        console.error('loadStockItems error:', error)
+        showToast(error.message || '加载入库明细失败')
         return null
       }
     },
@@ -460,13 +547,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async addStockItem(id, data) {
       try {
         const res = await addPurchaseStockItem(id, data)
-        showToast('新增入库明细成功')
-        // 新增后刷新入库明细
-        await this.loadStockItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('新增入库明细成功')
+          // 新增后刷新入库明细
+          await this.loadStockItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '新增入库明细失败')
+        }
       } catch (error) {
-        showToast('新增入库明细失败')
-        console.error('addStockItem error:', error)
+        showToast(error.message || '新增入库明细失败')
         return null
       }
     },
@@ -480,13 +571,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async updateStockItem(id, itemId, data) {
       try {
         const res = await updatePurchaseStockItem(id, itemId, data)
-        showToast('编辑入库明细成功')
-        // 编辑后刷新入库明细
-        await this.loadStockItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('编辑入库明细成功')
+          // 编辑后刷新入库明细
+          await this.loadStockItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑入库明细失败')
+        }
       } catch (error) {
-        showToast('编辑入库明细失败')
-        console.error('updateStockItem error:', error)
+        showToast(error.message || '编辑入库明细失败')
         return null
       }
     },
@@ -499,13 +594,17 @@ export const usePurchaseStore = defineStore('purchase', {
     async deleteStockItem(id, itemId) {
       try {
         const res = await deletePurchaseStockItem(id, itemId)
-        showToast('删除入库明细成功')
-        // 删除后刷新入库明细
-        await this.loadStockItems(id)
-        return res.data
+        // 修复：检查返回的数据结构
+        if (res.code === 200) {
+          showToast('删除入库明细成功')
+          // 删除后刷新入库明细
+          await this.loadStockItems(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除入库明细失败')
+        }
       } catch (error) {
-        showToast('删除入库明细失败')
-        console.error('deleteStockItem error:', error)
+        showToast(error.message || '删除入库明细失败')
         return null
       }
     },

@@ -572,7 +572,7 @@ const submitAll = async () => {
 
   try {
     const submitData = prepareSubmitData()
-    console.log('提交数据:', JSON.stringify(submitData, null, 2))
+    // console.log('提交数据:', JSON.stringify(submitData, null, 2))
 
     // 统一使用批量更新接口处理混合数据
     const response = await batchSku(submitData)

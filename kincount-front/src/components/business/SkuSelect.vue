@@ -1,70 +1,68 @@
 <!-- src/components/business/SkuSelect.vue -->
 <template>
   <div class="sku-select-component">
-    <!-- 搜索和筛选区域 -->
-    <div class="sku-select-header">
-      <van-search
-        v-model="searchKeyword"
-        placeholder="搜索商品编码、名称或规格"
-        @update:model-value="handleSearch"
-        @search="handleSearch"
-      />
-      <div class="filter-section" v-if="showFilters">
-        <van-dropdown-menu>
-          <van-dropdown-item 
-            v-model="filterCategory" 
-            :options="categoryOptions" 
-            @change="handleFilterChange"
-          />
-          <van-dropdown-item 
-            v-model="filterBrand" 
-            :options="brandOptions" 
-            @change="handleFilterChange"
-          />
-        </van-dropdown-menu>
+    <!-- 顶部导航栏 - 修改为相对定位 -->
+    <div class="nav-bar-container" v-if="showHeader">
+      <van-nav-bar :title="headerTitle" left-text="取消" right-text="确定" @click-left="handleCancel"
+        @click-right="handleConfirm" />
+    </div>
+
+    <div class="sku-content" :class="{ 'with-header': showHeader }">
+      <!-- 搜索和筛选区域 -->
+      <div class="sku-select-header">
+        <van-search v-model="searchKeyword" placeholder="搜索商品编码、名称或规格" @update:model-value="handleSearch"
+          @search="handleSearch" />
+        <div class="filter-section" v-if="showFilters">
+          <van-dropdown-menu>
+            <van-dropdown-item v-model="filterCategory" :options="categoryOptions" @change="handleFilterChange" />
+            <van-dropdown-item v-model="filterBrand" :options="brandOptions" @change="handleFilterChange" />
+          </van-dropdown-menu>
+        </div>
+      </div>
+
+      <!-- SKU列表 -->
+      <div class="sku-list-container">
+        <van-checkbox-group v-model="selectedSkuIds">
+          <van-list v-model:loading="loading" :finished="finished"
+            :finished-text="skuList.length === 0 ? '暂无商品数据' : '没有更多商品了'" @load="loadMoreSkus">
+            <van-cell v-for="sku in skuList" :key="sku.id" @click="toggleSkuSelection(sku)">
+              <template #title>
+                <div class="sku-title">
+                  <span class="product-name">{{ getProductName(sku) }}</span>
+                  <span class="sku-code">{{ sku.sku_code }}</span>
+                </div>
+              </template>
+              <template #label>
+                <div class="sku-info">
+                  <div class="sku-spec" v-if="getSpecText(sku)">规格: {{ getSpecText(sku) }}</div>
+                  <div class="sku-details">
+                    <span class="stock" :class="getStockClass(sku.stock || 0)">
+                      库存: {{ sku.stock || 0 }}
+                    </span>
+                    <span class="cost-price" v-if="sku.cost_price">成本: ¥{{ sku.cost_price }}</span>
+                    <span class="sale-price" v-if="sku.sale_price">售价: ¥{{ sku.sale_price }}</span>
+                  </div>
+                </div>
+              </template>
+              <template #right-icon>
+                <van-checkbox :name="sku.id" />
+              </template>
+            </van-cell>
+          </van-list>
+        </van-checkbox-group>
+      </div>
+
+      <!-- 底部操作区域 -->
+      <div class="sku-select-footer" v-if="showFooter">
+        <div class="selected-info">
+          已选择 {{ selectedSkuIds.length }} 个商品
+        </div>
+        <div class="action-buttons">
+          <van-button type="default" @click="handleCancel">取消</van-button>
+          <van-button type="primary" @click="handleConfirm">确定</van-button>
+        </div>
       </div>
     </div>
-    <!-- SKU列表 -->
-    <div class="sku-list-container">
-      <van-checkbox-group v-model="selectedSkuIds">
-        <van-list
-          v-model:loading="loading"
-          :finished="finished"
-          :finished-text="skuList.length === 0 ? '暂无商品数据' : '没有更多商品了'"
-          @load="loadMoreSkus"
-        >
-          <van-cell
-            v-for="sku in skuList"
-            :key="sku.id"
-            @click="toggleSkuSelection(sku)"
-          >
-            <template #title>
-              <div class="sku-title">
-                <span class="product-name">{{ getProductName(sku) }}</span>
-                <span class="sku-code">{{ sku.sku_code }}</span>
-              </div>
-            </template>
-            <template #label>
-              <div class="sku-info">
-                <div class="sku-spec" v-if="getSpecText(sku)">规格: {{ getSpecText(sku) }}</div>
-                <div class="sku-details">
-                  <span class="stock" :class="getStockClass(sku.stock || 0)">
-                    库存: {{ sku.stock || 0 }}
-                  </span>
-                  <span class="cost-price" v-if="sku.cost_price">成本: ¥{{ sku.cost_price }}</span>
-                  <span class="sale-price" v-if="sku.sale_price">售价: ¥{{ sku.sale_price }}</span>
-                </div>
-              </div>
-            </template>
-            <template #right-icon>
-              <van-checkbox :name="sku.id" />
-            </template>
-          </van-cell>
-        </van-list>
-      </van-checkbox-group>
-    </div>
-    <!-- 底部操作区域（可选） -->
-
   </div>
 </template>
 
@@ -98,10 +96,15 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  // 是否显示操作按钮
-  showActions: {
+  // 是否显示顶部导航栏
+  showHeader: {
     type: Boolean,
     default: false
+  },
+  // 导航栏标题
+  headerTitle: {
+    type: String,
+    default: '选择商品'
   },
   // 是否自动加载数据
   autoLoad: {
@@ -137,7 +140,7 @@ const categoryOptions = ref([{ text: '全部分类', value: '' }])
 const brandOptions = ref([{ text: '全部品牌', value: '' }])
 
 // 选中的SKU
-const selectedSkuIds = ref([])
+const selectedSkuIds = ref([...props.modelValue])
 const selectedSkuData = ref([])
 
 // 递归更新防护
@@ -159,22 +162,42 @@ const safeUpdate = (callback) => {
 // 计算属性
 const skuList = computed(() => productStore.skuSelectOptions || [])
 
-// 监听选中状态变化 - 修复递归问题
-watch(selectedSkuIds, (newVal) => {
-  safeUpdate(() => {
-    emit('update:modelValue', newVal)
-    emit('change', {
-      selectedIds: newVal,
-      selectedData: selectedSkuData.value
-    })
-  })
-}, { deep: true })
+// 初始化选中数据
+const initSelectedData = () => {
+  selectedSkuData.value = selectedSkuIds.value.map(id => {
+    return skuList.value.find(sku => sku.id === id)
+  }).filter(Boolean)
+}
 
+// 修复监听逻辑 - 避免循环更新
 watch(() => props.modelValue, (newVal) => {
   safeUpdate(() => {
-    selectedSkuIds.value = [...newVal]
+    if (JSON.stringify(newVal) !== JSON.stringify(selectedSkuIds.value)) {
+      selectedSkuIds.value = [...newVal]
+      initSelectedData() // 同步初始化选中数据
+    }
   })
 }, { immediate: true })
+
+// 简化 selectedSkuIds 的 watch，避免循环
+watch(selectedSkuIds, (newVal, oldVal) => {
+  safeUpdate(() => {
+    // 只在真正变化时触发更新
+    if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
+      emit('update:modelValue', newVal)
+      // 更新 selectedSkuData
+      selectedSkuData.value = newVal.map(id => {
+        return skuList.value.find(sku => sku.id === id) ||
+          selectedSkuData.value.find(sku => sku.id === id)
+      }).filter(Boolean)
+
+      emit('change', {
+        selectedIds: newVal,
+        selectedData: selectedSkuData.value
+      })
+    }
+  })
+}, { deep: true })
 
 // 获取商品名称
 const getProductName = (sku) => {
@@ -222,7 +245,27 @@ const loadInitialData = async () => {
 const loadCategories = async () => {
   try {
     const res = await categoryStore.loadList({ page: 1, limit: 100 })
-    const categories = res.list || []
+    
+    
+    // 适配标准响应结构：从 res.data 中获取数据
+    let categories = []
+    if (res && res.code === 200) {
+      // 标准响应结构
+      if (Array.isArray(res.data)) {
+        categories = res.data
+      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
+        // 如果 data 是分页对象
+        categories = res.data.list
+      }
+    } else if (Array.isArray(res)) {
+      // 兼容直接返回数组的情况
+      categories = res
+    } else if (res && res.list) {
+      // 兼容旧结构
+      categories = res.list
+    }
+    
+    
     categoryOptions.value = [
       { text: '全部分类', value: '' },
       ...categories.map(item => ({
@@ -231,7 +274,6 @@ const loadCategories = async () => {
       }))
     ]
   } catch (error) {
-    console.error('加载分类失败:', error)
   }
 }
 
@@ -239,7 +281,27 @@ const loadCategories = async () => {
 const loadBrands = async () => {
   try {
     const res = await brandStore.loadList({ page: 1, limit: 100 })
-    const brands = res.list || []
+    
+    
+    // 适配标准响应结构：从 res.data 中获取数据
+    let brands = []
+    if (res && res.code === 200) {
+      // 标准响应结构
+      if (Array.isArray(res.data)) {
+        brands = res.data
+      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
+        // 如果 data 是分页对象
+        brands = res.data.list
+      }
+    } else if (Array.isArray(res)) {
+      // 兼容直接返回数组的情况
+      brands = res
+    } else if (res && res.list) {
+      // 兼容旧结构
+      brands = res.list
+    }
+    
+    
     brandOptions.value = [
       { text: '全部品牌', value: '' },
       ...brands.map(item => ({
@@ -248,7 +310,6 @@ const loadBrands = async () => {
       }))
     ]
   } catch (error) {
-    console.error('加载品牌失败:', error)
   }
 }
 
@@ -265,12 +326,36 @@ const loadMoreSkus = async () => {
       brand_id: filterBrand.value
     }
     const res = await searchSkuSelect(params)
-    const list = res.list || res || []
+    
+    
+    // 适配标准响应结构：从 res.data 中获取数据
+    let list = []
+    if (res && res.code === 200) {
+      // 标准响应结构
+      if (Array.isArray(res.data)) {
+        list = res.data
+      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
+        // 如果 data 是分页对象
+        list = res.data.list
+      }
+    } else if (Array.isArray(res)) {
+      // 兼容直接返回数组的情况
+      list = res
+    } else if (res && res.list) {
+      // 兼容旧结构
+      list = res.list
+    }
+    
+    
     if (currentPage.value === 1) {
       productStore.skuSelectOptions = list
     } else {
       productStore.skuSelectOptions = [...productStore.skuSelectOptions, ...list]
     }
+    
+    // 重新初始化选中数据，确保新加载的数据也能正确匹配
+    initSelectedData()
+    
     // 检查是否还有更多数据
     if (list.length < 20) {
       finished.value = true
@@ -283,13 +368,11 @@ const loadMoreSkus = async () => {
       finished: finished.value
     })
   } catch (error) {
-    console.error('加载SKU列表失败:', error)
     showToast('加载商品失败')
   } finally {
     loading.value = false
   }
 }
-
 // 搜索处理
 const handleSearch = () => {
   safeUpdate(() => {
@@ -321,13 +404,22 @@ const toggleSkuSelection = (sku) => {
       // 多选模式
       const index = selectedSkuIds.value.indexOf(sku.id)
       if (index > -1) {
+        // 取消选中
         selectedSkuIds.value.splice(index, 1)
-        selectedSkuData.value = selectedSkuData.value.filter(s => s.id !== sku.id)
+        selectedSkuData.value.splice(index, 1)
       } else {
+        // 新增选中
         selectedSkuIds.value.push(sku.id)
         selectedSkuData.value.push(sku)
       }
     }
+
+    // 触发更新
+    emit('update:modelValue', selectedSkuIds.value)
+    emit('change', {
+      selectedIds: selectedSkuIds.value,
+      selectedData: selectedSkuData.value
+    })
   })
 }
 
@@ -389,7 +481,9 @@ defineExpose({
   reset,
   reload,
   loadMoreSkus,
-  getSelectedData: () => selectedSkuData.value
+  getSelectedData: () => selectedSkuData.value,
+  selectedSkuIds: () => selectedSkuIds.value,
+  skuList: () => skuList.value
 })
 </script>
 
@@ -399,11 +493,41 @@ defineExpose({
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
+  position: relative;
+  /* 重要：为内部绝对定位元素提供参考 */
+}
+
+/* 导航栏容器 - 使用绝对定位在组件内部 */
+.nav-bar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: white;
+
+  /* 确保导航栏在弹出层内部 */
+  :deep(.van-nav-bar) {
+    position: relative;
+    /* 改为相对定位 */
+    background: white;
+  }
+}
+
+.sku-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &.with-header {
+    padding-top: 46px; // 为导航栏留出空间
+  }
 }
 
 .sku-select-header {
   background: white;
   margin-bottom: 8px;
+
   .filter-section {
     :deep(.van-dropdown-menu) {
       box-shadow: none;
@@ -419,16 +543,19 @@ defineExpose({
 .sku-select-footer {
   background: white;
   border-top: 1px solid #ebedf0;
+
   .selected-info {
     padding: 12px 16px;
     text-align: center;
     color: #969799;
     font-size: 14px;
   }
+
   .action-buttons {
     display: flex;
     gap: 12px;
     padding: 16px;
+
     .van-button {
       flex: 1;
     }
@@ -500,6 +627,7 @@ defineExpose({
 
 :deep(.van-cell) {
   padding: 12px 16px;
+
   .van-cell__value {
     display: flex;
     align-items: center;

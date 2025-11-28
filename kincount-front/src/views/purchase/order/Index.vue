@@ -61,7 +61,7 @@
           <van-cell
             v-for="order in orderList"
             :key="order.id"
-            :title="`订单号：${order.orderNo || '未生成'}`"
+            :title="`订单号：${order.order_no || '未生成'}`"
             :label="getOrderLabel(order)"
             @click="handleDetail(order.id)"
             is-link
@@ -71,7 +71,7 @@
                 <van-tag :type="getStatusTagType(order.status)">
                   {{ getStatusText(order.status) }}
                 </van-tag>
-                <div class="amount">¥{{ order.totalAmount || 0 }}</div>
+                <div class="amount">¥{{ (order.total_amount || 0).toFixed(2) }}</div>
               </div>
             </template>
           </van-cell>
@@ -96,9 +96,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { usePurchaseStore } from '@/store/modules/purchase'
-// 引入订单状态常量（建议在constants/index.js中定义）
-import { PURCHASE_ORDER_STATUS } from '@/constants/purchase'
-// 引入供应商API（按需替换为真实接口）
+// 引入供应商API
 import { getSupplierList } from '@/api/supplier'
 
 // 路由实例
@@ -122,7 +120,7 @@ const pagination = reactive({
   pageSize: 10
 })
 
-// 供应商选项（初始化含“全部”）
+// 供应商选项（初始化含"全部"）
 const supplierOptions = ref([{ text: '全部供应商', value: '' }])
 // 时间范围选项（可选）
 const dateOptions = ref([
@@ -142,7 +140,20 @@ const orderList = computed(() => purchaseStore.orderList)
 const loadSuppliers = async () => {
   try {
     const res = await getSupplierList()
-    const list = res.list || []
+    console.log('供应商API响应:', res) // 调试日志
+    
+    // 适配标准响应结构
+    let list = []
+    if (res && res.code === 200) {
+      if (Array.isArray(res.data)) {
+        list = res.data
+      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
+        list = res.data.list
+      }
+    }
+    
+    console.log('解析后的供应商列表:', list) // 调试日志
+    
     supplierOptions.value = [
       { text: '全部供应商', value: '' },
       ...list.map(item => ({ text: item.name, value: item.id }))
@@ -186,10 +197,22 @@ const loadOrderList = async (isRefresh = false) => {
 
     // 调用Store的加载方法
     const res = await purchaseStore.loadOrderList(params)
-    const total = purchaseStore.orderTotal || 0
+    console.log('订单API响应:', res) // 调试日志
+    
+    // 从响应中获取数据和总数
+    let list = []
+    let total = 0
+    
+    if (res && res.code === 200 && res.data) {
+      list = res.data.list || []
+      total = res.data.total || 0
+    }
+    
+    console.log('解析后的订单列表:', list) // 调试日志
+    console.log('订单总数:', total) // 调试日志
 
     // 判断是否加载完成（无更多数据）
-    if (orderList.value.length >= total) {
+    if (list.length < pagination.pageSize) {
       finished.value = true
     } else {
       pagination.page++ // 页码自增，准备下一页加载
@@ -270,7 +293,14 @@ const handleDetail = (id) => {
  * @param {String|Number} status - 状态码
  */
 const getStatusText = (status) => {
-  return PURCHASE_ORDER_STATUS[status] || '未知状态'
+  const statusMap = {
+    1: '待审核',
+    2: '已审核', 
+    3: '部分入库',
+    4: '已完成',
+    5: '已取消'
+  }
+  return statusMap[status] || '未知状态'
 }
 
 /**
@@ -281,6 +311,7 @@ const getStatusTagType = (status) => {
   const typeMap = {
     1: 'warning', // 待审核
     2: 'primary', // 已审核
+    3: 'info',    // 部分入库
     4: 'success', // 已完成
     5: 'danger'   // 已取消
   }
@@ -293,14 +324,15 @@ const getStatusTagType = (status) => {
  */
 const getOrderLabel = (order) => {
   const labels = []
-  if (order.supplierName) labels.push(`供应商：${order.supplierName}`)
-  if (order.createTime) labels.push(`创建时间：${formatTime(order.createTime)}`) // 需引入时间格式化工具
-  if (order.warehouseName) labels.push(`目标仓库：${order.warehouseName}`)
+  if (order.supplier && order.supplier.name) labels.push(`供应商：${order.supplier.name}`)
+  if (order.created_at) labels.push(`创建时间：${formatTime(order.created_at)}`)
+  if (order.warehouse && order.warehouse.name) labels.push(`目标仓库：${order.warehouse.name}`)
+  if (order.creator && order.creator.real_name) labels.push(`创建人：${order.creator.real_name}`)
   return labels.join(' | ')
 }
 
 /**
- * 简易时间格式化（按需替换为@/utils/date中的方法）
+ * 简易时间格式化
  * @param {String} time - 时间字符串
  */
 const formatTime = (time) => {

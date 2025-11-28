@@ -1,28 +1,71 @@
 <template>
   <div class="product-page">
     <!-- 头部 -->
-    <van-nav-bar title="商品库存列表" fixed placeholder>
+    <van-nav-bar title="商品列表" fixed placeholder>
       <template #right>
-        <van-button size="small" type="primary" @click="handleCreateSku" v-perm="PERM.PRODUCT_ADD">
+        <van-button size="small" type="primary" @click="handleCreateProduct" v-perm="PERM.PRODUCT_ADD">
           新增商品
         </van-button>
       </template>
     </van-nav-bar>
 
     <!-- 搜索 -->
-    <SearchBar placeholder="搜索 SKU 编码/规格/商品名称" @search="handleSearch" @clear="handleClearSearch" />
+    <SearchBar 
+      placeholder="搜索商品名称/编号" 
+      @search="handleSearch" 
+      @clear="handleClearSearch" 
+    />
 
     <!-- 下拉筛选 -->
     <van-dropdown-menu>
-      <van-dropdown-item v-model="filters.category_id" :options="categoryOptions" @change="handleFilterChange" />
-      <van-dropdown-item v-model="filters.brand_id" :options="brandOptions" @change="handleFilterChange" />
-      <van-dropdown-item v-model="filters.warehouse_id" :options="warehouseOptions" @change="handleFilterChange" />
+      <van-dropdown-item 
+        v-model="filters.category_id" 
+        :options="categoryOptions" 
+        @change="handleFilterChange" 
+      />
+      <van-dropdown-item 
+        v-model="filters.brand_id" 
+        :options="brandOptions" 
+        @change="handleFilterChange" 
+      />
+      <van-dropdown-item 
+        v-model="filters.warehouse_id" 
+        :options="warehouseOptions" 
+        @change="handleFilterChange" 
+      />
     </van-dropdown-menu>
 
-    <!-- SKU 级库存列表（公共组件） -->
-    <SkuStockList :warehouse-id="filters.warehouse_id" :keyword="filters.keyword" :category-id="filters.category_id"
-      :brand-id="filters.brand_id" :warning-type="filters.warning_type" ref="skuListRef"
-      @click-card="handleSkuItemClick" />
+    <!-- 商品聚合列表 -->
+    <van-pull-refresh v-model="refreshing" @refresh="loadProductList(true)">
+      <van-list
+        v-model:loading="listLoading"
+        :finished="finished"
+        :finished-text="productStore.productList.length === 0 ? '暂无商品数据' : '没有更多了'"
+        @load="loadProductList"
+      >
+        <ProductCard 
+          v-for="product in productStore.productList" 
+          :key="product.id"
+          :name="product.name"
+          :productNo="product.product_no"
+          :unit="product.unit"
+          :costPrice="product.cost_price"
+          :salePrice="product.sale_price"
+          :minStock="product.min_stock"
+          :images="product.images"
+          :category="product.category"
+          :brand="product.brand"
+          :productId="product.id"
+          @click="handleProductItemClick(product)"
+        />
+
+        <van-empty
+          v-if="!listLoading && !refreshing && productStore.productList.length === 0"
+          description="暂无商品数据"
+          image="search"
+        />
+      </van-list>
+    </van-pull-refresh>
 
     <!-- 首次加载遮罩 -->
     <van-loading v-if="initialLoading" class="page-loading" />
@@ -36,15 +79,14 @@ import { showToast } from 'vant'
 import { useProductStore } from '@/store/modules/product'
 import { getCategoryOptions } from '@/api/category'
 import { getBrandOptions } from '@/api/brand'
-import { getWarehouseOptions } from '@/api/warehouse' // 需要添加这个API
+import { getWarehouseOptions } from '@/api/warehouse'
 import { PERM } from '@/constants/permissions'
 import SearchBar from '@/components/common/SearchBar.vue'
-import SkuStockList from '@/components/business/SkuStockList.vue'
+import ProductCard from '@/components/business/ProductCard.vue'
 
 /* -------------------- 路由 & 状态 -------------------- */
 const router = useRouter()
 const productStore = useProductStore()
-const skuListRef = ref() // 引用 SkuStockList 组件
 
 /* -------------------- 筛选条件 -------------------- */
 const filters = reactive({
@@ -52,40 +94,27 @@ const filters = reactive({
   category_id: '',
   brand_id: '',
   warehouse_id: '',
-  warning_type: ''
+  page: 1,
+  limit: 15
 })
-const handleSkuItemClick = (skuItem) => {
-  
-  // 跳转到商品详情页
 
-  const productId = skuItem.sku?.product_id
-
-console.log('点击了SKU:', productId)
-
-
-  router.push(`/product/${productId}/skus`)
-
-
-  // 或者跳转到SKU详情页
-  // router.push(`/product/sku/${skuItem.sku_id}`)
-
-  // 或者打开编辑弹窗
-  // showEditDialog(skuItem)
-}
 const categoryOptions = ref([{ text: '全部分类', value: '' }])
 const brandOptions = ref([{ text: '全部品牌', value: '' }])
 const warehouseOptions = ref([{ text: '全部仓库', value: '' }])
 
-/* -------------------- 列表参数 -------------------- */
+/* -------------------- 列表状态 -------------------- */
 const initialLoading = ref(false)
+const listLoading = ref(false)
+const refreshing = ref(false)
+const finished = ref(false)
 
-/* -------------------- 下拉数据 -------------------- */
+/* -------------------- 下拉数据加载 -------------------- */
 const loadFilterOptions = async () => {
   try {
     const [cat, brd, wh] = await Promise.all([
       getCategoryOptions(),
       getBrandOptions(),
-      getWarehouseOptions() // 获取仓库选项
+      getWarehouseOptions()
     ])
 
     categoryOptions.value = [
@@ -108,37 +137,70 @@ const loadFilterOptions = async () => {
   }
 }
 
+/* -------------------- 商品列表加载 -------------------- */
+const loadProductList = async (isRefresh = false) => {
+  if ((!isRefresh && listLoading.value) || refreshing.value) return
+
+  if (isRefresh) {
+    filters.page = 1
+    finished.value = false
+    refreshing.value = true
+  } else {
+    listLoading.value = true
+  }
+
+  try {
+    // 准备请求参数
+    const params = {
+      page: filters.page,
+      limit: filters.limit,
+      keyword: filters.keyword,
+      category_id: filters.category_id,
+      brand_id: filters.brand_id,
+      warehouse_id: filters.warehouse_id
+    }
+
+    // 调用状态管理中的加载方法
+    await productStore.loadProductList(params, isRefresh)
+
+    // 更新分页状态
+    finished.value = productStore.productList.length >= productStore.productTotal
+
+    // 准备下一页
+    if (!finished.value && !isRefresh) {
+      filters.page++
+    }
+  } catch (error) {
+    console.error('加载商品列表失败:', error)
+    showToast('加载商品列表失败')
+    finished.value = true // 加载失败时终止列表加载
+  } finally {
+    refreshing.value = false
+    listLoading.value = false
+  }
+}
+
 /* -------------------- 事件处理 -------------------- */
 const handleSearch = (kw) => {
   filters.keyword = kw
-  // 触发列表刷新
-  nextTick(() => {
-    if (skuListRef.value && skuListRef.value.refresh) {
-      skuListRef.value.refresh()
-    }
-  })
+  nextTick(() => loadProductList(true))
 }
 
 const handleClearSearch = () => {
   filters.keyword = ''
-  // 触发列表刷新
-  nextTick(() => {
-    if (skuListRef.value && skuListRef.value.refresh) {
-      skuListRef.value.refresh()
-    }
-  })
+  nextTick(() => loadProductList(true))
 }
 
 const handleFilterChange = () => {
-  // 筛选条件变化时刷新列表
-  nextTick(() => {
-    if (skuListRef.value && skuListRef.value.refresh) {
-      skuListRef.value.refresh()
-    }
-  })
+  nextTick(() => loadProductList(true))
 }
 
-const handleCreateSku = () => {
+const handleProductItemClick = (product) => {
+  // 跳转到商品SKU列表页
+  router.push(`/product/${product.id}/skus`)
+}
+
+const handleCreateProduct = () => {
   router.push('/product/create')
 }
 
@@ -147,12 +209,12 @@ onMounted(async () => {
   initialLoading.value = true
   try {
     await loadFilterOptions()
+    await loadProductList(true)
   } catch (error) {
     console.error('页面初始化失败:', error)
   } finally {
     initialLoading.value = false
   }
-  // SkuStockList 会自动触发第一次加载，不需要额外调用
 })
 </script>
 
@@ -160,6 +222,16 @@ onMounted(async () => {
 .product-page {
   background: #f7f8fa;
   min-height: 100vh;
+  padding-top: 46px; // 适配fixed导航栏
+
+  .van-dropdown-menu {
+    padding: 0 12px;
+    background-color: #fff;
+  }
+
+  .van-list {
+    padding: 12px;
+  }
 }
 
 .page-loading {

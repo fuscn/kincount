@@ -1,5 +1,6 @@
 <?php
-declare (strict_types = 1);
+
+declare(strict_types=1);
 
 namespace app\kincount\controller;
 
@@ -18,12 +19,12 @@ class PurchaseOrderController extends BaseController
         $limit = (int)input('limit', 15);
         $kw    = input('keyword', '');
         $supId = (int)input('supplier_id', 0);
-        $status= input('status', '');
+        $status = input('status', '');
         $sDate = input('start_date', '');
         $eDate = input('end_date', '');
 
         $query = PurchaseOrder::with(['supplier', 'warehouse', 'creator'])
-                              ->where('deleted_at', null);
+            ->where('deleted_at', null);
 
         if ($kw) $query->whereLike('order_no', "%{$kw}%");
         if ($supId) $query->where('supplier_id', $supId);
@@ -32,17 +33,17 @@ class PurchaseOrderController extends BaseController
         if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
 
         return $this->paginate($query->order('id', 'desc')
-                                   ->paginate(['list_rows' => $limit, 'page' => $page]));
+            ->paginate(['list_rows' => $limit, 'page' => $page]));
     }
 
     public function read($id)
     {
         $order = PurchaseOrder::with(['supplier', 'warehouse', 'creator', 'auditor'])
-                              ->where('deleted_at', null)->find($id);
+            ->where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
 
         $order['items'] = PurchaseOrderItem::with(['product.category'])
-                                           ->where('purchase_order_id', $id)->select();
+            ->where('purchase_order_id', $id)->select();
         return $this->success($order);
     }
 
@@ -56,43 +57,95 @@ class PurchaseOrderController extends BaseController
         ]);
         if (!$validate->check($post)) return $this->error($validate->getError());
 
-        $order = Db::transaction(function () use ($post) {
-            $orderNo = $this->generateOrderNo('PO');
-            $total   = 0;
-
-            /* 主表 */
-            $order = PurchaseOrder::create([
-                'order_no'     => $orderNo,
-                'supplier_id'  => $post['supplier_id'],
-                'warehouse_id' => $post['warehouse_id'],
-                'status'       => 1,
-                'remark'       => $post['remark'] ?? '',
-                'created_by'   => $this->getUserId(),
-                'expected_date'=> $post['expected_date'] ?? null,
-            ]);
-
-            /* 明细 */
-            foreach ($post['items'] as $v) {
-                if (empty($v['product_id']) || empty($v['quantity']) || empty($v['price'])) {
-                    throw new \Exception('商品明细不完整');
-                }
-                $rowTotal = $v['quantity'] * $v['price'];
-                PurchaseOrderItem::create([
-                    'purchase_order_id' => $order->id,
-                    'product_id'        => $v['product_id'],
-                    'quantity'          => $v['quantity'],
-                    'received_quantity' => 0,
-                    'price'             => $v['price'],
-                    'total_amount'      => $rowTotal,
-                ]);
-                $total += $rowTotal;
+        // 详细的商品明细验证
+        foreach ($post['items'] as $index => $item) {
+            if (empty($item['product_id']) || empty($item['sku_id']) || empty($item['quantity']) || empty($item['price'])) {
+                return $this->error("第" . ($index + 1) . "个商品明细不完整，必须包含商品ID、SKU ID、数量和单价");
+            }
+            if (!is_numeric($item['product_id']) || $item['product_id'] <= 0) {
+                return $this->error("第" . ($index + 1) . "个商品ID格式错误");
+            }
+            if (!is_numeric($item['sku_id']) || $item['sku_id'] <= 0) {
+                return $this->error("第" . ($index + 1) . "个SKU ID格式错误");
+            }
+            if (!is_numeric($item['quantity']) || $item['quantity'] <= 0) {
+                return $this->error("第" . ($index + 1) . "个商品数量必须大于0");
+            }
+            if (!is_numeric($item['price']) || $item['price'] < 0) {
+                return $this->error("第" . ($index + 1) . "个商品价格必须大于等于0");
             }
 
-            $order->save(['total_amount' => $total]);
-            return $order;
-        });
+            // 可选：验证 product_id 和 sku_id 的关联关系是否有效
+            // $this->validateProductSkuRelation($item['product_id'], $item['sku_id']);
+        }
 
-        return $this->success(['id' => $order->id], '采购订单创建成功');
+        try {
+            $order = Db::transaction(function () use ($post) {
+                $orderNo = $this->generateOrderNo('PO');
+                $total   = 0;
+
+                /* 主表 */
+                $order = PurchaseOrder::create([
+                    'order_no'     => $orderNo,
+                    'supplier_id'  => $post['supplier_id'],
+                    'warehouse_id' => $post['warehouse_id'],
+                    'status'       => 1,
+                    'remark'       => $post['remark'] ?? '',
+                    'created_by'   => $this->getUserId(),
+                    'expected_date' => $post['expected_date'] ?? null,
+                ]);
+
+                /* 明细 - 同时设置 product_id 和 sku_id */
+                foreach ($post['items'] as $v) {
+                    $rowTotal = $v['quantity'] * $v['price'];
+                    $item = PurchaseOrderItem::create([
+                        'purchase_order_id' => $order->id,
+                        'product_id'        => $v['product_id'],
+                        'sku_id'            => $v['sku_id'],
+                        'quantity'          => $v['quantity'],
+                        'received_quantity' => 0,
+                        'price'             => $v['price'],
+                        'total_amount'      => $rowTotal,
+                    ]);
+
+                    // 检查明细是否创建成功
+                    if (!$item->id) {
+                        throw new \Exception('商品明细创建失败');
+                    }
+
+                    $total += $rowTotal;
+                }
+
+                $order->save(['total_amount' => $total]);
+                return $order;
+            });
+
+            return $this->success(['id' => $order->id], '采购订单创建成功');
+        } catch (\Exception $e) {
+            // 记录详细错误日志
+            trace('采购订单创建失败：' . $e->getMessage(), 'error');
+            trace('请求数据：' . json_encode(input('post.')), 'error');
+            return $this->error('采购订单创建失败：' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 可选：验证商品和SKU的关联关系
+     */
+    private function validateProductSkuRelation($productId, $skuId)
+    {
+        // 这里需要根据您的业务逻辑实现
+        // 例如查询数据库验证该SKU是否属于指定的商品
+        $sku = Db::name('product_skus')->where([
+            'id' => $skuId,
+            'product_id' => $productId
+        ])->find();
+
+        if (!$sku) {
+            throw new \Exception("SKU ID {$skuId} 与商品 ID {$productId} 不匹配");
+        }
+
+        return true;
     }
 
     public function update($id)
@@ -108,7 +161,7 @@ class PurchaseOrderController extends BaseController
                 'supplier_id'  => $post['supplier_id'] ?? $order->supplier_id,
                 'warehouse_id' => $post['warehouse_id'] ?? $order->warehouse_id,
                 'remark'       => $post['remark'] ?? $order->remark,
-                'expected_date'=> $post['expected_date'] ?? $order->expected_date,
+                'expected_date' => $post['expected_date'] ?? $order->expected_date,
             ]);
 
             /* 若传了 items 则整体替换 */
@@ -181,7 +234,7 @@ class PurchaseOrderController extends BaseController
     {
         return $this->success(
             PurchaseOrderItem::with(['product.category'])
-                             ->where('purchase_order_id', $id)->select()
+                ->where('purchase_order_id', $id)->select()
         );
     }
 

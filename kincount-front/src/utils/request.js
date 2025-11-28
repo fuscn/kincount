@@ -62,7 +62,11 @@ service.interceptors.response.use(
     const { code, msg, data } = response.data
 
     if (code === 200 || code === 0) {
-      return data
+      return {
+        code: code,
+        msg: msg,
+        data: data
+      }
     } else if (code === 401) {
       const authStore = useAuthStore()
 

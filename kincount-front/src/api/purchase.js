@@ -27,6 +27,7 @@ export function addPurchaseOrder(data) {
     data: {
       ...data,
       items: data.items.map(item => ({
+        product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -43,6 +44,7 @@ export function updatePurchaseOrder(id, data) {
     data: {
       ...data,
       items: data.items.map(item => ({
+        product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -97,6 +99,7 @@ export function addPurchaseOrderItem(id, data) {
     url: `/purchase/orders/${id}/items`,
     method: 'post',
     data: {
+      product_id: data.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price
@@ -110,6 +113,7 @@ export function updatePurchaseOrderItem(id, itemId, data) {
     url: `/purchase/orders/${id}/items/${itemId}`,
     method: 'put',
     data: {
+      product_id: data.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price
@@ -151,6 +155,7 @@ export function addPurchaseStock(data) {
     data: {
       ...data,
       items: data.items.map(item => ({
+         product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -167,6 +172,7 @@ export function updatePurchaseStock(id, data) {
     data: {
       ...data,
       items: data.items.map(item => ({
+         product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -213,6 +219,7 @@ export function addPurchaseStockItem(id, data) {
     url: `/purchase/stocks/${id}/items`,
     method: 'post',
     data: {
+       product_id: item.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price
@@ -226,6 +233,7 @@ export function updatePurchaseStockItem(id, itemId, data) {
     url: `/purchase/stocks/${id}/items/${itemId}`,
     method: 'put',
     data: {
+       product_id: item.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price
