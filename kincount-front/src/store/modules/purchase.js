@@ -56,15 +56,44 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await getPurchaseOrderList(params)
-        // 修复：检查返回的数据结构
+        console.log('Store - 原始API响应:', res) // 添加调试日志
+
+        // 修复数据结构处理
         if (res.code === 200) {
-          this.orderList = res.data?.list || res.list || []
-          this.orderTotal = res.data?.total || res.total || 0
-          return res.data || res
+          // 根据实际API响应结构调整
+          let list = []
+          let total = 0
+
+          if (res.data && Array.isArray(res.data.data)) {
+            // 标准分页结构：res.data.data 包含列表，res.data.total 包含总数
+            list = res.data.data
+            total = res.data.total || 0
+          } else if (res.data && Array.isArray(res.data)) {
+            // 直接数组结构
+            list = res.data
+            total = list.length
+          } else if (Array.isArray(res.data?.list)) {
+            // 备用结构：res.data.list
+            list = res.data.list
+            total = res.data.total || 0
+          } else if (Array.isArray(res.list)) {
+            // 备用结构：res.list
+            list = res.list
+            total = res.total || 0
+          }
+
+          console.log('Store - 解析后的列表:', list) // 调试日志
+          console.log('Store - 解析后的总数:', total) // 调试日志
+
+          this.orderList = list
+          this.orderTotal = total
+
+          return res // 返回完整响应，让调用方处理数据结构
         } else {
           throw new Error(res.msg || '加载采购订单列表失败')
         }
       } catch (error) {
+        console.error('Store - loadOrderList error:', error)
         showToast(error.message || '加载采购订单列表失败')
         return null
       } finally {
