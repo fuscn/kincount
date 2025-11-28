@@ -131,7 +131,7 @@ const dateOptions = ref([
   { text: '近3个月', value: 'quarter' }
 ])
 
-// 计算属性：获取订单列表（从Store中读取）
+// 关键修改：直接使用store中的orderList，不重复处理数据
 const orderList = computed(() => purchaseStore.orderList)
 
 /**
@@ -140,9 +140,8 @@ const orderList = computed(() => purchaseStore.orderList)
 const loadSuppliers = async () => {
   try {
     const res = await getSupplierList()
-    console.log('供应商API响应:', res) // 调试日志
+    console.log('供应商API响应:', res)
     
-    // 适配标准响应结构
     let list = []
     if (res && res.code === 200) {
       if (Array.isArray(res.data)) {
@@ -151,8 +150,6 @@ const loadSuppliers = async () => {
         list = res.data.list
       }
     }
-    
-    console.log('解析后的供应商列表:', list) // 调试日志
     
     supplierOptions.value = [
       { text: '全部供应商', value: '' },
@@ -169,7 +166,11 @@ const loadSuppliers = async () => {
  * @param {Boolean} isRefresh - 是否为刷新（重置分页）
  */
 const loadOrderList = async (isRefresh = false) => {
-  if (loading.value && !isRefresh) return // 防止重复加载
+  // 防止重复加载
+  if (loading.value && !isRefresh) return
+  if (refreshing.value && isRefresh) return
+
+  console.log(`开始加载订单列表: isRefresh=${isRefresh}, page=${pagination.page}`)
 
   // 刷新时重置分页和加载状态
   if (isRefresh) {
@@ -177,6 +178,8 @@ const loadOrderList = async (isRefresh = false) => {
     finished.value = false
     refreshing.value = true
   } else {
+    // 加载更多时检查是否已完成
+    if (finished.value) return
     loading.value = true
   }
 
@@ -190,38 +193,34 @@ const loadOrderList = async (isRefresh = false) => {
       supplierId: selectedSupplier.value,
       dateRange: dateRange.value
     }
+    
     // 移除空值参数
     Object.keys(params).forEach(key => {
       if (params[key] === '' || params[key] == null) delete params[key]
     })
 
-    // 调用Store的加载方法
+    console.log('请求参数:', params)
+
+    // 关键修改：直接调用store方法，让store处理数据
     const res = await purchaseStore.loadOrderList(params)
-    console.log('订单API响应:', res) // 调试日志
+    console.log('Store返回的数据:', res)
     
-    // 从响应中获取数据和总数
-    let list = []
-    let total = 0
-    
-    if (res && res.code === 200 && res.data) {
-      list = res.data.list || []
-      total = res.data.total || 0
-    }
-    
-    console.log('解析后的订单列表:', list) // 调试日志
-    console.log('订单总数:', total) // 调试日志
+    // 关键修改：直接从store获取数据，不再重复处理
+    const currentList = purchaseStore.orderList || []
+    console.log('当前订单列表:', currentList)
+    console.log('列表长度:', currentList.length)
 
     // 判断是否加载完成（无更多数据）
-    if (list.length < pagination.pageSize) {
+    if (currentList.length < pagination.pageSize) {
       finished.value = true
+      console.log('加载完成，没有更多数据')
     } else {
-      pagination.page++ // 页码自增，准备下一页加载
+      pagination.page++ // 只有加载更多时才递增页码
+      console.log('继续加载下一页，当前页码:', pagination.page)
     }
-    return res
   } catch (error) {
     showToast('加载采购订单失败')
     console.error('loadOrderList error:', error)
-    return null
   } finally {
     // 重置加载状态
     initialLoading.value = false
@@ -234,6 +233,7 @@ const loadOrderList = async (isRefresh = false) => {
  * 状态标签变更事件
  */
 const handleStatusChange = () => {
+  console.log('状态变更:', activeStatus.value)
   loadOrderList(true)
 }
 
@@ -241,6 +241,7 @@ const handleStatusChange = () => {
  * 搜索事件
  */
 const handleSearch = () => {
+  console.log('搜索关键词:', keyword.value)
   loadOrderList(true)
 }
 
@@ -248,6 +249,7 @@ const handleSearch = () => {
  * 清空搜索框
  */
 const handleClearSearch = () => {
+  console.log('清空搜索')
   keyword.value = ''
   loadOrderList(true)
 }
@@ -256,6 +258,7 @@ const handleClearSearch = () => {
  * 筛选条件变更（供应商/时间）
  */
 const handleFilterChange = () => {
+  console.log('筛选条件变更 - 供应商:', selectedSupplier.value, '时间:', dateRange.value)
   loadOrderList(true)
 }
 
@@ -263,6 +266,7 @@ const handleFilterChange = () => {
  * 下拉刷新
  */
 const handleRefresh = () => {
+  console.log('下拉刷新')
   loadOrderList(true)
 }
 
@@ -270,6 +274,7 @@ const handleRefresh = () => {
  * 上拉加载更多
  */
 const handleLoadMore = () => {
+  console.log('上拉加载更多')
   loadOrderList(false)
 }
 
@@ -342,8 +347,10 @@ const formatTime = (time) => {
 
 // 页面初始化：先加载供应商，再加载订单列表
 onMounted(async () => {
+  console.log('组件挂载，开始初始化...')
   await loadSuppliers()
   await loadOrderList(true)
+  console.log('初始化完成')
 })
 </script>
 

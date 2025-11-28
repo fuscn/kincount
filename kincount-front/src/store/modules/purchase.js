@@ -56,9 +56,8 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderLoading = true
       try {
         const res = await getPurchaseOrderList(params)
-        console.log('Store - 原始API响应:', res) // 添加调试日志
+        console.log('Store - 原始API响应:', res)
 
-        // 修复数据结构处理
         if (res.code === 200) {
           // 根据实际API响应结构调整
           let list = []
@@ -72,23 +71,19 @@ export const usePurchaseStore = defineStore('purchase', {
             // 直接数组结构
             list = res.data
             total = list.length
-          } else if (Array.isArray(res.data?.list)) {
-            // 备用结构：res.data.list
-            list = res.data.list
-            total = res.data.total || 0
-          } else if (Array.isArray(res.list)) {
-            // 备用结构：res.list
-            list = res.list
-            total = res.total || 0
+          } else {
+            // 备用结构
+            list = res.data?.list || res.list || []
+            total = res.data?.total || res.total || 0
           }
 
-          console.log('Store - 解析后的列表:', list) // 调试日志
-          console.log('Store - 解析后的总数:', total) // 调试日志
+          console.log('Store - 解析后的列表:', list)
+          console.log('Store - 解析后的总数:', total)
 
           this.orderList = list
           this.orderTotal = total
 
-          return res // 返回完整响应，让调用方处理数据结构
+          return res
         } else {
           throw new Error(res.msg || '加载采购订单列表失败')
         }
