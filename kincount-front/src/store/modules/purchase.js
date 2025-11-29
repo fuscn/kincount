@@ -15,6 +15,8 @@ import {
   updatePurchaseOrderItem,
   deletePurchaseOrderItem,
   // 采购入库相关API
+  getPurchaseStocksByOrderId,
+
   getPurchaseStockList,
   getPurchaseStockDetail,
   addPurchaseStock,
@@ -396,19 +398,21 @@ export const usePurchaseStore = defineStore('purchase', {
     },
 
     /**
-     * 获取采购入库单详情
-     * @param {Number|String} id - 入库单ID
-     */
+    * 获取采购入库单详情
+    * @param {Number|String} id - 入库单ID
+    */
     async loadStockDetail(id) {
       this.stockLoading = true
       try {
         const res = await getPurchaseStockDetail(id)
-        // 修复：检查返回的数据结构
         if (res.code === 200) {
-          this.currentStock = res.data || res || null
-          // 同时加载入库单的SKU明细
-          await this.loadStockItems(id)
-          return res.data || res
+          const detail = res.data || res
+          this.currentStock = detail
+
+          // 直接从详情响应中获取items，避免额外请求
+          this.currentStockItems = detail.items || []
+
+          return detail
         } else {
           throw new Error(res.msg || '加载采购入库单详情失败')
         }
@@ -419,7 +423,6 @@ export const usePurchaseStore = defineStore('purchase', {
         this.stockLoading = false
       }
     },
-
     /**
      * 新增采购入库单
      * @param {Object} data - 入库单数据（含SKU明细）
@@ -662,6 +665,70 @@ export const usePurchaseStore = defineStore('purchase', {
       this.orderTotal = 0
       this.stockList = []
       this.stockTotal = 0
+    },
+    /**
+ * 根据采购订单ID获取关联的入库单
+ * @param {Number|String} orderId - 采购订单ID
+ */
+    async loadStocksByOrderId(orderId) {
+      try {
+        // 这里需要添加对应的API函数
+        const res = await getPurchaseStocksByOrderId(orderId)
+        if (res.code === 200) {
+          return res.data || res || []
+        } else {
+          throw new Error(res.msg || '加载关联入库单失败')
+        }
+      } catch (error) {
+        console.error('加载关联入库单失败:', error)
+        showToast(error.message || '加载关联入库单失败')
+        return []
+      }
+    },
+    /**
+     * 取消审核采购入库单
+     * @param {Number|String} id - 入库单ID
+     */
+    async cancelAuditStock(id) {
+      this.stockLoading = true
+      try {
+        // 注意：这里需要添加对应的API函数 cancelAuditPurchaseStock
+        const res = await cancelAuditPurchaseStock(id)
+        if (res.code === 200) {
+          showToast('取消审核成功')
+          // 取消审核后刷新当前入库单详情
+          await this.loadStockDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '取消审核失败')
+        }
+      } catch (error) {
+        showToast(error.message || '取消审核失败')
+        return null
+      } finally {
+        this.stockLoading = false
+      }
+    },
+    /**
+     * 生成采购入库单
+     * @param {Object} data - 入库单数据
+     */
+    async generatePurchaseStock(data) {
+      this.stockLoading = true
+      try {
+        const res = await addPurchaseStock(data)
+        if (res.code === 200) {
+          showToast('生成入库单成功')
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '生成入库单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '生成入库单失败')
+        throw error
+      } finally {
+        this.stockLoading = false
+      }
     }
   }
 })

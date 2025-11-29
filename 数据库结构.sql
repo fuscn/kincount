@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-11-28 22:53:29
+-- 导出时间: 2025-11-29 21:17:40
 -- 共 28 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -256,7 +256,7 @@ CREATE TABLE `purchase_stock_items` (
   PRIMARY KEY (`id`),
   KEY `idx_stock` (`purchase_stock_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
 
 
 -- ==================================================
@@ -282,7 +282,7 @@ CREATE TABLE `purchase_stocks` (
   KEY `idx_supplier` (`supplier_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
 
 
 -- ==================================================

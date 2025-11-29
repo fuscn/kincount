@@ -66,7 +66,6 @@ Route::group(function () use ($jwtMiddleware) {
         Route::get('/:id/aggregate', 'ProductController/aggregate');
         Route::post('/aggregate', 'ProductController/saveAggregate');
         Route::put('/:id/aggregate', 'ProductController/updateAggregate');
-
     });
     # 新增 SKU 维度路由组（放在原采购、销售、库存分组之前即可）
     Route::group('skus', function () {
@@ -84,7 +83,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::delete('/batch', 'ProductController/skuBatchDelete');      # 批量删除 SKU
     });
 
-    
+
 
     // 分类管理
     Route::group('categories', function () {
@@ -175,6 +174,8 @@ Route::group(function () use ($jwtMiddleware) {
         Route::post('/:id/items', 'PurchaseStockController/addItem');     // 添加明细
         Route::put('/:id/items/:item_id', 'PurchaseStockController/updateItem'); // 更新明细
         Route::delete('/:id/items/:item_id', 'PurchaseStockController/deleteItem'); // 删除明细
+        Route::get('/check_availability/:id', 'PurchaseStockController/checkStockAvailability'); // 检查入库可用性
+        Route::get('/by_order/:order_id', 'PurchaseStockController/getStocksByOrderId'); // 根据采购订单获取入库单
     });
 
     // ==================== 销售管理模块 ====================

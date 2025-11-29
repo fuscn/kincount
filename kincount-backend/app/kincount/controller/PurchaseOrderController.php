@@ -21,57 +21,77 @@ public function index()
         $page = $params['page'] ?? 1;
         $pageSize = $params['pageSize'] ?? 10;
         
+        
         // 构建查询条件
-        $query = PurchaseOrder::with([
-            'supplier', 
-            'warehouse', 
-            'creator', 
-            'auditor',
-            'items' => function($query) {
-                $query->whereNull('deleted_at')
-                      ->with(['product.category']);
-            }
-        ])->whereNull('deleted_at');
+        $query = PurchaseOrder::alias('po')
+            ->with([
+                'supplier', 
+                'warehouse', 
+                'creator', 
+                'auditor',
+                'items' => function($query) {
+                    $query->whereNull('deleted_at')
+                          ->with(['product.category']);
+                }
+            ])
+            ->where('po.deleted_at', null);
 
-        // 处理状态筛选 - 修复数组处理方式
+        // 处理状态筛选
         if (!empty($params['status'])) {
-            // 统一处理状态参数，确保是数组
             $status = is_array($params['status']) ? $params['status'] : [$params['status']];
-            // 过滤空值
             $status = array_filter($status);
             
             if (!empty($status)) {
-                $query->whereIn('status', $status);
+                $query->whereIn('po.status', $status);
             }
         }
 
-        // 处理关键词搜索
+        // 处理关键词搜索 - 修复表名问题
         if (!empty($params['keyword'])) {
             $keyword = trim($params['keyword']);
-            $query->where(function($q) use ($keyword) {
-                $q->where('order_no', 'like', "%{$keyword}%")
-                  ->orWhereHas('supplier', function($q2) use ($keyword) {
-                      $q2->where('name', 'like', "%{$keyword}%");
-                  });
-            });
+            
+            // 方法1：先尝试使用 suppliers 表名（复数形式）
+            try {
+                $query->join('suppliers s', 's.id = po.supplier_id', 'LEFT')
+                      ->where(function($q) use ($keyword) {
+                          $q->where('po.order_no', 'like', "%{$keyword}%")
+                            ->whereOr('s.name', 'like', "%{$keyword}%");
+                      });
+                
+            } catch (\Exception $e) {
+                // 如果 suppliers 表也不存在，回退到子查询方式
+                
+                $query->where(function($q) use ($keyword) {
+                    $q->where('po.order_no', 'like', "%{$keyword}%")
+                      ->whereOr('po.supplier_id', 'in', function($query) use ($keyword) {
+                          // 尝试不同的供应商表名
+                          try {
+                              $query->table('suppliers')->where('name', 'like', "%{$keyword}%")->field('id');
+                          } catch (\Exception $e) {
+                              // 如果 suppliers 不存在，尝试其他可能的表名
+                              $query->table('supplier')->where('name', 'like', "%{$keyword}%")->field('id');
+                          }
+                      });
+                });
+            }
+            
         }
 
         // 排序
-        $query->order('id', 'desc');
+        $query->order('po.id', 'desc');
 
         $list = $query->paginate([
             'list_rows' => $pageSize,
             'page' => $page
         ]);
 
+
         return $this->success($list);
 
     } catch (\Exception $e) {
-        \think\facade\Log::error('采购订单列表查询失败: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         return $this->error('查询失败，请稍后重试');
     }
 }
-
     public function read($id)
     {
         $order = PurchaseOrder::with(['supplier', 'warehouse', 'creator', 'auditor'])
@@ -324,7 +344,6 @@ public function index()
             return $this->success([], '采购订单更新成功');
         } catch (\Exception $e) {
             // 记录错误日志
-            \think\facade\Log::error('采购订单更新失败: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return $this->error('系统错误，请稍后重试');
         }
     }

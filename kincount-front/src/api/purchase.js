@@ -10,7 +10,13 @@ export function getPurchaseOrderList(params) {
     params
   })
 }
-
+// 根据采购订单ID获取关联入库单
+export const getPurchaseStocksByOrderId = (orderId) => {
+  return request({
+    url: '/purchase/stocks/by_order/' + orderId,
+    method: 'get'
+  })
+}
 // 订单详情
 export function getPurchaseOrderDetail(id) {
   return request({
@@ -18,7 +24,12 @@ export function getPurchaseOrderDetail(id) {
     method: 'get'
   })
 }
-
+export const cancelAuditPurchaseStock = (id) => {
+  return request({
+    url: `/purchase/stock/${id}/cancelAudit`,
+    method: 'post'
+  })
+}
 // 新增订单（明细必须含 skuId）
 export function addPurchaseOrder(data) {
   return request({
@@ -155,7 +166,7 @@ export function addPurchaseStock(data) {
     data: {
       ...data,
       items: data.items.map(item => ({
-         product_id: item.product_id,  // 添加这一行
+        product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -172,7 +183,7 @@ export function updatePurchaseStock(id, data) {
     data: {
       ...data,
       items: data.items.map(item => ({
-         product_id: item.product_id,  // 添加这一行
+        product_id: item.product_id,  // 添加这一行
         sku_id: item.sku_id,
         quantity: item.quantity,
         price: item.price
@@ -219,7 +230,7 @@ export function addPurchaseStockItem(id, data) {
     url: `/purchase/stocks/${id}/items`,
     method: 'post',
     data: {
-       product_id: item.product_id,  // 添加这一行
+      product_id: item.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price
@@ -233,7 +244,7 @@ export function updatePurchaseStockItem(id, itemId, data) {
     url: `/purchase/stocks/${id}/items/${itemId}`,
     method: 'put',
     data: {
-       product_id: item.product_id,  // 添加这一行
+      product_id: item.product_id,  // 添加这一行
       sku_id: data.sku_id,
       quantity: data.quantity,
       price: data.price

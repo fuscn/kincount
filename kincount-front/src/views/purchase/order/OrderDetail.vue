@@ -82,7 +82,7 @@
                 <div class="quantity">{{ item.quantity }} {{ item.product?.unit || '个' }}</div>
                 <div class="price">¥{{ formatPrice(item.price) }}</div>
                 <div v-if="item.received_quantity !== undefined" class="received">
-                  已入库: {{ item.received_quantity }}
+                  已入库: {{ item.received_quantity }}/{{ item.quantity }}
                 </div>
               </div>
               <div class="item-total">
@@ -94,6 +94,40 @@
             <div class="total-row">
               <div class="total-label">合计：</div>
               <div class="total-amount">¥{{ formatPrice(orderData.total_amount) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 关联入库单 -->
+        <div v-if="relatedStocks.length > 0" class="section">
+          <h3 class="section-title">关联入库单</h3>
+          <div class="stock-list">
+            <div 
+              v-for="stock in relatedStocks" 
+              :key="stock.id" 
+              class="stock-card"
+              @click="viewStockDetail(stock.id)"
+            >
+              <div class="stock-header">
+                <div class="stock-no">{{ stock.stock_no }}</div>
+                <van-tag :type="getStockStatusType(stock.status)">
+                  {{ getStockStatusText(stock.status) }}
+                </van-tag>
+              </div>
+              <div class="stock-info">
+                <div class="stock-item">
+                  <span>总金额：</span>
+                  <span class="amount">¥{{ formatPrice(stock.total_amount) }}</span>
+                </div>
+                <div class="stock-item">
+                  <span>审核人：</span>
+                  <span>{{ stock.audit_by ? stock.auditor?.real_name : '未审核' }}</span>
+                </div>
+                <div class="stock-item">
+                  <span>创建时间：</span>
+                  <span>{{ formatDateTime(stock.created_at) }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -120,6 +154,66 @@
     >
       <div class="confirm-content">{{ confirmMessage }}</div>
     </van-dialog>
+
+    <!-- 生成入库单对话框 -->
+    <van-dialog
+      v-model:show="showGenerateStockDialog"
+      title="生成入库单"
+      show-cancel-button
+      @confirm="generatePurchaseStock"
+      @cancel="showGenerateStockDialog = false"
+    >
+      <div class="generate-stock-content">
+        <div class="dialog-section">
+          <h4>入库信息</h4>
+          <div class="info-row">
+            <span>供应商：</span>
+            <span>{{ orderData?.supplier?.name }}</span>
+          </div>
+          <div class="info-row">
+            <span>仓库：</span>
+            <span>{{ orderData?.warehouse?.name }}</span>
+          </div>
+        </div>
+        
+        <div class="dialog-section">
+          <h4>商品明细</h4>
+          <div class="stock-items">
+            <div 
+              v-for="item in availableItems" 
+              :key="item.id" 
+              class="stock-item-row"
+            >
+              <div class="item-info">
+                <div class="item-name">{{ getProductName(item) }}</div>
+                <div class="item-spec">{{ getSpecText(item) }}</div>
+              </div>
+              <div class="quantity-control">
+                <span class="max-quantity">可入库: {{ getAvailableQuantity(item) }}</span>
+                <van-stepper 
+                  v-model="item.stockQuantity"
+                  :max="getAvailableQuantity(item)"
+                  :min="0"
+                  integer
+                  @change="updateStockTotal"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="stockTotalAmount > 0" class="total-section">
+          <div class="total-row">
+            <span>入库总金额：</span>
+            <span class="total-amount">¥{{ formatPrice(stockTotalAmount) }}</span>
+          </div>
+        </div>
+        
+        <div v-else class="no-items-hint">
+          请选择要入库的商品数量
+        </div>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
@@ -141,6 +235,11 @@ const loading = ref(true)
 const orderData = ref(null)
 const showActionSheet = ref(false)
 const showConfirmDialog = ref(false)
+const showGenerateStockDialog = ref(false)
+
+// 生成入库单相关
+const stockTotalAmount = ref(0)
+const relatedStocks = ref([])
 
 // 确认操作相关
 const currentAction = ref('')
@@ -208,6 +307,26 @@ const getStatusType = (status) => {
   return typeMap[status] || 'default'
 }
 
+// 获取入库单状态文本
+const getStockStatusText = (status) => {
+  const statusMap = {
+    1: '待审核',
+    2: '已审核',
+    3: '已取消'
+  }
+  return statusMap[status] || '未知状态'
+}
+
+// 获取入库单状态类型
+const getStockStatusType = (status) => {
+  const typeMap = {
+    1: 'warning',
+    2: 'success',
+    3: 'danger'
+  }
+  return typeMap[status] || 'default'
+}
+
 // 获取商品名称
 const getProductName = (item) => {
   return item.product?.name || '未知商品'
@@ -225,6 +344,25 @@ const getSpecText = (item) => {
   }
   return ''
 }
+
+// 获取可入库数量
+const getAvailableQuantity = (item) => {
+  const ordered = item.quantity || 0
+  const received = item.received_quantity || 0
+  return Math.max(0, ordered - received)
+}
+
+// 可生成入库单的商品列表
+const availableItems = computed(() => {
+  if (!orderData.value?.items) return []
+  
+  return orderData.value.items
+    .filter(item => getAvailableQuantity(item) > 0)
+    .map(item => ({
+      ...item,
+      stockQuantity: 0
+    }))
+})
 
 // 操作权限判断
 const canAudit = computed(() => {
@@ -251,9 +389,15 @@ const canDelete = computed(() => {
   return [1, 5].includes(status) // 待审核、已取消
 })
 
+const canGenerateStock = computed(() => {
+  // 已审核状态且有待入库的商品
+  const status = orderData.value?.status
+  return [2, 3].includes(status) && availableItems.value.length > 0
+})
+
 // 是否有可用操作
 const hasActions = computed(() => {
-  return canAudit.value || canCancel.value || canComplete.value || canEdit.value || canDelete.value
+  return canAudit.value || canCancel.value || canComplete.value || canEdit.value || canDelete.value || canGenerateStock.value
 })
 
 // 操作面板选项
@@ -273,6 +417,14 @@ const actions = computed(() => {
       name: '审核通过',
       action: 'audit',
       color: '#07c160'
+    })
+  }
+  
+  if (canGenerateStock.value) {
+    actionList.push({
+      name: '生成入库单',
+      action: 'generateStock',
+      color: '#7232dd'
     })
   }
   
@@ -315,12 +467,29 @@ const loadOrderDetail = async () => {
     loading.value = true
     await purchaseStore.loadOrderDetail(orderId)
     orderData.value = purchaseStore.currentOrder
+    
+    // 加载关联的入库单
+    await loadRelatedStocks(orderId)
+    
     console.log('订单详情数据:', orderData.value)
   } catch (error) {
     console.error('加载订单详情失败:', error)
     showFailToast('加载订单详情失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载关联入库单
+const loadRelatedStocks = async (orderId) => {
+  try {
+    const result = await purchaseStore.loadStocksByOrderId(orderId)
+    if (result) {
+      relatedStocks.value = result
+    }
+  } catch (error) {
+    console.error('加载关联入库单失败:', error)
+    relatedStocks.value = []
   }
 }
 
@@ -343,6 +512,9 @@ const onActionSelect = (action) => {
       break
     case 'delete':
       showConfirm('删除订单', '确定要删除此采购订单吗？此操作不可恢复！', 'delete')
+      break
+    case 'generateStock':
+      handleGenerateStock()
       break
   }
 }
@@ -397,6 +569,80 @@ const confirmAction = async () => {
 // 直接编辑操作
 const handleEdit = () => {
   router.push(`/purchase/order/edit/${orderData.value.id}`)
+}
+
+// 处理生成入库单
+const handleGenerateStock = () => {
+  if (availableItems.value.length === 0) {
+    showFailToast('没有可入库的商品')
+    return
+  }
+  
+  // 重置数量选择
+  availableItems.value.forEach(item => {
+    item.stockQuantity = 0
+  })
+  stockTotalAmount.value = 0
+  
+  showGenerateStockDialog.value = true
+}
+
+// 更新入库单总金额
+const updateStockTotal = () => {
+  let total = 0
+  availableItems.value.forEach(item => {
+    if (item.stockQuantity > 0) {
+      total += (item.stockQuantity * (item.price || 0))
+    }
+  })
+  stockTotalAmount.value = total
+}
+
+// 生成采购入库单
+const generatePurchaseStock = async () => {
+  // 检查是否有选择商品
+  const selectedItems = availableItems.value.filter(item => item.stockQuantity > 0)
+  if (selectedItems.length === 0) {
+    showFailToast('请选择要入库的商品')
+    return
+  }
+
+  try {
+    // 构建入库单数据
+    const stockData = {
+      purchase_order_id: orderData.value.id,
+      supplier_id: orderData.value.supplier_id,
+      warehouse_id: orderData.value.warehouse_id,
+      total_amount: stockTotalAmount.value,
+      remark: `由采购订单 ${orderData.value.order_no} 生成`,
+      items: selectedItems.map(item => ({
+        product_id: item.product_id,
+        quantity: item.stockQuantity,
+        price: item.price,
+        total_amount: item.stockQuantity * item.price
+      }))
+    }
+
+    const result = await purchaseStore.addStock(stockData)
+    if (result) {
+      showSuccessToast('生成入库单成功')
+      showGenerateStockDialog.value = false
+      
+      // 重新加载页面数据
+      await loadOrderDetail()
+      
+      // 可选：跳转到入库单详情页面
+      // router.push(`/purchase/stock/detail/${result.id}`)
+    }
+  } catch (error) {
+    console.error('生成入库单失败:', error)
+    showFailToast(error.message || '生成入库单失败')
+  }
+}
+
+// 查看入库单详情
+const viewStockDetail = (stockId) => {
+  router.push(`/purchase/stock/detail/${stockId}`)
 }
 
 onMounted(() => {
@@ -562,6 +808,149 @@ onMounted(() => {
   }
 }
 
+// 关联入库单样式
+.stock-list {
+  .stock-card {
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    &:hover {
+      background: #f0f0f0;
+    }
+  }
+  
+  .stock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .stock-no {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  
+  .stock-info {
+    .stock-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 4px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .amount {
+        color: #ee0a24;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// 生成入库单对话框样式
+.generate-stock-content {
+  padding: 16px;
+  
+  .dialog-section {
+    margin-bottom: 16px;
+    
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #323233;
+      font-weight: 600;
+    }
+  }
+  
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .stock-items {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  .stock-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+    
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+  
+  .item-info {
+    flex: 1;
+    
+    .item-name {
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+    
+    .item-spec {
+      font-size: 12px;
+      color: #646566;
+    }
+  }
+  
+  .quantity-control {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    
+    .max-quantity {
+      font-size: 11px;
+      color: #969799;
+    }
+  }
+  
+  .total-section {
+    border-top: 1px solid #f5f5f5;
+    padding-top: 12px;
+    
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 600;
+      
+      .total-amount {
+        color: #ee0a24;
+      }
+    }
+  }
+  
+  .no-items-hint {
+    text-align: center;
+    color: #969799;
+    font-size: 14px;
+    padding: 20px 0;
+  }
+}
+
 .confirm-content {
   padding: 20px;
   text-align: center;
@@ -581,6 +970,10 @@ onMounted(() => {
     
     &[style*="color: #07c160"] {
       color: #07c160 !important;
+    }
+    
+    &[style*="color: #7232dd"] {
+      color: #7232dd !important;
     }
     
     &[style*="color: #ff976a"] {

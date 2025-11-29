@@ -1,469 +1,781 @@
 <template>
-    <div class="purchase-inbound-page">
-        <!-- 导航栏 -->
-        <van-nav-bar title="采购入库" left-arrow @click-left="handleBack" right-text="提交" @click-right="handleSubmit" />
+  <div class="purchase-stock-container">
+    <!-- 导航栏 -->
+    <van-nav-bar
+      title="采购入库单管理"
+      left-text="返回"
+      left-arrow
+      @click-left="$router.back()"
+    />
 
-        <!-- 表单容器 -->
-        <van-form ref="formRef" class="form-container">
-            <!-- 订单选择区域 -->
-            <van-cell-group title="采购订单信息">
-                <van-field v-model="form.order_no" label="订单编号" placeholder="请选择采购订单" readonly is-link required
-                    :rules="[{ required: true, message: '请选择采购订单' }]" @click="showOrderPicker = true" />
-                <van-field v-model="form.supplier_name" label="供应商" readonly placeholder="请先选择订单" />
-                <van-field v-model="form.warehouse_name" label="入库仓库" readonly placeholder="请先选择订单" />
-                <van-field v-model="form.inbound_date" label="入库日期" placeholder="请选择日期" readonly is-link required
-                    :rules="[{ required: true, message: '请选择入库日期' }]" @click="showDatePicker = true" />
-                <van-field v-model="form.remark" label="备注" type="textarea" placeholder="请输入入库备注信息" rows="2" />
-            </van-cell-group>
+    <!-- 筛选区域 -->
+    <div class="filter-wrapper">
+      <!-- 状态标签筛选 -->
+      <van-tabs v-model="activeStatus" @change="handleStatusChange" swipeable>
+        <van-tab title="全部" name="" />
+        <van-tab title="待审核" name="1" />
+        <van-tab title="已审核" name="2" />
+        <van-tab title="已取消" name="3" />
+      </van-tabs>
 
-            <!-- SKU入库明细 -->
-            <van-cell-group title="SKU入库明细" v-if="form.items.length > 0">
-                <!-- 表头 -->
-                <van-row class="sku-table-header">
-                    <van-col span="8">SKU信息</van-col>
-                    <van-col span="4" class="text-center">采购数量</van-col>
-                    <van-col span="4" class="text-center">已入库</van-col>
-                    <van-col span="4" class="text-center">可入库</van-col>
-                    <van-col span="4" class="text-center">本次入库</van-col>
-                </van-row>
-
-                <!-- 明细列表 -->
-                <van-row class="sku-table-row" v-for="(item, index) in form.items" :key="item.sku_id + '_' + index">
-                    <van-col span="8">
-                        <div class="sku-info">
-                            <div class="sku-name">{{ item.sku_name }}</div>
-                            <div class="sku-code">{{ item.sku_code }}</div>
-                            <div class="sku-spec">{{ item.spec_text || '无规格' }}</div>
-                        </div>
-                    </van-col>
-                    <van-col span="4" class="text-center">{{ item.purchase_quantity }}</van-col>
-                    <van-col span="4" class="text-center">{{ item.inbound_quantity || 0 }}</van-col>
-                    <van-col span="4" class="text-center">{{ item.available_quantity }}</van-col>
-                    <van-col span="4" class="text-center">
-                        <van-field v-model.number="item.current_quantity" type="number" :min="1"
-                            :max="item.available_quantity" @input="handleQuantityChange(item)" :rules="[
-                                { required: true, message: '请输入数量' },
-                                { validator: () => validateQuantity(item), message: '数量超出范围' }
-                            ]" />
-                    </van-col>
-                </van-row>
-
-                <!-- 合计 -->
-                <van-row class="sku-table-total">
-                    <van-col span="20" class="text-right">
-                        <span class="total-label">本次入库合计：</span>
-                    </van-col>
-                    <van-col span="4" class="text-center">
-                        <span class="total-value">{{ totalInboundQuantity }}</span>
-                    </van-col>
-                </van-row>
-            </van-cell-group>
-
-            <!-- 空状态 -->
-            <van-empty v-if="form.items.length === 0 && !loadingOrder" description="请先选择采购订单" class="empty-state" />
-        </van-form>
-
-        <!-- 订单选择弹窗 -->
-        <van-popup v-model:show="showOrderPicker" position="bottom" :style="{ height: '70%' }"
-            :close-on-click-overlay="true">
-            <div class="order-picker">
-                <van-nav-bar title="选择采购订单" left-text="取消" @click-left="showOrderPicker = false" />
-                <van-search v-model="orderSearch" placeholder="搜索订单号/供应商" @search="loadOrderList" />
-                <van-list v-model:loading="loadingOrderList" :finished="finishedOrderList" finished-text="没有更多订单"
-                    @load="loadOrderList">
-                    <van-cell v-for="order in orderList" :key="order.id" :title="`订单号：${order.order_no}`"
-                        :label="getOrderLabel(order)" @click="selectOrder(order)" is-link>
-                        <template #extra>
-                            <van-tag type="primary">{{ getStatusText(order.status) }}</van-tag>
-                        </template>
-                    </van-cell>
-                </van-list>
+      <!-- 搜索与高级筛选 -->
+      <div class="search-filter">
+        <van-search 
+          v-model="searchParams.stock_no" 
+          placeholder="搜索入库单号" 
+          @search="handleSearch" 
+          @clear="handleClearSearch" 
+        />
+        <van-dropdown-menu>
+          <!-- 供应商筛选 -->
+          <van-dropdown-item 
+            v-model="searchParams.supplier_id" 
+            :options="supplierOptions" 
+            placeholder="选择供应商"
+            @change="handleFilterChange" 
+          />
+          <!-- 仓库筛选 -->
+          <van-dropdown-item 
+            v-model="searchParams.warehouse_id" 
+            :options="warehouseOptions" 
+            placeholder="选择仓库"
+            @change="handleFilterChange" 
+          />
+          <!-- 时间筛选 -->
+          <van-dropdown-item 
+            ref="dateDropdown" 
+            title="选择时间"
+          >
+            <div class="date-filter-content">
+              <van-cell title="开始日期" :value="searchParams.start_date || '请选择'" @click="showStartDatePicker = true" />
+              <van-cell title="结束日期" :value="searchParams.end_date || '请选择'" @click="showEndDatePicker = true" />
+              <div class="date-filter-actions">
+                <van-button size="small" type="default" @click="handleDateReset">重置</van-button>
+                <van-button size="small" type="primary" @click="handleDateConfirm">确认</van-button>
+              </div>
             </div>
-        </van-popup>
-
-        <!-- 日期选择器 -->
-        <van-popup v-model:show="showDatePicker" position="bottom" :close-on-click-overlay="true">
-            <van-date-picker v-model="currentDate" title="选择入库日期" :min-date="minDate" :max-date="maxDate"
-                @confirm="onDateConfirm" @cancel="showDatePicker = false" />
-        </van-popup>
-
-        <!-- 加载状态 -->
-        <van-loading v-if="submitting" class="fullscreen-loading" />
+          </van-dropdown-item>
+        </van-dropdown-menu>
+      </div>
     </div>
-</template>
-<script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
-import { usePurchaseStore } from '@/store/modules/purchase'
-import dayjs from 'dayjs'
 
-// 路由实例
+    <!-- 列表区域 -->
+    <div class="list-section">
+      <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+        <van-list
+          v-model:loading="loading"
+          :finished="finished"
+          :finished-text="stockList.length > 0 ? '没有更多了' : ''"
+          @load="onLoad"
+        >
+          <!-- 空状态 -->
+          <div v-if="stockList.length === 0 && !loading" class="empty-state">
+            <van-empty image="search" description="暂无入库单数据" />
+          </div>
+
+          <!-- 入库单列表 -->
+          <div
+            v-for="item in stockList"
+            :key="item.id"
+            class="stock-item"
+            @click="handleViewDetail(item)"
+          >
+            <div class="stock-header">
+              <span class="stock-no">{{ item.stock_no }}</span>
+              <van-tag :type="getStatusTagType(item.status)" size="small">
+                {{ getStatusText(item.status) }}
+              </van-tag>
+            </div>
+            
+            <div class="stock-content">
+              <div class="stock-info">
+                <div class="info-item">
+                  <span class="label">供应商：</span>
+                  <span class="value">{{ item.supplier?.name || '未知' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">仓库：</span>
+                  <span class="value">{{ item.warehouse?.name || '未知' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">关联采购单：</span>
+                  <span class="value">{{ item.purchase_order_id ? `PO${item.purchase_order_id}` : '无' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">金额：</span>
+                  <span class="value amount">¥{{ item.total_amount }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">创建时间：</span>
+                  <span class="value time">{{ formatDate(item.created_at) }}</span>
+                </div>
+              </div>
+              
+              <div class="stock-actions">
+                <van-button
+                  v-if="item.status === 1"
+                  size="mini"
+                  type="primary"
+                  @click.stop="handleAudit(item)"
+                >
+                  审核
+                </van-button>
+                <van-button
+                  v-if="item.status === 2"
+                  size="mini"
+                  type="warning"
+                  @click.stop="handleCancelAudit(item)"
+                >
+                  取消审核
+                </van-button>
+                <van-button
+                  v-if="item.status !== 3"
+                  size="mini"
+                  type="danger"
+                  @click.stop="handleCancel(item)"
+                >
+                  取消
+                </van-button>
+                <van-button
+                  size="mini"
+                  plain
+                  @click.stop="handleViewDetail(item)"
+                >
+                  详情
+                </van-button>
+              </div>
+            </div>
+          </div>
+        </van-list>
+      </van-pull-refresh>
+    </div>
+
+    <!-- 日期选择器 -->
+    <van-popup v-model:show="showStartDatePicker" position="bottom">
+      <van-date-picker
+        v-model="startDate"
+        @confirm="onStartDateConfirm"
+        @cancel="showStartDatePicker = false"
+      />
+    </van-popup>
+    <van-popup v-model:show="showEndDatePicker" position="bottom">
+      <van-date-picker
+        v-model="endDate"
+        @confirm="onEndDateConfirm"
+        @cancel="showEndDatePicker = false"
+      />
+    </van-popup>
+
+    <!-- 详情弹窗 -->
+    <van-popup
+      v-model:show="showDetailPopup"
+      position="bottom"
+      closeable
+      :style="{ height: '85%' }"
+      @close="handleCloseDetail"
+    >
+      <div class="detail-popup" v-if="currentStockDetail">
+        <h3 class="detail-title">入库单详情 - {{ currentStockDetail.stock_no }}</h3>
+        <div class="detail-content">
+          <van-cell-group inset>
+            <van-cell title="入库单号" :value="currentStockDetail.stock_no" />
+            
+            <!-- 关联采购单信息 - 简化显示 -->
+            <van-cell 
+              title="关联采购单" 
+              :value="currentStockDetail.purchaseOrder ? currentStockDetail.purchaseOrder.order_no : (currentStockDetail.purchase_order_id ? `PO${currentStockDetail.purchase_order_id}` : '无')" 
+            />
+            
+            <van-cell title="供应商" :value="currentStockDetail.supplier?.name" />
+            <van-cell title="联系人" :value="currentStockDetail.supplier?.contact_person || '无'" />
+            <van-cell title="联系电话" :value="currentStockDetail.supplier?.phone || '无'" />
+            <van-cell title="仓库" :value="currentStockDetail.warehouse?.name" />
+            <van-cell title="仓库地址" :value="currentStockDetail.warehouse?.address || '无'" />
+            <van-cell title="总金额" :value="`¥${currentStockDetail.total_amount}`" />
+            <van-cell title="状态" :value="getStatusText(currentStockDetail.status)" />
+            <van-cell title="创建人" :value="currentStockDetail.creator?.real_name" />
+            <van-cell title="审核人" :value="currentStockDetail.auditor?.real_name || '未审核'" />
+            <van-cell title="审核时间" :value="currentStockDetail.audit_time || '未审核'" />
+            <van-cell title="创建时间" :value="formatDate(currentStockDetail.created_at)" />
+            <van-cell title="备注" :value="currentStockDetail.remark || '无'" />
+          </van-cell-group>
+
+          <!-- SKU明细 -->
+          <div class="sku-section">
+            <h4>SKU明细</h4>
+            <div
+              v-for="(item, index) in currentStockDetail.items"
+              :key="index"
+              class="sku-item"
+            >
+              <van-cell
+                :title="item.product?.name || '未知商品'"
+                :label="`商品编号: ${item.product?.product_no || '无'}`"
+              />
+              <van-cell
+                title="规格"
+                :value="item.product?.spec || '无规格'"
+              />
+              <van-cell
+                title="数量"
+                :value="`${item.quantity} ${item.product?.unit || '个'}`"
+              />
+              <van-cell title="单价" :value="`¥${item.price}`" />
+              <van-cell title="金额" :value="`¥${item.total_amount}`" />
+            </div>
+            <div v-if="!currentStockDetail.items || currentStockDetail.items.length === 0" class="no-data">
+              暂无明细数据
+            </div>
+          </div>
+        </div>
+      </div>
+    </van-popup>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { usePurchaseStore } from '@/store/modules/purchase'
+import { useSupplierStore } from '@/store/modules/supplier'
+import { useWarehouseStore } from '@/store/modules/warehouse'
+import { showConfirmDialog, showToast } from 'vant'
+import { useRouter } from 'vue-router'
+
+const purchaseStore = usePurchaseStore()
+const supplierStore = useSupplierStore()
+const warehouseStore = useWarehouseStore()
 const router = useRouter()
 
-// 状态管理
-const purchaseStore = usePurchaseStore()
+// 激活的状态标签
+const activeStatus = ref('')
 
-// 表单引用
-const formRef = ref(null)
-
-// 响应式数据
-const form = reactive({
-    order_id: '',
-    order_no: '',
-    supplier_id: '',
-    supplier_name: '',
-    warehouse_id: '',
-    warehouse_name: '',
-    inbound_date: dayjs().format('YYYY-MM-DD'),
-    remark: '',
-    items: [] // SKU入库明细
+// 搜索参数
+const searchParams = ref({
+  stock_no: '',
+  supplier_id: '',
+  warehouse_id: '',
+  status: '',
+  start_date: '',
+  end_date: ''
 })
 
-// 选择器状态
-const showOrderPicker = ref(false)
-const showDatePicker = ref(false)
-const currentDate = ref(new Date())
-const minDate = new Date('2020-01-01')
-const maxDate = new Date()
+// 日期选择相关
+const showStartDatePicker = ref(false)
+const showEndDatePicker = ref(false)
+const startDate = ref([])
+const endDate = ref([])
+const dateDropdown = ref(null)
 
-// 订单选择相关
-const orderSearch = ref('')
-const orderList = ref([])
-const loadingOrderList = ref(false)
-const finishedOrderList = ref(false)
-const orderPage = ref(1)
-const loadingOrder = ref(false)
+// 供应商选项
+const supplierOptions = ref([
+  { text: '全部供应商', value: '' },
+])
 
-// 提交状态
-const submitting = ref(false)
+// 仓库选项
+const warehouseOptions = ref([
+  { text: '全部仓库', value: '' },
+])
 
-// 计算本次入库总数量
-const totalInboundQuantity = computed(() => {
-    return form.items.reduce((sum, item) => {
-        return sum + (Number(item.current_quantity) || 0)
-    }, 0)
+// 列表相关状态
+const loading = ref(false)
+const finished = ref(false)
+const refreshing = ref(false)
+const stockList = computed(() => purchaseStore.stockList)
+
+// 分页参数
+const pagination = ref({
+  page: 1,
+  page_size: 20
 })
 
+// 弹窗控制
+const showDetailPopup = ref(false)
 
-/**
- * 加载可入库的采购订单列表（状态为已审核或部分入库）
- */
-const loadOrderList = async (isRefresh = false) => {
-    if (isRefresh) {
-        orderPage.value = 1
-        finishedOrderList.value = false
-    }
+// 当前选中的入库单详情
+const currentStockDetail = ref(null)
 
-    loadingOrderList.value = true
-    try {
-        const params = {
-            page: orderPage.value,
-            pageSize: 10,
-            status: [2, 3], // 只加载已审核(2)和部分入库(3)的订单
-            keyword: orderSearch.value
-        }
-
-
-
-        const res = await purchaseStore.loadOrderList(params)
-
-        // 修正数据路径：根据API响应结构调整
-        const list = res?.data?.data || []  // 注意这里是 res.data.data
-
-        if (isRefresh) {
-            orderList.value = list
-        } else {
-            orderList.value = [...orderList.value, ...list]
-        }
-
-        // 判断是否加载完成
-        if (list.length < params.pageSize) {
-            finishedOrderList.value = true
-        } else {
-            orderPage.value++
-        }
-    } catch (error) {
-        showToast('加载订单列表失败')
-        console.error('loadOrderList error:', error)
-    } finally {
-        loadingOrderList.value = false
-    }
-
-    try {
-        const res = await purchaseStore.loadOrderList(params)
-        console.log('API响应:', res) // 调试信息
-        console.log('数据路径:', res?.data) // 调试信息
-
-        const list = res?.data?.data || []
-        console.log('订单列表:', list) // 调试信息
-
-        // ... 其他代码
-    } catch (error) {
-        // ... 错误处理
-    }
-}
-
-/**
- * 选择采购订单并加载详情
- */
-const selectOrder = async (order) => {
-    if (!order.id) return
-
-    loadingOrder.value = true
-    try {
-        // 加载订单详情（包含SKU明细）
-        const detail = await purchaseStore.loadOrderDetail(order.id)
-        const orderData = detail?.data || {}  // 注意这里可能是 detail.data
-
-        // 填充订单基本信息
-        form.order_id = orderData.id
-        form.order_no = orderData.order_no
-        form.supplier_id = orderData.supplier?.id
-        form.supplier_name = orderData.supplier?.name
-        form.warehouse_id = orderData.warehouse?.id
-        form.warehouse_name = orderData.warehouse?.name
-
-        // 处理SKU明细（计算可入库数量）
-        form.items = (orderData.items || []).map(item => {
-            const purchaseQty = Number(item.quantity) || 0
-            const inboundQty = Number(item.received_quantity) || 0  // 注意字段名是 received_quantity
-            const availableQty = purchaseQty - inboundQty
-
-            return {
-                sku_id: item.sku_id,
-                sku_code: item.product?.product_no, // 使用产品编号作为SKU编码
-                sku_name: item.product?.name || '未知产品',
-                spec_text: item.product?.spec || '无规格',
-                purchase_quantity: purchaseQty,
-                inbound_quantity: inboundQty,
-                available_quantity: availableQty,
-                current_quantity: availableQty > 0 ? 1 : 0 // 默认1，不能超过可入库数量
-            }
-        })
-
-        showOrderPicker.value = false
-    } catch (error) {
-        showToast('加载订单详情失败')
-        console.error('selectOrder error:', error)
-    } finally {
-        loadingOrder.value = false
-    }
-}
-/**
- * 验证入库数量
- */
-const validateQuantity = (item) => {
-    const qty = Number(item.current_quantity) || 0
-    return qty > 0 && qty <= item.available_quantity
-}
-
-/**
- * 处理数量变化
- */
-const handleQuantityChange = (item) => {
-    // 确保数量为正数且不超过可入库数量
-    let qty = Number(item.current_quantity) || 0
-    if (qty < 1) qty = 1
-    if (qty > item.available_quantity) qty = item.available_quantity
-    item.current_quantity = qty
-}
-
-/**
- * 日期选择确认
- */
-const onDateConfirm = (date) => {
-    form.inbound_date = dayjs(date).format('YYYY-MM-DD')
-    showDatePicker.value = false
-}
-
-/**
- * 获取订单状态文本
- */
+// 状态文本映射
 const getStatusText = (status) => {
-    const statusMap = {
-        2: '已审核',
-        3: '部分入库'
-    }
-    return statusMap[status] || '未知状态'
+  const statusMap = {
+    1: '待审核',
+    2: '已审核',
+    3: '已取消'
+  }
+  return statusMap[status] || '未知'
 }
 
-/**
- * 构造订单标签信息
- */
-const getOrderLabel = (order) => {
-    const labels = []
-    if (order.supplier?.name) labels.push(`供应商：${order.supplier.name}`)
-    if (order.created_at) labels.push(`创建时间：${dayjs(order.created_at).format('YYYY-MM-DD')}`)
-    if (order.warehouse?.name) labels.push(`仓库：${order.warehouse.name}`)
-    return labels.join(' | ')
+// 状态标签类型
+const getStatusTagType = (status) => {
+  const typeMap = {
+    1: 'warning',  // 待审核 - 警告色
+    2: 'success',  // 已审核 - 成功色
+    3: 'danger'    // 已取消 - 危险色
+  }
+  return typeMap[status] || 'default'
 }
 
-/**
- * 提交入库单
- */
-const handleSubmit = async () => {
-    // 表单验证
-    if (!form.order_id) {
-        showToast('请选择采购订单')
-        return
-    }
-
-    if (totalInboundQuantity.value <= 0) {
-        showToast('请填写入库数量')
-        return
-    }
-
-    // 构造提交数据
-    const submitData = {
-        purchase_order_id: form.order_id,
-        inbound_date: form.inbound_date,
-        remark: form.remark,
-        items: form.items
-            .filter(item => Number(item.current_quantity) > 0)
-            .map(item => ({
-                sku_id: item.sku_id,
-                quantity: item.current_quantity
-            }))
-    }
-
-    try {
-        submitting.value = true
-        // 调用入库接口
-        const result = await purchaseStore.createInbound(submitData)
-        if (result?.code === 200) {
-            showSuccessToast('入库单创建成功')
-            router.push('/purchase/inbound') // 跳转到入库单列表
-        } else {
-            showToast('创建失败，请重试')
-        }
-    } catch (error) {
-        showToast(error.message || '提交失败')
-        console.error('handleSubmit error:', error)
-    } finally {
-        submitting.value = false
-    }
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString().slice(0, 5)
 }
 
-/**
- * 返回上一页
- */
-const handleBack = () => {
-    showConfirmDialog({
-        title: '提示',
-        message: '是否放弃当前入库单编辑？'
+// 加载供应商选项
+const loadSupplierOptions = async () => {
+  try {
+    const response = await supplierStore.loadList({ page: 1, page_size: 1000 })
+    
+    let supplierList = []
+    if (response && response.list) {
+      supplierList = response.list
+    } else if (response && response.data && response.data.list) {
+      supplierList = response.data.list
+    } else if (Array.isArray(response)) {
+      supplierList = response
+    }
+    
+    // 转换格式为 { text: name, value: id }
+    supplierOptions.value = [
+      { text: '全部供应商', value: '' },
+      ...supplierList.map(item => ({
+        text: item.name,
+        value: item.id
+      }))
+    ]
+  } catch (error) {
+    console.error('加载供应商选项失败:', error)
+    showToast('加载供应商列表失败')
+  }
+}
+
+// 加载仓库选项
+const loadWarehouseOptions = async () => {
+  try {
+    await warehouseStore.loadOptions()
+    warehouseOptions.value = [
+      { text: '全部仓库', value: '' },
+      ...warehouseStore.options
+    ]
+  } catch (error) {
+    console.error('加载仓库选项失败:', error)
+    showToast('加载仓库列表失败')
+  }
+}
+
+// 状态标签变化
+const handleStatusChange = (name) => {
+  searchParams.value.status = name
+  handleSearch()
+}
+
+// 搜索处理
+const handleSearch = () => {
+  pagination.value.page = 1
+  finished.value = false
+  onLoad(true)
+}
+
+// 清除搜索
+const handleClearSearch = () => {
+  searchParams.value.stock_no = ''
+  handleSearch()
+}
+
+// 筛选条件变化
+const handleFilterChange = () => {
+  handleSearch()
+}
+
+// 日期确认
+const handleDateConfirm = () => {
+  if (dateDropdown.value) {
+    dateDropdown.value.toggle()
+  }
+  handleSearch()
+}
+
+// 日期重置
+const handleDateReset = () => {
+  searchParams.value.start_date = ''
+  searchParams.value.end_date = ''
+  startDate.value = []
+  endDate.value = []
+  if (dateDropdown.value) {
+    dateDropdown.value.toggle()
+  }
+  handleSearch()
+}
+
+// 下拉刷新
+const onRefresh = () => {
+  pagination.value.page = 1
+  finished.value = false
+  onLoad(true)
+}
+
+// 加载数据 - 修复重复加载问题
+const onLoad = async (isRefresh = false) => {
+  // 防止重复请求
+  if (loading.value && !isRefresh) return
+  
+  if (isRefresh) {
+    refreshing.value = true
+  } else {
+    loading.value = true
+  }
+
+  try {
+    const params = {
+      ...pagination.value,
+      ...searchParams.value
+    }
+
+    // 清理空参数
+    Object.keys(params).forEach(key => {
+      if (params[key] === '') {
+        delete params[key]
+      }
     })
-        .then(() => {
-            router.back()
-        })
-        .catch(() => {
-            // 取消返回
-        })
+
+    await purchaseStore.loadStockList(params)
+
+    if (isRefresh) {
+      refreshing.value = false
+    } else {
+      loading.value = false
+    }
+
+    // 检查是否加载完毕
+    const currentLength = purchaseStore.stockList.length
+    const total = purchaseStore.stockTotal
+    
+    if (currentLength >= total || currentLength === 0) {
+      finished.value = true
+    } else {
+      pagination.value.page++
+    }
+  } catch (error) {
+    console.error('加载入库单列表失败:', error)
+    if (isRefresh) {
+      refreshing.value = false
+    } else {
+      loading.value = false
+    }
+    finished.value = true
+  }
 }
 
-// 初始化
-onMounted(() => {
-    loadOrderList(true)
+// 查看详情 - 优化：只请求一次
+const handleViewDetail = async (item) => {
+  try {
+    showDetailPopup.value = true
+    // 先显示加载状态
+    currentStockDetail.value = null
+    
+    // 只请求一次详情接口，该接口已经包含items数据
+    const detail = await purchaseStore.loadStockDetail(item.id)
+    currentStockDetail.value = detail
+  } catch (error) {
+    console.error('加载入库单详情失败:', error)
+    showToast('加载详情失败')
+    showDetailPopup.value = false
+  }
+}
+
+// 关闭详情弹窗
+const handleCloseDetail = () => {
+  currentStockDetail.value = null
+  showDetailPopup.value = false
+}
+
+// 审核操作
+const handleAudit = (item) => {
+  showConfirmDialog({
+    title: '确认审核',
+    message: `确定要审核入库单 ${item.stock_no} 吗？审核后将更新库存数量。`
+  }).then(async () => {
+    try {
+      await purchaseStore.auditStock(item.id)
+      showToast('审核成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      console.error('审核失败:', error)
+      showToast('审核失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+// 取消审核操作
+const handleCancelAudit = (item) => {
+  showConfirmDialog({
+    title: '确认取消审核',
+    message: `确定要取消审核入库单 ${item.stock_no} 吗？取消审核将回退库存数量。`
+  }).then(async () => {
+    try {
+      await purchaseStore.cancelAuditStock(item.id)
+      showToast('取消审核成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      console.error('取消审核失败:', error)
+      showToast('取消审核失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+// 取消操作
+const handleCancel = (item) => {
+  showConfirmDialog({
+    title: '确认取消',
+    message: `确定要取消入库单 ${item.stock_no} 吗？此操作不可恢复。`
+  }).then(async () => {
+    try {
+      await purchaseStore.cancelStock(item.id)
+      showToast('取消成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      console.error('取消失败:', error)
+      showToast('取消失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+// 开始日期选择确认
+const onStartDateConfirm = (value) => {
+  const year = value.selectedValues[0]
+  const month = value.selectedValues[1].toString().padStart(2, '0')
+  const day = value.selectedValues[2].toString().padStart(2, '0')
+  searchParams.value.start_date = `${year}-${month}-${day}`
+  showStartDatePicker.value = false
+}
+
+// 结束日期选择确认
+const onEndDateConfirm = (value) => {
+  const year = value.selectedValues[0]
+  const month = value.selectedValues[1].toString().padStart(2, '0')
+  const day = value.selectedValues[2].toString().padStart(2, '0')
+  searchParams.value.end_date = `${year}-${month}-${day}`
+  showEndDatePicker.value = false
+}
+
+// 初始化加载
+onMounted(async () => {
+  // 加载供应商和仓库选项
+  await Promise.all([
+    loadSupplierOptions(),
+    loadWarehouseOptions()
+  ])
+  
+  // 让van-list自动触发第一次加载
 })
 </script>
-<style scoped lang="scss">
-.purchase-inbound-page {
-    background-color: #f7f8fa;
-    min-height: 100vh;
-    padding-bottom: 16px;
+
+<style scoped>
+.purchase-stock-container {
+  padding: 0;
+  background-color: #f7f8fa;
+  min-height: 100vh;
 }
 
-.form-container {
-    padding: 16px;
+/* 导航栏样式 */
+:deep(.van-nav-bar) {
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+/* 筛选区域样式 */
+.filter-wrapper {
+  background: white;
+  position: sticky;
+  top: 46px; /* 导航栏高度 */
+  z-index: 100;
+}
+
+.search-filter {
+  padding: 0 12px;
+}
+
+:deep(.van-tabs__wrap) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.van-dropdown-menu) {
+  box-shadow: none;
+  background: transparent;
+}
+
+.date-filter-content {
+  padding: 16px;
+}
+
+.date-filter-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 0 8px;
+}
+
+/* 列表区域样式 */
+.list-section {
+  background: white;
+  min-height: 60vh;
 }
 
 .empty-state {
-    margin: 40px 0;
+  padding: 40px 20px;
 }
 
-// SKU表格样式
-.sku-table-header {
-    padding: 12px 16px;
-    background-color: #f5f5f5;
-    font-size: 14px;
-    color: #666;
-    border-bottom: 1px solid #eee;
-    font-weight: 500;
+.stock-item {
+  margin: 12px;
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.sku-table-row {
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
-    align-items: center;
-
-    &:last-child {
-        border-bottom: none;
-    }
+.stock-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.sku-table-total {
-    padding: 12px 16px;
-    background-color: #f5f5f5;
-    font-size: 14px;
-    margin-top: 8px;
-
-    .total-label {
-        font-weight: 500;
-    }
-
-    .total-value {
-        font-weight: 700;
-        color: #ee0a24;
-    }
+.stock-no {
+  font-weight: bold;
+  color: #323233;
+  font-size: 14px;
 }
 
-.sku-info {
-    .sku-name {
-        font-size: 14px;
-        margin-bottom: 4px;
-    }
-
-    .sku-code {
-        font-size: 12px;
-        color: #999;
-        margin-bottom: 2px;
-    }
-
-    .sku-spec {
-        font-size: 12px;
-        color: #666;
-    }
+.stock-content {
+  padding: 16px;
 }
 
-// 订单选择弹窗样式
-.order-picker {
-    .van-nav-bar {
-        border-bottom: 1px solid #eee;
-    }
-
-    .van-search {
-        margin: 10px;
-    }
+.stock-info {
+  margin-bottom: 12px;
 }
 
-.text-center {
-    text-align: center;
+.info-item {
+  display: flex;
+  margin-bottom: 6px;
+  font-size: 13px;
 }
 
-.text-right {
-    text-align: right;
+.info-item .label {
+  color: #969799;
+  min-width: 70px;
 }
 
-.fullscreen-loading {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(255, 255, 255, 0.8);
-    z-index: 100;
+.info-item .value {
+  color: #323233;
+  flex: 1;
+}
+
+.info-item .amount {
+  color: #ee0a24;
+  font-weight: bold;
+}
+
+.info-item .time {
+  color: #646566;
+}
+
+.stock-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+:deep(.van-button--mini) {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* 详情弹窗样式 */
+.detail-popup {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-title {
+  text-align: center;
+  margin: 0;
+  padding: 16px;
+  background: white;
+  border-bottom: 1px solid #ebedf0;
+  color: #323233;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.sku-section {
+  margin: 20px 16px 0;
+}
+
+.sku-section h4 {
+  margin-bottom: 12px;
+  color: #323233;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.sku-item {
+  border: 1px solid #ebedf0;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: white;
+}
+
+.no-data {
+  text-align: center;
+  padding: 20px;
+  color: #969799;
+  font-size: 14px;
+}
+
+:deep(.van-cell) {
+  padding: 12px 16px;
+}
+
+:deep(.van-cell__title) {
+  flex: 2;
+  font-size: 14px;
+}
+
+:deep(.van-cell__value) {
+  flex: 3;
+  text-align: right;
+  font-size: 14px;
+  color: #323233;
+}
+
+:deep(.van-cell__label) {
+  font-size: 12px;
+  color: #969799;
+  margin-top: 2px;
+}
+
+:deep(.van-popup) {
+  border-radius: 8px 8px 0 0;
 }
 </style>
