@@ -186,7 +186,7 @@ export default [
         path: 'purchase/stock',
         name: 'PurchaseStock',
         component: () => import('@/views/purchase/stock/Index.vue'),
-        meta: { title: '采购入库', showTabbar: false }
+        meta: { title: '采购入库' }
       },
       {
         // 新建采购入库单
@@ -199,7 +199,7 @@ export default [
         // 采购入库单详情
         path: 'purchase/stock/detail/:id',
         name: 'PurchaseStockDetail',
-        component: () => import('@/views/Placeholder.vue'),
+        component: () => import('@/views/purchase/stock/StockDetail.vue'),
         meta: { title: '采购入库详情', showTabbar: false }
       },
       // {
@@ -218,7 +218,7 @@ export default [
       {
         path: 'sale/order/create',
         name: 'SaleOrderCreate',
-        component: () => import('@/views/sale/order/Create.vue'),
+        component: () => import('@/views/sale/order/Form.vue'),
         meta: { title: '新增销售订单', showTabbar: false, showLayoutNavBar: false }
       },
       {

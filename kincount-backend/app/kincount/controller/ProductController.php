@@ -144,26 +144,44 @@ public function skuSelect()
         });
     }
 
-    // 分类过滤 - 修复表名引用
+    // 分类过滤
     if (!empty($categoryId)) {
         $query->whereExists(function ($query) use ($categoryId) {
             $query->table('products')
-                ->whereRaw('products.id = product_skus.product_id')  // 修复表名
+                ->whereRaw('products.id = product_skus.product_id')
                 ->where('products.category_id', $categoryId);
         });
     }
 
-    // 品牌过滤 - 修复表名引用
+    // 品牌过滤
     if (!empty($brandId)) {
         $query->whereExists(function ($query) use ($brandId) {
             $query->table('products')
-                ->whereRaw('products.id = product_skus.product_id')  // 修复表名
+                ->whereRaw('products.id = product_skus.product_id')
                 ->where('products.brand_id', $brandId);
         });
     }
 
     // 分页
     $list = $query->page($page, $limit)->select();
+
+    // 批量获取所有SKU的库存数量，避免N+1查询
+    $skuIds = $list->column('id');
+    if (!empty($skuIds)) {
+        $stockQuantities = Stock::whereIn('sku_id', $skuIds)
+            ->where('deleted_at', null)
+            ->group('sku_id')
+            ->field('sku_id, SUM(quantity) as total_quantity')
+            ->select()
+            ->column('total_quantity', 'sku_id');
+    } else {
+        $stockQuantities = [];
+    }
+
+    // 为每个SKU添加库存数量
+    foreach ($list as &$sku) {
+        $sku->stock_quantity = isset($stockQuantities[$sku->id]) ? (int)$stockQuantities[$sku->id] : 0;
+    }
 
     return $this->success($list);
 }

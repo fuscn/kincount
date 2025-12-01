@@ -31,7 +31,7 @@ class PurchaseOrderItem extends BaseModel
     // 关联SKU
     public function sku()
     {
-        return $this->belongsTo(ProductSku::class);
+        return $this->belongsTo(ProductSku::class,'sku_id');
     }
     // 获取未入库数量
     public function getUnreceivedQuantityAttr()

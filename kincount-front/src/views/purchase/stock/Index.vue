@@ -103,7 +103,7 @@
                 </div>
                 <div class="info-item">
                   <span class="label">金额：</span>
-                  <span class="value amount">¥{{ item.total_amount }}</span>
+                  <span class="value amount">¥{{ formatPrice(item.total_amount) }}</span>
                 </div>
                 <div class="info-item">
                   <span class="label">创建时间：</span>
@@ -165,71 +165,6 @@
         @cancel="showEndDatePicker = false"
       />
     </van-popup>
-
-    <!-- 详情弹窗 -->
-    <van-popup
-      v-model:show="showDetailPopup"
-      position="bottom"
-      closeable
-      :style="{ height: '85%' }"
-      @close="handleCloseDetail"
-    >
-      <div class="detail-popup" v-if="currentStockDetail">
-        <h3 class="detail-title">入库单详情 - {{ currentStockDetail.stock_no }}</h3>
-        <div class="detail-content">
-          <van-cell-group inset>
-            <van-cell title="入库单号" :value="currentStockDetail.stock_no" />
-            
-            <!-- 关联采购单信息 - 简化显示 -->
-            <van-cell 
-              title="关联采购单" 
-              :value="currentStockDetail.purchaseOrder ? currentStockDetail.purchaseOrder.order_no : (currentStockDetail.purchase_order_id ? `PO${currentStockDetail.purchase_order_id}` : '无')" 
-            />
-            
-            <van-cell title="供应商" :value="currentStockDetail.supplier?.name" />
-            <van-cell title="联系人" :value="currentStockDetail.supplier?.contact_person || '无'" />
-            <van-cell title="联系电话" :value="currentStockDetail.supplier?.phone || '无'" />
-            <van-cell title="仓库" :value="currentStockDetail.warehouse?.name" />
-            <van-cell title="仓库地址" :value="currentStockDetail.warehouse?.address || '无'" />
-            <van-cell title="总金额" :value="`¥${currentStockDetail.total_amount}`" />
-            <van-cell title="状态" :value="getStatusText(currentStockDetail.status)" />
-            <van-cell title="创建人" :value="currentStockDetail.creator?.real_name" />
-            <van-cell title="审核人" :value="currentStockDetail.auditor?.real_name || '未审核'" />
-            <van-cell title="审核时间" :value="currentStockDetail.audit_time || '未审核'" />
-            <van-cell title="创建时间" :value="formatDate(currentStockDetail.created_at)" />
-            <van-cell title="备注" :value="currentStockDetail.remark || '无'" />
-          </van-cell-group>
-
-          <!-- SKU明细 -->
-          <div class="sku-section">
-            <h4>SKU明细</h4>
-            <div
-              v-for="(item, index) in currentStockDetail.items"
-              :key="index"
-              class="sku-item"
-            >
-              <van-cell
-                :title="item.product?.name || '未知商品'"
-                :label="`商品编号: ${item.product?.product_no || '无'}`"
-              />
-              <van-cell
-                title="规格"
-                :value="item.product?.spec || '无规格'"
-              />
-              <van-cell
-                title="数量"
-                :value="`${item.quantity} ${item.product?.unit || '个'}`"
-              />
-              <van-cell title="单价" :value="`¥${item.price}`" />
-              <van-cell title="金额" :value="`¥${item.total_amount}`" />
-            </div>
-            <div v-if="!currentStockDetail.items || currentStockDetail.items.length === 0" class="no-data">
-              暂无明细数据
-            </div>
-          </div>
-        </div>
-      </div>
-    </van-popup>
   </div>
 </template>
 
@@ -288,11 +223,19 @@ const pagination = ref({
   page_size: 20
 })
 
-// 弹窗控制
-const showDetailPopup = ref(false)
+// 格式化金额
+const formatPrice = (price) => {
+  if (price === null || price === undefined || price === '') return '0.00'
+  const num = Number(price)
+  return isNaN(num) ? '0.00' : num.toFixed(2)
+}
 
-// 当前选中的入库单详情
-const currentStockDetail = ref(null)
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString().slice(0, 5)
+}
 
 // 状态文本映射
 const getStatusText = (status) => {
@@ -314,53 +257,63 @@ const getStatusTagType = (status) => {
   return typeMap[status] || 'default'
 }
 
-// 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString().slice(0, 5)
+// 查看详情 - 跳转到详情页面
+const handleViewDetail = (item) => {
+  router.push(`/purchase/stock/detail/${item.id}`)
 }
 
-// 加载供应商选项
-const loadSupplierOptions = async () => {
-  try {
-    const response = await supplierStore.loadList({ page: 1, page_size: 1000 })
-    
-    let supplierList = []
-    if (response && response.list) {
-      supplierList = response.list
-    } else if (response && response.data && response.data.list) {
-      supplierList = response.data.list
-    } else if (Array.isArray(response)) {
-      supplierList = response
+// 审核操作
+const handleAudit = (item) => {
+  showConfirmDialog({
+    title: '确认审核',
+    message: `确定要审核入库单 ${item.stock_no} 吗？审核后将更新库存数量。`
+  }).then(async () => {
+    try {
+      await purchaseStore.auditStock(item.id)
+      showToast('审核成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      showToast('审核失败: ' + (error.message || '未知错误'))
     }
-    
-    // 转换格式为 { text: name, value: id }
-    supplierOptions.value = [
-      { text: '全部供应商', value: '' },
-      ...supplierList.map(item => ({
-        text: item.name,
-        value: item.id
-      }))
-    ]
-  } catch (error) {
-    console.error('加载供应商选项失败:', error)
-    showToast('加载供应商列表失败')
-  }
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
-// 加载仓库选项
-const loadWarehouseOptions = async () => {
-  try {
-    await warehouseStore.loadOptions()
-    warehouseOptions.value = [
-      { text: '全部仓库', value: '' },
-      ...warehouseStore.options
-    ]
-  } catch (error) {
-    console.error('加载仓库选项失败:', error)
-    showToast('加载仓库列表失败')
-  }
+// 取消审核操作
+const handleCancelAudit = (item) => {
+  showConfirmDialog({
+    title: '确认取消审核',
+    message: `确定要取消审核入库单 ${item.stock_no} 吗？取消审核将回退库存数量。`
+  }).then(async () => {
+    try {
+      await purchaseStore.cancelAuditStock(item.id)
+      showToast('取消审核成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      showToast('取消审核失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
+// 取消操作
+const handleCancel = (item) => {
+  showConfirmDialog({
+    title: '确认取消',
+    message: `确定要取消入库单 ${item.stock_no} 吗？此操作不可恢复。`
+  }).then(async () => {
+    try {
+      await purchaseStore.cancelStock(item.id)
+      showToast('取消成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      showToast('取消失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
 // 状态标签变化
@@ -414,7 +367,7 @@ const onRefresh = () => {
   onLoad(true)
 }
 
-// 加载数据 - 修复重复加载问题
+// 加载数据
 const onLoad = async (isRefresh = false) => {
   // 防止重复请求
   if (loading.value && !isRefresh) return
@@ -456,7 +409,6 @@ const onLoad = async (isRefresh = false) => {
       pagination.value.page++
     }
   } catch (error) {
-    console.error('加载入库单列表失败:', error)
     if (isRefresh) {
       refreshing.value = false
     } else {
@@ -464,86 +416,6 @@ const onLoad = async (isRefresh = false) => {
     }
     finished.value = true
   }
-}
-
-// 查看详情 - 优化：只请求一次
-const handleViewDetail = async (item) => {
-  try {
-    showDetailPopup.value = true
-    // 先显示加载状态
-    currentStockDetail.value = null
-    
-    // 只请求一次详情接口，该接口已经包含items数据
-    const detail = await purchaseStore.loadStockDetail(item.id)
-    currentStockDetail.value = detail
-  } catch (error) {
-    console.error('加载入库单详情失败:', error)
-    showToast('加载详情失败')
-    showDetailPopup.value = false
-  }
-}
-
-// 关闭详情弹窗
-const handleCloseDetail = () => {
-  currentStockDetail.value = null
-  showDetailPopup.value = false
-}
-
-// 审核操作
-const handleAudit = (item) => {
-  showConfirmDialog({
-    title: '确认审核',
-    message: `确定要审核入库单 ${item.stock_no} 吗？审核后将更新库存数量。`
-  }).then(async () => {
-    try {
-      await purchaseStore.auditStock(item.id)
-      showToast('审核成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      console.error('审核失败:', error)
-      showToast('审核失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
-}
-
-// 取消审核操作
-const handleCancelAudit = (item) => {
-  showConfirmDialog({
-    title: '确认取消审核',
-    message: `确定要取消审核入库单 ${item.stock_no} 吗？取消审核将回退库存数量。`
-  }).then(async () => {
-    try {
-      await purchaseStore.cancelAuditStock(item.id)
-      showToast('取消审核成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      console.error('取消审核失败:', error)
-      showToast('取消审核失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
-}
-
-// 取消操作
-const handleCancel = (item) => {
-  showConfirmDialog({
-    title: '确认取消',
-    message: `确定要取消入库单 ${item.stock_no} 吗？此操作不可恢复。`
-  }).then(async () => {
-    try {
-      await purchaseStore.cancelStock(item.id)
-      showToast('取消成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      console.error('取消失败:', error)
-      showToast('取消失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
 }
 
 // 开始日期选择确认
@@ -564,6 +436,46 @@ const onEndDateConfirm = (value) => {
   showEndDatePicker.value = false
 }
 
+// 加载供应商选项
+const loadSupplierOptions = async () => {
+  try {
+    const response = await supplierStore.loadList({ page: 1, page_size: 1000 })
+    
+    let supplierList = []
+    if (response && response.list) {
+      supplierList = response.list
+    } else if (response && response.data && response.data.list) {
+      supplierList = response.data.list
+    } else if (Array.isArray(response)) {
+      supplierList = response
+    }
+    
+    // 转换格式为 { text: name, value: id }
+    supplierOptions.value = [
+      { text: '全部供应商', value: '' },
+      ...supplierList.map(item => ({
+        text: item.name,
+        value: item.id
+      }))
+    ]
+  } catch (error) {
+    showToast('加载供应商列表失败')
+  }
+}
+
+// 加载仓库选项
+const loadWarehouseOptions = async () => {
+  try {
+    await warehouseStore.loadOptions()
+    warehouseOptions.value = [
+      { text: '全部仓库', value: '' },
+      ...warehouseStore.options
+    ]
+  } catch (error) {
+    showToast('加载仓库列表失败')
+  }
+}
+
 // 初始化加载
 onMounted(async () => {
   // 加载供应商和仓库选项
@@ -576,7 +488,7 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .purchase-stock-container {
   padding: 0;
   background-color: #f7f8fa;
@@ -640,6 +552,7 @@ onMounted(async () => {
   overflow: hidden;
   background: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
 }
 
 .stock-header {
@@ -701,81 +614,5 @@ onMounted(async () => {
   height: 24px;
   padding: 0 8px;
   font-size: 11px;
-}
-
-/* 详情弹窗样式 */
-.detail-popup {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-title {
-  text-align: center;
-  margin: 0;
-  padding: 16px;
-  background: white;
-  border-bottom: 1px solid #ebedf0;
-  color: #323233;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.detail-content {
-  flex: 1;
-  overflow-y: auto;
-  padding-bottom: 20px;
-}
-
-.sku-section {
-  margin: 20px 16px 0;
-}
-
-.sku-section h4 {
-  margin-bottom: 12px;
-  color: #323233;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.sku-item {
-  border: 1px solid #ebedf0;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  overflow: hidden;
-  background: white;
-}
-
-.no-data {
-  text-align: center;
-  padding: 20px;
-  color: #969799;
-  font-size: 14px;
-}
-
-:deep(.van-cell) {
-  padding: 12px 16px;
-}
-
-:deep(.van-cell__title) {
-  flex: 2;
-  font-size: 14px;
-}
-
-:deep(.van-cell__value) {
-  flex: 3;
-  text-align: right;
-  font-size: 14px;
-  color: #323233;
-}
-
-:deep(.van-cell__label) {
-  font-size: 12px;
-  color: #969799;
-  margin-top: 2px;
-}
-
-:deep(.van-popup) {
-  border-radius: 8px 8px 0 0;
 }
 </style>

@@ -1,4 +1,3 @@
-<!-- kincount\kincount-front\src\views\stock\Index.vue -->
 <template>
   <div class="stock-page">
     <van-nav-bar title="库存查询" fixed placeholder />
@@ -7,7 +6,7 @@
     <div class="filter-section">
       <van-search
         v-model="filters.keyword"
-        placeholder="搜索商品名称/编号"
+        placeholder="搜索商品名称/编号/SKU编码"
         show-action
         @search="handleSearch"
         @clear="handleClearSearch"
@@ -34,87 +33,118 @@
     <!-- 库存统计 -->
     <div class="stats-cards">
       <van-row gutter="12">
-        <van-col span="8">
+        <van-col span="6">
           <div class="stat-card">
-            <div class="stat-value">{{ statistics.productCount || 0 }}</div>
-            <div class="stat-label">商品种类</div>
+            <div class="stat-value">{{ statistics.skuCount || 0 }}</div>
+            <div class="stat-label">SKU种类</div>
           </div>
         </van-col>
-        <van-col span="8">
+        <van-col span="6">
+          <div class="stat-card">
+            <div class="stat-value">{{ statistics.totalQuantity || 0 }}</div>
+            <div class="stat-label">总库存量</div>
+          </div>
+        </van-col>
+        <van-col span="6">
           <div class="stat-card">
             <div class="stat-value">¥{{ statistics.totalValue || 0 }}</div>
             <div class="stat-label">库存价值</div>
           </div>
         </van-col>
-        <van-col span="8">
+        <van-col span="6">
           <div class="stat-card warning">
             <div class="stat-value">{{ statistics.warningCount || 0 }}</div>
-            <div class="stat-label">预警商品</div>
+            <div class="stat-label">预警SKU</div>
           </div>
         </van-col>
       </van-row>
     </div>
 
-    <!-- 商品聚合库存列表 -->
+    <!-- SKU库存列表 -->
     <van-pull-refresh v-model="refreshing" @refresh="loadStockList(true)">
       <van-list
         v-model:loading="listLoading"
         :finished="finished"
-        :finished-text="aggregatedList.length === 0 ? '暂无库存数据' : '没有更多了'"
+        :finished-text="skuList.length === 0 ? '暂无库存数据' : '没有更多了'"
         @load="loadStockList"
       >
-        <div class="product-list">
+        <div class="sku-list">
           <van-swipe-cell 
-            v-for="product in aggregatedList" 
-            :key="product.id"
+            v-for="sku in skuList" 
+            :key="`${sku.sku_id}_${sku.warehouse_id}`"
           >
             <div 
-              class="product-item"
-              @click="handleViewProduct(product)"
+              class="sku-item"
+              @click="handleViewSku(sku)"
             >
-              <div class="product-header">
-                <div class="product-name">{{ product.name }}</div>
-                <van-tag :type="getStockTagType(product)">
-                  {{ getStockStatusText(product) }}
+              <div class="sku-header">
+                <div class="sku-name">{{ sku.product_name }}</div>
+                <van-tag :type="getStockTagType(sku)">
+                  {{ getStockStatusText(sku) }}
                 </van-tag>
               </div>
               
-              <div class="product-info">
+              <div class="sku-info">
                 <div class="info-row">
-                  <span class="label">编号：</span>
-                  <span class="value">{{ product.product_no }}</span>
+                  <span class="label">SKU编码：</span>
+                  <span class="value">{{ sku.sku_code }}</span>
                 </div>
                 <div class="info-row">
-                  <span class="label">规格：</span>
-                  <span class="value">{{ product.spec || '无' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">分类：</span>
-                  <span class="value">{{ product.category_name }}</span>
-                </div>
-              </div>
-
-              <div class="stock-info">
-                <div class="total-stock">
-                  <div class="stock-value">{{ product.total_quantity }}</div>
-                  <div class="stock-label">总库存 ({{ product.unit }})</div>
+                  <span class="label">产品编号：</span>
+                  <span class="value">{{ sku.product_no }}</span>
                 </div>
                 
-                <div class="warehouse-stocks">
-                  <div 
-                    v-for="wh in product.warehouses" 
-                    :key="wh.warehouse_id"
-                    class="warehouse-item"
-                  >
-                    <span class="wh-name">{{ wh.warehouse_name }}：</span>
-                    <span class="wh-quantity">{{ wh.quantity }}{{ product.unit }}</span>
-                  </div>
+                <!-- SKU规格信息 -->
+                <div class="info-row" v-if="sku.spec">
+                  <span class="label">规格：</span>
+                  <span class="value specs">
+                    <template v-if="typeof sku.spec === 'object'">
+                      <van-tag 
+                        v-for="(value, key) in sku.spec" 
+                        :key="key"
+                        size="mini"
+                        type="primary"
+                        plain
+                      >
+                        {{ key }}:{{ value }}
+                      </van-tag>
+                    </template>
+                    <template v-else>
+                      {{ sku.spec }}
+                    </template>
+                  </span>
+                </div>
+                
+                <div class="info-row">
+                  <span class="label">仓库：</span>
+                  <span class="value">{{ sku.warehouse_name }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="label">单位：</span>
+                  <span class="value">{{ sku.unit }}</span>
                 </div>
               </div>
 
-              <div class="price-info">
-                <div class="cost-price">成本价：¥{{ product.cost_price }}</div>
-                <div class="total-value">库存价值：¥{{ product.total_amount }}</div>
+              <div class="stock-details">
+                <div class="quantity-info">
+                  <div class="quantity-value">{{ sku.quantity }}</div>
+                  <div class="quantity-label">库存数量</div>
+                </div>
+                
+                <div class="price-info">
+                  <div class="price-row">
+                    <span class="price-label">成本价：</span>
+                    <span class="price-value">¥{{ formatPrice(sku.cost_price) }}</span>
+                  </div>
+                  <div class="price-row">
+                    <span class="price-label">销售价：</span>
+                    <span class="price-value sale">¥{{ formatPrice(sku.sale_price) }}</span>
+                  </div>
+                  <div class="price-row total">
+                    <span class="price-label">库存价值：</span>
+                    <span class="price-value">¥{{ formatPrice(sku.total_amount) }}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -123,13 +153,13 @@
                 square 
                 type="primary" 
                 text="调拨" 
-                @click="handleStockTransfer(product)" 
+                @click="handleStockTransfer(sku)" 
               />
               <van-button 
                 square 
                 type="warning" 
                 text="盘点" 
-                @click="handleStockTake(product)" 
+                @click="handleStockTake(sku)" 
               />
             </template>
           </van-swipe-cell>
@@ -137,7 +167,7 @@
 
         <!-- 空状态 -->
         <van-empty
-          v-if="!listLoading && !refreshing && aggregatedList.length === 0"
+          v-if="!listLoading && !refreshing && skuList.length === 0"
           description="暂无库存数据"
           image="search"
         />
@@ -152,53 +182,67 @@
       cancel-text="取消"
     />
 
-    <!-- 商品详情弹窗 -->
+    <!-- SKU详情弹窗 -->
     <van-popup 
-      v-model:show="showProductDetail" 
+      v-model:show="showSkuDetail" 
       position="bottom" 
-      :style="{ height: '70%' }"
+      :style="{ height: '80%' }"
       round
     >
-      <div class="product-detail" v-if="selectedProduct">
+      <div class="sku-detail" v-if="selectedSku">
         <van-nav-bar
-          :title="selectedProduct.name"
+          :title="selectedSku.product_name"
           left-text="返回"
-          @click-left="showProductDetail = false"
+          @click-left="showSkuDetail = false"
         />
         
         <div class="detail-content">
           <van-cell-group title="基本信息">
-            <van-cell title="商品编号" :value="selectedProduct.product_no" />
-            <van-cell title="规格型号" :value="selectedProduct.spec || '无'" />
-            <van-cell title="计量单位" :value="selectedProduct.unit" />
-            <van-cell title="商品分类" :value="selectedProduct.category_name" />
+            <van-cell title="SKU编码" :value="selectedSku.sku_code" />
+            <van-cell title="产品编号" :value="selectedSku.product_no" />
+            <van-cell title="产品名称" :value="selectedSku.product_name" />
+            <van-cell title="规格">
+              <template #value>
+                <div v-if="selectedSku.spec">
+                  <template v-if="typeof selectedSku.spec === 'object'">
+                    <van-tag 
+                      v-for="(value, key) in selectedSku.spec" 
+                      :key="key"
+                      size="small"
+                      type="primary"
+                      plain
+                    >
+                      {{ key }}:{{ value }}
+                    </van-tag>
+                  </template>
+                  <template v-else>
+                    {{ selectedSku.spec }}
+                  </template>
+                </div>
+                <span v-else>无</span>
+              </template>
+            </van-cell>
+            <van-cell title="单位" :value="selectedSku.unit" />
+            <van-cell title="条形码" :value="selectedSku.barcode || '无'" />
           </van-cell-group>
 
           <van-cell-group title="库存信息">
-            <van-cell title="总库存数量" :value="`${selectedProduct.total_quantity}${selectedProduct.unit}`" />
-            <van-cell title="安全库存" :value="`${selectedProduct.min_stock}${selectedProduct.unit}`" />
-            <van-cell title="最大库存" :value="`${selectedProduct.max_stock || '无限制'}${selectedProduct.unit}`" />
+            <van-cell title="仓库" :value="selectedSku.warehouse_name" />
+            <van-cell title="库存数量" :value="`${selectedSku.quantity}${selectedSku.unit}`" />
+            <van-cell title="安全库存" :value="`${selectedSku.min_stock || 0}${selectedSku.unit}`" />
+            <van-cell title="最大库存" :value="`${selectedSku.max_stock || '无限制'}${selectedSku.unit}`" />
           </van-cell-group>
 
           <van-cell-group title="价格信息">
-            <van-cell title="成本价格" :value="`¥${selectedProduct.cost_price}`" />
-            <van-cell title="库存价值" :value="`¥${selectedProduct.total_amount}`" />
+            <van-cell title="成本价格" :value="`¥${formatPrice(selectedSku.cost_price)}`" />
+            <van-cell title="销售价格" :value="`¥${formatPrice(selectedSku.sale_price)}`" />
+            <van-cell title="库存价值" :value="`¥${formatPrice(selectedSku.total_amount)}`" />
           </van-cell-group>
 
-          <van-cell-group title="仓库库存分布">
-            <van-cell
-              v-for="wh in selectedProduct.warehouses"
-              :key="wh.warehouse_id"
-              :title="wh.warehouse_name"
-              :value="`${wh.quantity}${selectedProduct.unit}`"
-              :label="`库存价值: ¥${wh.amount}`"
-            >
-              <template #extra>
-                <van-tag :type="getWarehouseStockTagType(wh.quantity, selectedProduct.min_stock)">
-                  {{ getWarehouseStockStatus(wh.quantity, selectedProduct.min_stock) }}
-                </van-tag>
-              </template>
-            </van-cell>
+          <van-cell-group title="其他信息">
+            <van-cell title="创建时间" :value="formatDateTime(selectedSku.created_at)" />
+            <van-cell title="更新时间" :value="formatDateTime(selectedSku.updated_at)" />
+            <van-cell title="状态" :value="selectedSku.status === 1 ? '正常' : '停用'" />
           </van-cell-group>
         </div>
       </div>
@@ -207,7 +251,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
   showToast,
@@ -235,10 +279,10 @@ const pagination = reactive({
 
 const warehouseOptions = ref([{ text: '全部仓库', value: '' }])
 const categoryOptions = ref([{ text: '全部分类', value: '' }])
-const stockList = ref([])
-const aggregatedList = ref([])
+const skuList = ref([])
 const statistics = ref({
-  productCount: 0,
+  skuCount: 0,
+  totalQuantity: 0,
   totalValue: 0,
   warningCount: 0
 })
@@ -246,55 +290,79 @@ const refreshing = ref(false)
 const listLoading = ref(false)
 const finished = ref(false)
 const showActionSheet = ref(false)
-const showProductDetail = ref(false)
-const selectedProduct = ref(null)
+const showSkuDetail = ref(false)
+const selectedSku = ref(null)
 
 const actions = ref([
-  { name: '查看库存详情', key: 'detail' },
+  { name: '查看详情', key: 'detail' },
   { name: '库存调拨', key: 'transfer' },
   { name: '库存盘点', key: 'take' },
-  { name: '查看商品档案', key: 'product' }
+  { name: '查看产品档案', key: 'product' }
 ])
 
-// 聚合商品库存数据
-const aggregateProducts = (warehouseStocks) => {
-  const productMap = new Map()
+// 格式化价格
+const formatPrice = (price) => {
+  if (price === null || price === undefined || price === '') return '0.00'
+  const num = Number(price)
+  return isNaN(num) ? '0.00' : num.toFixed(2)
+}
 
-  warehouseStocks.forEach(stock => {
-    const productId = stock.product_id
+// 格式化日期时间
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return '--'
+  try {
+    const d = new Date(dateTime)
+    if (isNaN(d.getTime())) return '--'
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}`
+  } catch (error) {
+    return '--'
+  }
+}
+
+// 处理SKU数据，提取需要的信息
+const processSkuData = (stocks) => {
+  return stocks.map(stock => {
+    const sku = stock.sku || {}
+    const product = sku.product || {}
+    const warehouse = stock.warehouse || {}
     
-    if (!productMap.has(productId)) {
-      productMap.set(productId, {
-        id: productId,
-        name: stock.product_name,
-        product_no: stock.product_no,
-        spec: stock.spec,
-        unit: stock.unit,
-        min_stock: stock.min_stock,
-        max_stock: stock.max_stock,
-        cost_price: stock.cost_price,
-        category_name: stock.category_name,
-        total_quantity: 0,
-        total_amount: 0,
-        warehouses: []
-      })
-    }
-
-    const product = productMap.get(productId)
-    const quantity = Number(stock.quantity) || 0
-    const amount = Number(stock.total_amount) || 0
-
-    product.total_quantity += quantity
-    product.total_amount += amount
-    product.warehouses.push({
+    return {
+      // 库存记录信息
+      id: stock.id,
+      sku_id: stock.sku_id,
       warehouse_id: stock.warehouse_id,
-      warehouse_name: stock.warehouse_name,
-      quantity: quantity,
-      amount: amount
-    })
+      quantity: stock.quantity || 0,
+      cost_price: stock.cost_price || sku.cost_price,
+      total_amount: stock.total_amount || 0,
+      created_at: stock.created_at,
+      updated_at: stock.updated_at,
+      
+      // SKU信息
+      sku_code: sku.sku_code,
+      spec: sku.spec,
+      barcode: sku.barcode,
+      sale_price: sku.sale_price,
+      unit: sku.unit || product.unit,
+      status: sku.status,
+      
+      // 产品信息
+      product_id: product.id,
+      product_name: product.name,
+      product_no: product.product_no,
+      min_stock: product.min_stock || 0,
+      max_stock: product.max_stock,
+      
+      // 仓库信息
+      warehouse_name: warehouse.name,
+      warehouse_code: warehouse.code,
+      warehouse_address: warehouse.address
+    }
   })
-
-  return Array.from(productMap.values())
 }
 
 // 加载库存列表
@@ -336,24 +404,25 @@ const loadStockList = async (isRefresh = false) => {
       totalCount = stockStore.total || 0
     }
 
-    if (isRefresh) {
-      stockList.value = listData
-    } else {
-      stockList.value = [...stockList.value, ...listData]
-    }
+    // 处理SKU数据
+    const processedData = processSkuData(listData)
 
-    // 聚合商品数据
-    aggregatedList.value = aggregateProducts(stockList.value)
+    if (isRefresh) {
+      skuList.value = processedData
+    } else {
+      skuList.value = [...skuList.value, ...processedData]
+    }
 
     pagination.total = totalCount
 
-    if (stockList.value.length >= totalCount || listData.length === 0) {
+    if (skuList.value.length >= totalCount || listData.length === 0) {
       finished.value = true
     }
 
     calculateStatistics()
 
   } catch (error) {
+    console.error('加载库存列表失败:', error)
     showToast('加载失败')
     finished.value = true
   } finally {
@@ -365,21 +434,26 @@ const loadStockList = async (isRefresh = false) => {
 // 计算统计信息
 const calculateStatistics = () => {
   const stats = {
-    productCount: new Set(),
+    skuCount: new Set(),
+    totalQuantity: 0,
     totalValue: 0,
     warningCount: 0
   }
 
-  aggregatedList.value.forEach(product => {
-    stats.productCount.add(product.id)
-    stats.totalValue += product.total_amount
-    if (product.total_quantity <= product.min_stock) {
+  skuList.value.forEach(sku => {
+    stats.skuCount.add(sku.sku_id)
+    stats.totalQuantity += Number(sku.quantity) || 0
+    stats.totalValue += Number(sku.total_amount) || 0
+    
+    // 计算预警SKU（库存低于安全库存）
+    if (sku.quantity <= (sku.min_stock || 0)) {
       stats.warningCount++
     }
   })
 
   statistics.value = {
-    productCount: stats.productCount.size,
+    skuCount: stats.skuCount.size,
+    totalQuantity: stats.totalQuantity,
     totalValue: stats.totalValue.toFixed(2),
     warningCount: stats.warningCount
   }
@@ -414,33 +488,26 @@ const loadFilterOptions = async () => {
     ]
 
   } catch (error) {
+    console.error('加载筛选选项失败:', error)
     showToast('加载筛选选项失败')
   }
 }
 
 // 获取库存状态标签类型
-const getStockTagType = (product) => {
-  if (product.total_quantity <= 0) return 'danger'
-  if (product.total_quantity <= product.min_stock) return 'warning'
-  return 'success'
-}
-
-// 获取库存状态文本
-const getStockStatusText = (product) => {
-  if (product.total_quantity <= 0) return '缺货'
-  if (product.total_quantity <= product.min_stock) return '预警'
-  return '正常'
-}
-
-// 获取仓库库存状态标签类型
-const getWarehouseStockTagType = (quantity, minStock) => {
+const getStockTagType = (sku) => {
+  const quantity = Number(sku.quantity) || 0
+  const minStock = Number(sku.min_stock) || 0
+  
   if (quantity <= 0) return 'danger'
   if (quantity <= minStock) return 'warning'
   return 'success'
 }
 
-// 获取仓库库存状态文本
-const getWarehouseStockStatus = (quantity, minStock) => {
+// 获取库存状态文本
+const getStockStatusText = (sku) => {
+  const quantity = Number(sku.quantity) || 0
+  const minStock = Number(sku.min_stock) || 0
+  
   if (quantity <= 0) return '缺货'
   if (quantity <= minStock) return '预警'
   return '正常'
@@ -456,46 +523,47 @@ const handleClearSearch = () => {
   loadStockList(true)
 }
 
-const handleViewProduct = (product) => {
-  selectedProduct.value = product
+const handleViewSku = (sku) => {
+  selectedSku.value = sku
   showActionSheet.value = true
 }
 
 const onActionSelect = (action) => {
   showActionSheet.value = false
   
-  if (!selectedProduct.value) return
+  if (!selectedSku.value) return
 
   switch (action.key) {
     case 'detail':
-      showProductDetail.value = true
+      showSkuDetail.value = true
       break
     case 'transfer':
-      handleStockTransfer(selectedProduct.value)
+      handleStockTransfer(selectedSku.value)
       break
     case 'take':
-      handleStockTake(selectedProduct.value)
+      handleStockTake(selectedSku.value)
       break
     case 'product':
       router.push({
         path: '/product/detail',
-        query: { id: selectedProduct.value.id }
+        query: { id: selectedSku.value.product_id }
       })
       break
   }
 }
 
 // 库存调拨
-const handleStockTransfer = (product) => {
+const handleStockTransfer = (sku) => {
   showConfirmDialog({
     title: '库存调拨',
-    message: `是否要对商品「${product.name}」进行库存调拨？`
+    message: `是否要对SKU「${sku.sku_code}」进行库存调拨？`
   }).then(() => {
     router.push({
       path: '/stock/transfer',
       query: { 
-        product_id: product.id,
-        product_name: product.name
+        sku_id: sku.sku_id,
+        sku_name: sku.product_name,
+        warehouse_id: sku.warehouse_id
       }
     })
   }).catch(() => {
@@ -504,16 +572,17 @@ const handleStockTransfer = (product) => {
 }
 
 // 库存盘点
-const handleStockTake = (product) => {
+const handleStockTake = (sku) => {
   showConfirmDialog({
     title: '库存盘点',
-    message: `是否要对商品「${product.name}」进行库存盘点？`
+    message: `是否要对SKU「${sku.sku_code}」进行库存盘点？`
   }).then(() => {
     router.push({
       path: '/stock/take',
       query: { 
-        product_id: product.id,
-        product_name: product.name
+        sku_id: sku.sku_id,
+        sku_name: sku.product_name,
+        warehouse_id: sku.warehouse_id
       }
     })
   }).catch(() => {
@@ -548,7 +617,7 @@ onMounted(() => {
 .stat-card {
   background: white;
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
   text-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   
@@ -560,36 +629,36 @@ onMounted(() => {
   }
   
   .stat-value {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     color: #1989fa;
     margin-bottom: 4px;
   }
   
   .stat-label {
-    font-size: 12px;
+    font-size: 11px;
     color: #969799;
   }
 }
 
-.product-list {
+.sku-list {
   padding: 8px 0;
 }
 
-.product-item {
+.sku-item {
   background: white;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   
-  .product-header {
+  .sku-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 12px;
     
-    .product-name {
+    .sku-name {
       font-size: 16px;
       font-weight: 500;
       flex: 1;
@@ -597,90 +666,103 @@ onMounted(() => {
     }
   }
   
-  .product-info {
+  .sku-info {
     margin-bottom: 12px;
     
     .info-row {
       display: flex;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       font-size: 13px;
       
       .label {
         color: #969799;
-        min-width: 50px;
+        min-width: 70px;
       }
       
       .value {
         color: #323233;
         flex: 1;
+        
+        &.specs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          
+          :deep(.van-tag) {
+            margin-bottom: 2px;
+          }
+        }
       }
     }
   }
   
-  .stock-info {
+  .stock-details {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
+    align-items: center;
     padding: 12px;
     background: #f7f8fa;
     border-radius: 6px;
     
-    .total-stock {
+    .quantity-info {
       text-align: center;
+      min-width: 80px;
       
-      .stock-value {
+      .quantity-value {
         font-size: 20px;
         font-weight: bold;
         color: #1989fa;
       }
       
-      .stock-label {
+      .quantity-label {
         font-size: 12px;
         color: #969799;
         margin-top: 4px;
       }
     }
     
-    .warehouse-stocks {
+    .price-info {
       flex: 1;
       margin-left: 16px;
       
-      .warehouse-item {
+      .price-row {
         display: flex;
         justify-content: space-between;
         margin-bottom: 4px;
         font-size: 12px;
         
-        .wh-name {
-          color: #646566;
+        &.total {
+          margin-top: 6px;
+          padding-top: 6px;
+          border-top: 1px solid #e5e5e5;
+          
+          .price-label {
+            font-weight: 600;
+          }
+          
+          .price-value {
+            font-weight: 700;
+            color: #ee0a24;
+          }
         }
         
-        .wh-quantity {
+        .price-label {
+          color: #969799;
+        }
+        
+        .price-value {
           color: #323233;
-          font-weight: 500;
+          
+          &.sale {
+            color: #07c160;
+          }
         }
       }
     }
   }
-  
-  .price-info {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    
-    .cost-price {
-      color: #ee0a24;
-    }
-    
-    .total-value {
-      color: #07c160;
-      font-weight: 500;
-    }
-  }
 }
 
-.product-detail {
+.sku-detail {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -690,5 +772,41 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 20px;
+}
+
+// 操作面板样式调整
+:deep(.van-action-sheet) {
+  .van-action-sheet__item {
+    font-size: 16px;
+    
+    &[style*="color: #1989fa"] {
+      color: #1989fa !important;
+    }
+    
+    &[style*="color: #07c160"] {
+      color: #07c160 !important;
+    }
+    
+    &[style*="color: #7232dd"] {
+      color: #7232dd !important;
+    }
+    
+    &[style*="color: #ff976a"] {
+      color: #ff976a !important;
+    }
+    
+    &[style*="color: #ee0a24"] {
+      color: #ee0a24 !important;
+    }
+  }
+}
+
+// 优化导航栏样式
+:deep(.van-nav-bar) {
+  background: white;
+  
+  .van-nav-bar__title {
+    font-weight: 600;
+  }
 }
 </style>

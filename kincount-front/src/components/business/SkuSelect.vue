@@ -37,7 +37,7 @@
                   <div class="sku-spec" v-if="getSpecText(sku)">规格: {{ getSpecText(sku) }}</div>
                   <div class="sku-details">
                     <span class="stock" :class="getStockClass(sku.stock || 0)">
-                      库存: {{ sku.stock || 0 }}
+                      库存: {{ sku.stock_quantity || 0 }}
                     </span>
                     <span class="cost-price" v-if="sku.cost_price">成本: ¥{{ sku.cost_price }}</span>
                     <span class="sale-price" v-if="sku.sale_price">售价: ¥{{ sku.sale_price }}</span>

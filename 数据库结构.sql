@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-11-29 21:17:40
+-- 导出时间: 2025-11-30 23:03:59
 -- 共 28 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -29,7 +29,7 @@ CREATE TABLE `account_records` (
   KEY `idx_related` (`related_type`,`related_id`),
   KEY `idx_status` (`status`),
   KEY `idx_account_records_status` (`status`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
 
 
 -- ==================================================
@@ -47,7 +47,7 @@ CREATE TABLE `brands` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='品牌表';
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='品牌表';
 
 
 -- ==================================================
@@ -66,7 +66,7 @@ CREATE TABLE `categorys` (
   PRIMARY KEY (`id`),
   KEY `idx_parent` (`parent_id`),
   KEY `idx_sort` (`sort`)
-) ENGINE=MyISAM AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品分类表';
+) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品分类表';
 
 
 -- ==================================================
@@ -91,7 +91,7 @@ CREATE TABLE `customers` (
   PRIMARY KEY (`id`),
   KEY `idx_name` (`name`),
   KEY `idx_phone` (`phone`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户表';
 
 
 -- ==================================================
@@ -116,7 +116,7 @@ CREATE TABLE `financial_records` (
   KEY `idx_date` (`record_date`),
   KEY `idx_category` (`category`),
   KEY `idx_financial_records_date` (`record_date`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
 
 
 -- ==================================================
@@ -187,7 +187,7 @@ CREATE TABLE `products` (
   KEY `idx_status` (`status`),
   KEY `idx_products_category` (`category_id`),
   KEY `idx_products_brand` (`brand_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
 
 
 -- ==================================================
@@ -208,7 +208,7 @@ CREATE TABLE `purchase_order_items` (
   PRIMARY KEY (`id`),
   KEY `idx_order` (`purchase_order_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
 
 
 -- ==================================================
@@ -237,7 +237,7 @@ CREATE TABLE `purchase_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_order_no` (`order_no`),
   KEY `idx_purchase_orders_supplier` (`supplier_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
 
 
 -- ==================================================
@@ -247,6 +247,7 @@ CREATE TABLE `purchase_stock_items` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `purchase_stock_id` bigint(20) unsigned NOT NULL COMMENT '采购入库ID',
   `product_id` bigint(20) unsigned NOT NULL COMMENT '商品ID',
+  `sku_id` int(11) NOT NULL,
   `quantity` int(11) NOT NULL COMMENT '入库数量',
   `price` decimal(10,2) NOT NULL COMMENT '入库单价',
   `total_amount` decimal(10,2) NOT NULL COMMENT '总金额',
@@ -256,7 +257,7 @@ CREATE TABLE `purchase_stock_items` (
   PRIMARY KEY (`id`),
   KEY `idx_stock` (`purchase_stock_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
 
 
 -- ==================================================
@@ -282,7 +283,7 @@ CREATE TABLE `purchase_stocks` (
   KEY `idx_supplier` (`supplier_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
 
 
 -- ==================================================
@@ -299,7 +300,7 @@ CREATE TABLE `roles` (
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
 
 
 -- ==================================================
@@ -320,7 +321,7 @@ CREATE TABLE `sale_order_items` (
   PRIMARY KEY (`id`),
   KEY `idx_order` (`sale_order_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单明细表';
 
 
 -- ==================================================
@@ -351,7 +352,7 @@ CREATE TABLE `sale_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_order_no` (`order_no`),
   KEY `idx_sale_orders_customer` (`customer_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表';
 
 
 -- ==================================================
@@ -370,7 +371,7 @@ CREATE TABLE `sale_stock_items` (
   PRIMARY KEY (`id`),
   KEY `idx_stock` (`sale_stock_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
 
 
 -- ==================================================
@@ -396,7 +397,7 @@ CREATE TABLE `sale_stocks` (
   KEY `idx_customer` (`customer_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
 
 
 -- ==================================================
@@ -418,7 +419,7 @@ CREATE TABLE `stock_take_items` (
   PRIMARY KEY (`id`),
   KEY `idx_take` (`stock_take_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
 
 
 -- ==================================================
@@ -441,7 +442,7 @@ CREATE TABLE `stock_takes` (
   UNIQUE KEY `take_no` (`take_no`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
 
 
 -- ==================================================
@@ -460,7 +461,7 @@ CREATE TABLE `stock_transfer_items` (
   PRIMARY KEY (`id`),
   KEY `idx_transfer` (`stock_transfer_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
 
 
 -- ==================================================
@@ -485,7 +486,7 @@ CREATE TABLE `stock_transfers` (
   KEY `idx_from_warehouse` (`from_warehouse_id`),
   KEY `idx_to_warehouse` (`to_warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
 
 
 -- ==================================================
@@ -506,7 +507,7 @@ CREATE TABLE `stocks` (
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_stocks_product` (`sku_id`),
   KEY `idx_stocks_warehouse` (`warehouse_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
+) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
 
 
 -- ==================================================
@@ -528,7 +529,7 @@ CREATE TABLE `suppliers` (
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_name` (`name`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商表';
 
 
 -- ==================================================
@@ -547,7 +548,7 @@ CREATE TABLE `system_configs` (
   UNIQUE KEY `config_key` (`config_key`),
   KEY `idx_key` (`config_key`),
   KEY `idx_group` (`config_group`)
-) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
 
 -- ==================================================
@@ -574,7 +575,7 @@ CREATE TABLE `users` (
   KEY `idx_username` (`username`),
   KEY `idx_role` (`role_id`),
   KEY `idx_status` (`status`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 
 -- ==================================================
@@ -606,6 +607,6 @@ CREATE TABLE `warehouses` (
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='仓库表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='仓库表';
 
 

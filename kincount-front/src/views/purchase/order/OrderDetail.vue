@@ -1,28 +1,16 @@
 <template>
   <div class="purchase-order-detail">
-    <van-nav-bar 
-      title="采购订单详情" 
-      left-arrow 
-      left-text="返回"
-      @click-left="$router.back()"
-      fixed
-      placeholder
-    >
+    <van-nav-bar title="采购订单详情" left-arrow left-text="返回" @click-left="$router.back()" fixed placeholder>
       <template #right>
-        <van-button 
-          v-if="hasActions" 
-          type="primary" 
-          size="small"
-          @click="showActionSheet = true"
-        >
+        <van-button v-if="hasActions" type="primary" size="small" @click="showActionSheet = true">
           操作
         </van-button>
       </template>
     </van-nav-bar>
-    
+
     <div class="content">
       <van-loading v-if="loading" class="loading">加载中...</van-loading>
-      
+
       <template v-else-if="orderData">
         <!-- 订单基本信息 -->
         <van-card class="info-card">
@@ -34,15 +22,15 @@
               </van-tag>
             </div>
           </template>
-          
-          <template #default>
+
+          <template #desc>
             <div class="info-item">
               <span class="label">供应商：</span>
-              <span class="value">{{ orderData.supplier?.name }}</span>
+              <span class="value">{{ orderData.supplier?.name || '--' }}</span>
             </div>
             <div class="info-item">
               <span class="label">仓库：</span>
-              <span class="value">{{ orderData.warehouse?.name }}</span>
+              <span class="value">{{ orderData.warehouse?.name || '--' }}</span>
             </div>
             <div class="info-item">
               <span class="label">预计到货：</span>
@@ -53,12 +41,30 @@
               <span class="value amount">¥{{ formatPrice(orderData.total_amount) }}</span>
             </div>
             <div class="info-item">
+              <span class="label">已付金额：</span>
+              <span class="value amount">¥{{ formatPrice(orderData.paid_amount) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">未付金额：</span>
+              <span class="value amount unpaid">
+                ¥{{ formatPrice(orderData.total_amount - orderData.paid_amount) }}
+              </span>
+            </div>
+            <div class="info-item">
               <span class="label">创建人：</span>
-              <span class="value">{{ orderData.creator?.real_name }}</span>
+              <span class="value">{{ orderData.creator?.real_name || '--' }}</span>
             </div>
             <div class="info-item">
               <span class="label">创建时间：</span>
               <span class="value">{{ formatDateTime(orderData.created_at) }}</span>
+            </div>
+            <div v-if="orderData.audit_by" class="info-item">
+              <span class="label">审核人：</span>
+              <span class="value">{{ orderData.auditor?.real_name || '--' }}</span>
+            </div>
+            <div v-if="orderData.audit_time" class="info-item">
+              <span class="label">审核时间：</span>
+              <span class="value">{{ formatDateTime(orderData.audit_time) }}</span>
             </div>
             <div v-if="orderData.remark" class="info-item">
               <span class="label">备注：</span>
@@ -75,8 +81,16 @@
             <div v-for="(item, index) in orderData.items" :key="item.id || index" class="item-card">
               <div class="item-info">
                 <div class="item-name">{{ getProductName(item) }}</div>
-                <div class="item-spec">{{ getSpecText(item) }}</div>
+                <div class="item-specs" v-if="getSkuSpecs(item).length > 0">
+                  <van-tag v-for="(spec, specIndex) in getSkuSpecs(item)" :key="specIndex" size="small" type="primary"
+                    plain>
+                    {{ spec }}
+                  </van-tag>
+                </div>
                 <div class="item-code">{{ item.product?.product_no || '无编码' }}</div>
+                <div v-if="item.sku?.sku_code" class="item-sku">
+                  SKU: {{ item.sku.sku_code }}
+                </div>
               </div>
               <div class="item-quantity">
                 <div class="quantity">{{ item.quantity }} {{ item.product?.unit || '个' }}</div>
@@ -89,7 +103,7 @@
                 ¥{{ formatPrice(item.total_amount) }}
               </div>
             </div>
-            
+
             <!-- 合计 -->
             <div class="total-row">
               <div class="total-label">合计：</div>
@@ -99,15 +113,10 @@
         </div>
 
         <!-- 关联入库单 -->
-        <div v-if="relatedStocks.length > 0" class="section">
+        <div v-if="relatedStocks && relatedStocks.length > 0" class="section">
           <h3 class="section-title">关联入库单</h3>
           <div class="stock-list">
-            <div 
-              v-for="stock in relatedStocks" 
-              :key="stock.id" 
-              class="stock-card"
-              @click="viewStockDetail(stock.id)"
-            >
+            <div v-for="stock in relatedStocks" :key="stock.id" class="stock-card" @click="viewStockDetail(stock.id)">
               <div class="stock-header">
                 <div class="stock-no">{{ stock.stock_no }}</div>
                 <van-tag :type="getStockStatusType(stock.status)">
@@ -121,7 +130,7 @@
                 </div>
                 <div class="stock-item">
                   <span>审核人：</span>
-                  <span>{{ stock.audit_by ? stock.auditor?.real_name : '未审核' }}</span>
+                  <span>{{ stock.audit_by ? (stock.auditor?.real_name || '--') : '未审核' }}</span>
                 </div>
                 <div class="stock-item">
                   <span>创建时间：</span>
@@ -132,71 +141,58 @@
           </div>
         </div>
       </template>
-      
+
       <van-empty v-else description="订单不存在" />
     </div>
 
     <!-- 操作面板 -->
-    <van-action-sheet
-      v-model:show="showActionSheet"
-      :actions="actions"
-      cancel-text="取消"
-      close-on-click-action
-      @select="onActionSelect"
-    />
-    
+    <van-action-sheet v-model:show="showActionSheet" :actions="actions" cancel-text="取消" close-on-click-action
+      @select="onActionSelect" />
+
     <!-- 确认对话框 -->
-    <van-dialog
-      v-model:show="showConfirmDialog"
-      :title="confirmTitle"
-      show-cancel-button
-      @confirm="confirmAction"
-    >
+    <van-dialog v-model:show="showConfirmDialog" :title="confirmTitle" show-cancel-button @confirm="confirmAction">
       <div class="confirm-content">{{ confirmMessage }}</div>
     </van-dialog>
 
     <!-- 生成入库单对话框 -->
-    <van-dialog
-      v-model:show="showGenerateStockDialog"
-      title="生成入库单"
-      show-cancel-button
-      @confirm="generatePurchaseStock"
-      @cancel="showGenerateStockDialog = false"
-    >
+    <van-dialog v-model:show="showGenerateStockDialog" title="生成入库单" show-cancel-button @confirm="generatePurchaseStock"
+      @cancel="showGenerateStockDialog = false">
       <div class="generate-stock-content">
         <div class="dialog-section">
           <h4>入库信息</h4>
           <div class="info-row">
             <span>供应商：</span>
-            <span>{{ orderData?.supplier?.name }}</span>
+            <span>{{ orderData?.supplier?.name || '--' }}</span>
           </div>
           <div class="info-row">
             <span>仓库：</span>
-            <span>{{ orderData?.warehouse?.name }}</span>
+            <span>{{ orderData?.warehouse?.name || '--' }}</span>
           </div>
         </div>
-        
+
         <div class="dialog-section">
           <h4>商品明细</h4>
-          <div class="stock-items">
-            <div 
-              v-for="item in availableItems" 
-              :key="item.id" 
-              class="stock-item-row"
-            >
+          <div v-if="availableItems.length === 0" class="no-available-items">
+            没有可入库的商品
+          </div>
+          <div v-else class="stock-items">
+            <div v-for="item in availableItems" :key="item.id" class="stock-item-row">
               <div class="item-info">
                 <div class="item-name">{{ getProductName(item) }}</div>
-                <div class="item-spec">{{ getSpecText(item) }}</div>
+                <div class="item-specs" v-if="getSkuSpecs(item).length > 0">
+                  <van-tag v-for="(spec, specIndex) in getSkuSpecs(item)" :key="specIndex" size="mini" type="primary"
+                    plain>
+                    {{ spec }}
+                  </van-tag>
+                </div>
+                <div v-if="item.sku?.sku_code" class="item-sku">
+                  SKU: {{ item.sku.sku_code }}
+                </div>
               </div>
               <div class="quantity-control">
                 <span class="max-quantity">可入库: {{ getAvailableQuantity(item) }}</span>
-                <van-stepper 
-                  v-model="item.stockQuantity"
-                  :max="getAvailableQuantity(item)"
-                  :min="0"
-                  integer
-                  @change="updateStockTotal"
-                />
+                <van-stepper v-model="item.stockQuantity" :max="getAvailableQuantity(item)" :min="0" integer
+                  @change="updateStockTotal" />
               </div>
             </div>
           </div>
@@ -208,7 +204,7 @@
             <span class="total-amount">¥{{ formatPrice(stockTotalAmount) }}</span>
           </div>
         </div>
-        
+
         <div v-else class="no-items-hint">
           请选择要入库的商品数量
         </div>
@@ -220,8 +216,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { 
-  showToast, 
+import {
+  showToast,
   showSuccessToast,
   showFailToast
 } from 'vant'
@@ -248,16 +244,16 @@ const confirmMessage = ref('')
 
 // 格式化函数
 const formatDate = (date) => {
-  if (!date) return ''
+  if (!date) return '--'
   try {
     const d = new Date(date)
-    if (isNaN(d.getTime())) return ''
+    if (isNaN(d.getTime())) return '--'
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   } catch (error) {
-    return ''
+    return '--'
   }
 }
 
@@ -268,10 +264,10 @@ const formatPrice = (price) => {
 }
 
 const formatDateTime = (dateTime) => {
-  if (!dateTime) return ''
+  if (!dateTime) return '--'
   try {
     const d = new Date(dateTime)
-    if (isNaN(d.getTime())) return ''
+    if (isNaN(d.getTime())) return '--'
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
@@ -279,7 +275,7 @@ const formatDateTime = (dateTime) => {
     const minutes = String(d.getMinutes()).padStart(2, '0')
     return `${year}-${month}-${day} ${hours}:${minutes}`
   } catch (error) {
-    return ''
+    return '--'
   }
 }
 
@@ -332,17 +328,34 @@ const getProductName = (item) => {
   return item.product?.name || '未知商品'
 }
 
-// 获取规格文本
-const getSpecText = (item) => {
-  if (item.product?.spec) {
-    if (typeof item.product.spec === 'object') {
-      return Object.entries(item.product.spec)
-        .map(([key, value]) => `${key}:${value}`)
-        .join(' ')
+// 获取SKU规格信息
+const getSkuSpecs = (item) => {
+  const specs = []
+
+  // 优先从sku.spec获取规格信息
+  if (item.sku?.spec) {
+    if (typeof item.sku.spec === 'object') {
+      // 处理对象形式的规格
+      Object.entries(item.sku.spec).forEach(([key, value]) => {
+        specs.push(`${key}:${value}`)
+      })
+    } else {
+      // 处理字符串形式的规格
+      specs.push(String(item.sku.spec))
     }
-    return String(item.product.spec)
   }
-  return ''
+  // 如果没有sku.spec，再尝试从product.spec获取
+  else if (item.product?.spec) {
+    if (typeof item.product.spec === 'object') {
+      Object.entries(item.product.spec).forEach(([key, value]) => {
+        specs.push(`${key}:${value}`)
+      })
+    } else {
+      specs.push(String(item.product.spec))
+    }
+  }
+
+  return specs
 }
 
 // 获取可入库数量
@@ -355,7 +368,7 @@ const getAvailableQuantity = (item) => {
 // 可生成入库单的商品列表
 const availableItems = computed(() => {
   if (!orderData.value?.items) return []
-  
+
   return orderData.value.items
     .filter(item => getAvailableQuantity(item) > 0)
     .map(item => ({
@@ -403,7 +416,7 @@ const hasActions = computed(() => {
 // 操作面板选项
 const actions = computed(() => {
   const actionList = []
-  
+
   if (canEdit.value) {
     actionList.push({
       name: '编辑订单',
@@ -411,7 +424,7 @@ const actions = computed(() => {
       color: '#1989fa'
     })
   }
-  
+
   if (canAudit.value) {
     actionList.push({
       name: '审核通过',
@@ -419,7 +432,7 @@ const actions = computed(() => {
       color: '#07c160'
     })
   }
-  
+
   if (canGenerateStock.value) {
     actionList.push({
       name: '生成入库单',
@@ -427,7 +440,7 @@ const actions = computed(() => {
       color: '#7232dd'
     })
   }
-  
+
   if (canCancel.value) {
     actionList.push({
       name: '取消订单',
@@ -435,7 +448,7 @@ const actions = computed(() => {
       color: '#ff976a'
     })
   }
-  
+
   if (canComplete.value) {
     actionList.push({
       name: '标记完成',
@@ -443,7 +456,7 @@ const actions = computed(() => {
       color: '#07c160'
     })
   }
-  
+
   if (canDelete.value) {
     actionList.push({
       name: '删除订单',
@@ -451,7 +464,7 @@ const actions = computed(() => {
       color: '#ee0a24'
     })
   }
-  
+
   return actionList
 })
 
@@ -467,10 +480,10 @@ const loadOrderDetail = async () => {
     loading.value = true
     await purchaseStore.loadOrderDetail(orderId)
     orderData.value = purchaseStore.currentOrder
-    
+
     // 加载关联的入库单
     await loadRelatedStocks(orderId)
-    
+
     console.log('订单详情数据:', orderData.value)
   } catch (error) {
     console.error('加载订单详情失败:', error)
@@ -496,7 +509,7 @@ const loadRelatedStocks = async (orderId) => {
 // 操作面板选择
 const onActionSelect = (action) => {
   showActionSheet.value = false
-  
+
   switch (action.action) {
     case 'edit':
       handleEdit()
@@ -553,7 +566,7 @@ const confirmAction = async () => {
         }
         break
     }
-    
+
     // 重新加载订单详情（删除操作除外）
     if (currentAction.value !== 'delete') {
       await loadOrderDetail()
@@ -577,13 +590,13 @@ const handleGenerateStock = () => {
     showFailToast('没有可入库的商品')
     return
   }
-  
+
   // 重置数量选择
   availableItems.value.forEach(item => {
     item.stockQuantity = 0
   })
   stockTotalAmount.value = 0
-  
+
   showGenerateStockDialog.value = true
 }
 
@@ -617,22 +630,22 @@ const generatePurchaseStock = async () => {
       remark: `由采购订单 ${orderData.value.order_no} 生成`,
       items: selectedItems.map(item => ({
         product_id: item.product_id,
+        sku_id: item.sku_id,
         quantity: item.stockQuantity,
         price: item.price,
         total_amount: item.stockQuantity * item.price
       }))
     }
 
+    console.log('生成的入库单数据:', stockData)
+
     const result = await purchaseStore.addStock(stockData)
     if (result) {
       showSuccessToast('生成入库单成功')
       showGenerateStockDialog.value = false
-      
+
       // 重新加载页面数据
       await loadOrderDetail()
-      
-      // 可选：跳转到入库单详情页面
-      // router.push(`/purchase/stock/detail/${result.id}`)
     }
   } catch (error) {
     console.error('生成入库单失败:', error)
@@ -669,10 +682,16 @@ onMounted(() => {
 .info-card {
   margin-bottom: 16px;
   border-radius: 8px;
-  
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+
   :deep(.van-card__header) {
-    padding-bottom: 12px;
+    padding: 12px 16px;
     border-bottom: 1px solid #f5f5f5;
+  }
+
+  :deep(.van-card__content) {
+    padding: 12px 16px;
   }
 }
 
@@ -691,22 +710,34 @@ onMounted(() => {
 .info-item {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 8px;
-  
+  font-size: 14px;
+  line-height: 1.4;
+
   &:last-child {
     margin-bottom: 0;
   }
-  
+
   .label {
     color: #646566;
+    white-space: nowrap;
+    margin-right: 8px;
   }
-  
+
   .value {
     color: #323233;
-    
+    text-align: right;
+    flex: 1;
+    word-break: break-word;
+
     &.amount {
       font-weight: 600;
       color: #ee0a24;
+    }
+
+    &.unpaid {
+      color: #ff976a;
     }
   }
 }
@@ -716,6 +747,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .section-title {
@@ -723,6 +755,8 @@ onMounted(() => {
   font-weight: 600;
   margin: 0 0 12px 0;
   color: #323233;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f5f5f5;
 }
 
 .items-list {
@@ -732,61 +766,85 @@ onMounted(() => {
     align-items: flex-start;
     padding: 12px 0;
     border-bottom: 1px solid #f5f5f5;
-    
+
     &:last-child {
       border-bottom: none;
     }
   }
-  
+
   .item-info {
     flex: 1;
-    
+    margin-right: 12px;
+
     .item-name {
       font-size: 14px;
       font-weight: 500;
       margin-bottom: 4px;
+      color: #323233;
     }
-    
-    .item-spec {
-      font-size: 12px;
-      color: #646566;
-      margin-bottom: 2px;
+
+    .item-specs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 4px;
+
+      :deep(.van-tag) {
+        margin-right: 4px;
+        margin-bottom: 2px;
+      }
     }
-    
+
     .item-code {
       font-size: 12px;
       color: #969799;
+      margin-bottom: 2px;
+    }
+
+    .item-sku {
+      font-size: 11px;
+      color: #646566;
+      background: #f5f5f5;
+      padding: 1px 4px;
+      border-radius: 2px;
+      display: inline-block;
     }
   }
-  
+
   .item-quantity {
     text-align: right;
-    margin: 0 12px;
-    
+    min-width: 100px;
+
     .quantity {
       font-size: 14px;
+      font-weight: 500;
       margin-bottom: 4px;
     }
-    
+
     .price {
       font-size: 12px;
       color: #969799;
       margin-bottom: 2px;
     }
-    
+
     .received {
       font-size: 11px;
       color: #07c160;
+      background: #e7f7f0;
+      padding: 1px 4px;
+      border-radius: 2px;
+      display: inline-block;
     }
   }
-  
+
   .item-total {
     font-weight: 600;
     color: #ee0a24;
     min-width: 80px;
     text-align: right;
+    font-size: 14px;
   }
-  
+
   .total-row {
     display: flex;
     justify-content: space-between;
@@ -794,12 +852,13 @@ onMounted(() => {
     padding: 12px 0;
     border-top: 1px solid #f5f5f5;
     margin-top: 8px;
-    
+
     .total-label {
       font-weight: 600;
       color: #323233;
+      font-size: 15px;
     }
-    
+
     .total-amount {
       font-weight: 700;
       color: #ee0a24;
@@ -816,39 +875,40 @@ onMounted(() => {
     padding: 12px;
     margin-bottom: 8px;
     cursor: pointer;
-    
+    transition: background-color 0.2s;
+
     &:last-child {
       margin-bottom: 0;
     }
-    
+
     &:hover {
       background: #f0f0f0;
     }
   }
-  
+
   .stock-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
   }
-  
+
   .stock-no {
     font-size: 14px;
     font-weight: 500;
   }
-  
+
   .stock-info {
     .stock-item {
       display: flex;
       justify-content: space-between;
       font-size: 12px;
       margin-bottom: 4px;
-      
+
       &:last-child {
         margin-bottom: 0;
       }
-      
+
       .amount {
         color: #ee0a24;
         font-weight: 500;
@@ -860,89 +920,120 @@ onMounted(() => {
 // 生成入库单对话框样式
 .generate-stock-content {
   padding: 16px;
-  
+
   .dialog-section {
     margin-bottom: 16px;
-    
+
     h4 {
       margin: 0 0 12px 0;
       font-size: 14px;
       color: #323233;
       font-weight: 600;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #f5f5f5;
     }
   }
-  
+
+  .no-available-items {
+    text-align: center;
+    color: #969799;
+    font-size: 14px;
+    padding: 20px 0;
+  }
+
   .info-row {
     display: flex;
     justify-content: space-between;
     margin-bottom: 8px;
     font-size: 14px;
-    
+
     &:last-child {
       margin-bottom: 0;
     }
   }
-  
+
   .stock-items {
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
+    margin: 0 -16px;
+    padding: 0 16px;
   }
-  
+
   .stock-item-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 12px 0;
     border-bottom: 1px solid #f5f5f5;
-    
+
     &:last-child {
       border-bottom: none;
     }
   }
-  
+
   .item-info {
     flex: 1;
-    
+    margin-right: 12px;
+
     .item-name {
       font-size: 14px;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
+      font-weight: 500;
     }
-    
-    .item-spec {
-      font-size: 12px;
+
+    .item-specs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 4px;
+
+      :deep(.van-tag) {
+        margin-right: 4px;
+        margin-bottom: 2px;
+      }
+    }
+
+    .item-sku {
+      font-size: 11px;
       color: #646566;
+      background: #f5f5f5;
+      padding: 1px 4px;
+      border-radius: 2px;
+      display: inline-block;
     }
   }
-  
+
   .quantity-control {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 4px;
-    
+    gap: 8px;
+    min-width: 120px;
+
     .max-quantity {
       font-size: 11px;
       color: #969799;
     }
   }
-  
+
   .total-section {
     border-top: 1px solid #f5f5f5;
     padding-top: 12px;
-    
+    margin-top: 12px;
+
     .total-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 16px;
       font-weight: 600;
-      
+
       .total-amount {
         color: #ee0a24;
       }
     }
   }
-  
+
   .no-items-hint {
     text-align: center;
     color: #969799;
@@ -962,24 +1053,23 @@ onMounted(() => {
 :deep(.van-action-sheet) {
   .van-action-sheet__item {
     font-size: 16px;
-    
-    // 为不同类型的操作设置不同颜色
+
     &[style*="color: #1989fa"] {
       color: #1989fa !important;
     }
-    
+
     &[style*="color: #07c160"] {
       color: #07c160 !important;
     }
-    
+
     &[style*="color: #7232dd"] {
       color: #7232dd !important;
     }
-    
+
     &[style*="color: #ff976a"] {
       color: #ff976a !important;
     }
-    
+
     &[style*="color: #ee0a24"] {
       color: #ee0a24 !important;
     }

@@ -27,19 +27,51 @@
     <van-pull-refresh v-model="refreshing" @refresh="loadOrderList(true)">
       <van-list v-model:loading="listLoading" :finished="finished" :immediate-check="false"
         :finished-text="orderList.length === 0 ? '暂无销售订单' : '没有更多了'" @load="loadOrderList">
-        <van-cell-group>
-          <van-cell v-for="order in orderList" :key="order.id" :title="`订单号: ${order.order_no}`"
-            :label="getOrderLabel(order)" @click="handleViewOrder(order)">
-            <template #value>
-              <div class="order-amount">¥{{ order.total_amount }}</div>
-            </template>
-            <template #extra>
-              <van-tag :type="getStatusTagType(order.status)">
+        <div class="order-list">
+          <div v-for="order in orderList" :key="order.id" class="order-card" @click="handleViewOrder(order)">
+            <div class="order-header">
+              <div class="order-no">{{ order.order_no }}</div>
+              <van-tag :type="getStatusTagType(order.status)" size="medium">
                 {{ getStatusText(order.status) }}
               </van-tag>
-            </template>
-          </van-cell>
-        </van-cell-group>
+            </div>
+            
+            <div class="order-info">
+              <div class="info-row">
+                <span class="label">客户：</span>
+                <span class="value">{{ order.customer?.name || '--' }}</span>
+              </div>
+              <div v-if="order.customer?.contact_person" class="info-row">
+                <span class="label">联系人：</span>
+                <span class="value">{{ order.customer.contact_person }}</span>
+              </div>
+              <div v-if="order.customer?.phone" class="info-row">
+                <span class="label">电话：</span>
+                <span class="value">{{ order.customer.phone }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">总金额：</span>
+                <span class="value amount">¥{{ formatPrice(order.total_amount) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">创建时间：</span>
+                <span class="value">{{ formatDateTime(order.created_at) }}</span>
+              </div>
+              <div v-if="order.order_date" class="info-row">
+                <span class="label">订单日期：</span>
+                <span class="value">{{ formatDate(order.order_date) }}</span>
+              </div>
+              <div v-if="order.delivery_date" class="info-row">
+                <span class="label">交货日期：</span>
+                <span class="value">{{ formatDate(order.delivery_date) }}</span>
+              </div>
+              <div v-if="order.remark" class="info-row">
+                <span class="label">备注：</span>
+                <span class="value remark">{{ order.remark }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- 空状态 -->
         <van-empty v-if="!listLoading && !refreshing && orderList.length === 0" description="暂无销售订单" image="search" />
@@ -93,6 +125,45 @@ const listLoading = ref(false)
 const initialLoading = ref(true)
 const finished = ref(false)
 
+// 格式化价格
+const formatPrice = (price) => {
+  if (price === null || price === undefined || price === '') return '0.00'
+  const num = Number(price)
+  return isNaN(num) ? '0.00' : num.toFixed(2)
+}
+
+// 格式化日期
+const formatDate = (date) => {
+  if (!date) return '--'
+  try {
+    const d = new Date(date)
+    if (isNaN(d.getTime())) return '--'
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (error) {
+    return '--'
+  }
+}
+
+// 格式化日期时间
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return '--'
+  try {
+    const d = new Date(dateTime)
+    if (isNaN(d.getTime())) return '--'
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}`
+  } catch (error) {
+    return '--'
+  }
+}
+
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
@@ -110,26 +181,11 @@ const getStatusTagType = (status) => {
   const typeMap = {
     1: 'warning',
     2: 'primary',
-    3: 'primary',
+    3: 'info',
     4: 'success',
     5: 'danger'
   }
   return typeMap[status] || 'default'
-}
-
-// 获取订单标签信息
-const getOrderLabel = (order) => {
-  const parts = []
-  if (order.customer_name) {
-    parts.push(`客户: ${order.customer_name}`)
-  }
-  if (order.created_at) {
-    parts.push(`创建: ${order.created_at}`)
-  }
-  if (order.order_date) {
-    parts.push(`日期: ${order.order_date}`)
-  }
-  return parts.join(' | ')
 }
 
 // 加载订单列表
@@ -193,17 +249,38 @@ const loadOrderList = async (isRefresh = false) => {
 // 加载客户选项
 const loadCustomerOptions = async () => {
   try {
-    const customers = await getCustomerList()
-    const customerData = customers?.data || customers || []
+    const response = await getCustomerList()
+    console.log('客户列表响应:', response)
+    
+    // 根据实际返回的数据结构提取客户列表
+    let customerList = []
+    
+    if (response?.code === 200 && response.data?.list) {
+      // 结构为: { code: 200, msg: "获取成功", data: { list: [...], total: ... } }
+      customerList = response.data.list
+    } else if (response?.list) {
+      // 结构为: { list: [...], total: ... }
+      customerList = response.list
+    } else if (Array.isArray(response)) {
+      // 直接是数组
+      customerList = response
+    } else if (response?.data && Array.isArray(response.data)) {
+      // 结构为: { data: [...] }
+      customerList = response.data
+    }
+
+    console.log('提取的客户列表:', customerList)
 
     customerOptions.value = [
       { text: '全部客户', value: '' },
-      ...customerData.map(item => ({
+      ...customerList.map(item => ({
         text: item.name,
         value: item.id
-      }))
+      })).filter(item => item.text && item.value)
     ]
+
   } catch (error) {
+    console.error('加载客户列表失败:', error)
     showToast('加载客户列表失败')
   }
 }
@@ -222,14 +299,9 @@ const handleClearSearch = () => {
   loadOrderList(true)
 }
 
-// 添加下拉刷新处理
-const handleRefresh = () => {
-  loadOrderList(true)
-}
-
 onMounted(() => {
   loadCustomerOptions()
-  loadOrderList(true)  // 这里触发一次
+  loadOrderList(true)
 })
 </script>
 
@@ -246,10 +318,69 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.order-amount {
-  font-weight: bold;
-  color: #ee0a24;
-  font-size: 14px;
+.order-list {
+  padding: 8px;
+}
+
+.order-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  
+  .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f5f5f5;
+    
+    .order-no {
+      font-size: 16px;
+      font-weight: 600;
+      color: #323233;
+    }
+  }
+  
+  .order-info {
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .label {
+        color: #646566;
+        white-space: nowrap;
+        margin-right: 8px;
+      }
+      
+      .value {
+        color: #323233;
+        text-align: right;
+        flex: 1;
+        word-break: break-word;
+        
+        &.amount {
+          font-weight: 600;
+          color: #ee0a24;
+        }
+        
+        &.remark {
+          color: #969799;
+          font-style: italic;
+        }
+      }
+    }
+  }
 }
 
 .page-loading {

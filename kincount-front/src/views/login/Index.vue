@@ -24,12 +24,6 @@
         </van-button>
       </div>
     </van-form>
-
-    <!-- 调试信息 -->
-    <div class="debug-info" v-if="debug">
-      <p>Token: {{ auth.token ? '存在' : '不存在' }}</p>
-      <p>用户ID: {{ auth.user.id || '无' }}</p>
-    </div>
   </div>
 </template>
 

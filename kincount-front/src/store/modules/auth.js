@@ -35,8 +35,14 @@ export const useAuthStore = defineStore('auth', {
     async login(form) {
       try {
         const result = await apiLogin(form)
-        const token = result.token || result.kintoken
-        const user = result.user || result.data || {}
+        console.log('登录响应:', result) // 添加调试日志
+
+        // 根据实际响应结构调整获取token和user的方式
+        const token = result.data?.token || result.token
+        const user = result.data?.user || result.user || result.data || {}
+
+        // console.log('提取的token:', token) // 调试日志
+        // console.log('提取的user:', user) // 调试日志
 
         if (!token) throw new Error('登录失败：未获取到 token')
 
@@ -46,10 +52,10 @@ export const useAuthStore = defineStore('auth', {
         // 从用户信息中提取权限和角色
         this.extractPermissionsAndRoles(user)
 
-
         localStorage.setItem('kintoken', token)
         return Promise.resolve()
       } catch (error) {
+        console.error('登录错误:', error) // 调试日志
         return Promise.reject(error)
       }
     },

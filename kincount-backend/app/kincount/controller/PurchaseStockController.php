@@ -91,57 +91,70 @@ class PurchaseStockController extends BaseController
             return $this->error($validate->getError());
         }
 
+        // 手动管理事务
+        Db::startTrans();
         try {
-            $stock = Db::transaction(function () use ($post) {
-                // 如果有采购订单ID，检查采购订单状态和可入库数量
-                if (!empty($post['purchase_order_id'])) {
-                    $this->validatePurchaseOrder($post['purchase_order_id'], $post['items']);
+            // 如果有采购订单ID，检查采购订单状态和可入库数量
+            if (!empty($post['purchase_order_id'])) {
+                $this->validatePurchaseOrder($post['purchase_order_id'], $post['items']);
+            }
+
+            $stockNo = $this->generateStockNo('PS');
+            $total   = 0;
+
+            /* 主表 */
+            $stock = PurchaseStock::create([
+                'stock_no'          => $stockNo,
+                'purchase_order_id' => $post['purchase_order_id'] ?? 0,
+                'supplier_id'       => $post['supplier_id'],
+                'warehouse_id'      => $post['warehouse_id'],
+                'total_amount'      => 0,
+                'status'            => 1,
+                'remark'            => $post['remark'] ?? '',
+                'created_by'        => $this->getUserId(),
+            ]);
+
+            /* 明细 - 确保包含 sku_id */
+            foreach ($post['items'] as $v) {
+                if (empty($v['product_id']) || empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                    throw new \Exception('商品明细不完整，请检查product_id、sku_id、quantity、price');
                 }
 
-                $stockNo = $this->generateStockNo('PS');
-                $total   = 0;
-
-                /* 主表 */
-                $stock = PurchaseStock::create([
-                    'stock_no'          => $stockNo,
-                    'purchase_order_id' => $post['purchase_order_id'] ?? 0,
-                    'supplier_id'       => $post['supplier_id'],
-                    'warehouse_id'      => $post['warehouse_id'],
-                    'total_amount'      => 0, // 先设为0，后面计算
-                    'status'            => 1, // 1-待审核
-                    'remark'            => $post['remark'] ?? '',
-                    'created_by'        => $this->getUserId(),
+                $rowTotal = $v['quantity'] * $v['price'];
+                PurchaseStockItem::create([
+                    'purchase_stock_id' => $stock->id,
+                    'product_id'        => $v['product_id'],
+                    'sku_id'           => $v['sku_id'], // 确保这一行存在
+                    'quantity'          => $v['quantity'],
+                    'price'             => $v['price'],
+                    'total_amount'      => $rowTotal,
                 ]);
+                $total += $rowTotal;
 
-                /* 明细 */
-                foreach ($post['items'] as $v) {
-                    if (empty($v['product_id']) || empty($v['quantity']) || empty($v['price'])) {
-                        throw new \Exception('商品明细不完整');
-                    }
-                    $rowTotal = $v['quantity'] * $v['price'];
-                    PurchaseStockItem::create([
-                        'purchase_stock_id' => $stock->id,
-                        'product_id'        => $v['product_id'],
-                        'quantity'          => $v['quantity'],
-                        'price'             => $v['price'],
-                        'total_amount'      => $rowTotal,
-                    ]);
-                    $total += $rowTotal;
-
-                    // 如果有采购订单ID，更新采购订单明细的已入库数量
-                    if (!empty($post['purchase_order_id'])) {
-                        $this->updatePurchaseOrderReceivedQuantity($post['purchase_order_id'], $v['product_id'], $v['quantity']);
-                    }
+                // 如果有采购订单ID，更新采购订单明细的已入库数量
+                if (!empty($post['purchase_order_id'])) {
+                    $this->updatePurchaseOrderReceivedQuantity(
+                        $post['purchase_order_id'],
+                        $v['product_id'],
+                        $v['sku_id'],  // 新增 sku_id 参数
+                        $v['quantity']
+                    );
                 }
+            }
 
-                // 更新入库单总金额
-                $stock->save(['total_amount' => $total]);
-                return $stock;
-            });
+            // 更新入库单总金额
+            $stock->save(['total_amount' => $total]);
 
+            Db::commit();
             return $this->success(['id' => $stock->id], '采购入库单创建成功');
         } catch (\Exception $e) {
-            return $this->error($e->getMessage());
+            Db::rollback();
+            // 记录详细错误日志
+            \think\facade\Log::error('入库单创建失败: ' . $e->getMessage(), [
+                'post_data' => $post,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return $this->error('入库单创建失败: ' . $e->getMessage());
         }
     }
 
@@ -171,9 +184,14 @@ class PurchaseStockController extends BaseController
                         }]);
                 },
                 'items' => function ($q) {
-                    $q->with(['product' => function ($q) {
-                        $q->field('id,name,product_no,unit,spec');
-                    }]);
+                    $q->with([
+                        'product' => function ($q) {
+                            $q->field('id,name,product_no,unit,spec');
+                        },
+                        'sku' => function ($q) {
+                            $q->field('id,sku_code,spec,cost_price,sale_price,barcode,unit,status');
+                        }
+                    ]);
                 }
             ])->find($id);
 
@@ -409,14 +427,12 @@ class PurchaseStockController extends BaseController
                     $items = PurchaseStockItem::where('purchase_stock_id', $id)->select();
                     foreach ($items as $item) {
                         // 使用原子操作减少已入库数量
-                        $result = PurchaseOrderItem::where('purchase_order_id', $stock->purchase_order_id)
-                            ->where('product_id', $item->product_id)
-                            ->dec('received_quantity', $item->quantity)
-                            ->update();
-
-                        if (!$result) {
-                            throw new \Exception("回退采购订单已入库数量失败");
-                        }
+                        $this->updatePurchaseOrderReceivedQuantity(
+                            $stock->purchase_order_id,
+                            $item->product_id,
+                            $item->sku_id,  // 使用 item 的 sku_id
+                            -$item->quantity  // 负数表示减少
+                        );
                     }
 
                     // 重新计算采购订单状态
@@ -463,6 +479,7 @@ class PurchaseStockController extends BaseController
             $post = input('post.');
             $validate = new \think\Validate([
                 'product_id' => 'require|integer',
+                'sku_id'     => 'require|integer', // 新增 sku_id 验证
                 'quantity'   => 'require|integer|gt:0',
                 'price'      => 'require|float|gt:0'
             ]);
@@ -501,6 +518,7 @@ class PurchaseStockController extends BaseController
                     $this->updatePurchaseOrderReceivedQuantity(
                         $stock->purchase_order_id,
                         $post['product_id'],
+                        $post['sku_id'],  // 确保 $post 中包含 sku_id
                         $post['quantity']
                     );
                 }
@@ -563,12 +581,12 @@ class PurchaseStockController extends BaseController
                     if ($stock->purchase_order_id) {
                         $quantityDiff = $quantity - $oldQuantity;
                         if ($quantityDiff != 0) {
-                            PurchaseOrderItem::where('purchase_order_id', $stock->purchase_order_id)
-                                ->where('product_id', $item->product_id)
-                                ->inc('received_quantity', $quantityDiff)
-                                ->update();
-
-                            $this->updatePurchaseOrderStatus($stock->purchase_order_id);
+                            $this->updatePurchaseOrderReceivedQuantity(
+                                $stock->purchase_order_id,
+                                $item->product_id,
+                                $item->sku_id,  // 使用 item 的 sku_id
+                                $quantityDiff
+                            );
                         }
                     }
                 }
@@ -611,12 +629,12 @@ class PurchaseStockController extends BaseController
 
                 // 如果有关联的采购订单，回退已入库数量
                 if ($stock->purchase_order_id) {
-                    PurchaseOrderItem::where('purchase_order_id', $stock->purchase_order_id)
-                        ->where('product_id', $item->product_id)
-                        ->dec('received_quantity', $item->quantity)
-                        ->update();
-
-                    $this->updatePurchaseOrderStatus($stock->purchase_order_id);
+                    $this->updatePurchaseOrderReceivedQuantity(
+                        $stock->purchase_order_id,
+                        $item->product_id,
+                        $item->sku_id,  // 使用 item 的 sku_id
+                        -$item->quantity  // 负数表示减少
+                    );
                 }
 
                 // 软删除明细 - 直接更新 deleted_at 字段
@@ -683,13 +701,40 @@ class PurchaseStockController extends BaseController
     /**
      * 根据采购订单ID获取关联的入库单
      */
+
+    /**
+     * 根据采购订单ID获取关联的入库单
+     */
     public function getStocksByOrderId($orderId)
     {
         try {
             $stocks = PurchaseStock::where('purchase_order_id', $orderId)
-                ->with(['auditor' => function ($query) {
-                    $query->field('id,real_name');
-                }])
+                ->with([
+                    'auditor' => function ($query) {
+                        $query->field('id,real_name');
+                    },
+                    // 添加入库单明细关联
+                    'items' => function ($query) {
+                        $query->field('id,purchase_stock_id,product_id,sku_id,quantity,price,total_amount')
+                            ->with([
+                                'product' => function ($q) {
+                                    $q->field('id,name,product_no,unit,spec');
+                                },
+                                'sku' => function ($q) {
+                                    // 修复：使用正确的字段，移除不存在的 sku_name
+                                    $q->field('id,sku_code,spec,product_id'); // 添加 product_id 用于关联验证
+                                }
+                            ]);
+                    },
+                    // 可选：关联仓库信息
+                    'warehouse' => function ($q) {
+                        $q->field('id,name');
+                    },
+                    // 可选：关联创建者信息
+                    'creator' => function ($q) {
+                        $q->field('id,real_name');
+                    }
+                ])
                 ->order('id', 'desc')
                 ->select();
 
@@ -702,7 +747,7 @@ class PurchaseStockController extends BaseController
     /************************ 私有方法 ************************/
 
     /**
-     * 验证采购订单是否可以生成入库单
+     * 验证采购订单是否可以生成入库单（SKU级别）
      */
     private function validatePurchaseOrder($purchaseOrderId, $items)
     {
@@ -715,27 +760,36 @@ class PurchaseStockController extends BaseController
             throw new \Exception('采购订单不存在或状态不允许生成入库单');
         }
 
-        // 检查每个商品的入库数量是否超过可入库数量
+        // 检查每个商品的入库数量是否超过可入库数量（按SKU检查）
         foreach ($items as $item) {
-            $availableQuantity = $this->getAvailableQuantity($purchaseOrderId, $item['product_id']);
+            $availableQuantity = $this->getAvailableQuantity(
+                $purchaseOrderId,
+                $item['product_id'],
+                $item['sku_id']  // 新增 sku_id 参数
+            );
+
             if ($item['quantity'] > $availableQuantity) {
-                throw new \Exception("商品 {$item['product_id']} 的入库数量超过可入库数量，可入库数量：{$availableQuantity}");
+                $productName = $this->getProductName($item['product_id']);
+                $skuInfo = $this->getSkuInfo($item['sku_id']);
+                throw new \Exception("商品【{$productName}】SKU【{$skuInfo}】的入库数量超过可入库数量，可入库数量：{$availableQuantity}");
             }
         }
     }
 
+
     /**
-     * 获取商品可入库数量
+     * 获取商品可入库数量（SKU级别）
      */
-    private function getAvailableQuantity($purchaseOrderId, $productId)
+    private function getAvailableQuantity($purchaseOrderId, $productId, $skuId)
     {
-        // 获取采购订单中该商品的订购数量和已入库数量
+        // 获取采购订单中该商品SKU的订购数量和已入库数量
         $orderItem = PurchaseOrderItem::where('purchase_order_id', $purchaseOrderId)
             ->where('product_id', $productId)
+            ->where('sku_id', $skuId)  // 新增 SKU 条件
             ->find();
 
         if (!$orderItem) {
-            throw new \Exception("采购订单中不存在该商品");
+            throw new \Exception("采购订单中不存在该商品SKU，商品ID: {$productId}, SKU ID: {$skuId}");
         }
 
         $orderedQuantity = $orderItem->quantity;
@@ -747,16 +801,17 @@ class PurchaseStockController extends BaseController
     /**
      * 更新采购订单的已入库数量
      */
-    private function updatePurchaseOrderReceivedQuantity($purchaseOrderId, $productId, $quantity)
+    private function updatePurchaseOrderReceivedQuantity($purchaseOrderId, $productId, $skuId, $quantity)
     {
-        // 使用原子操作更新已入库数量
+        // 使用原子操作更新已入库数量，同时匹配 product_id 和 sku_id
         $result = PurchaseOrderItem::where('purchase_order_id', $purchaseOrderId)
             ->where('product_id', $productId)
+            ->where('sku_id', $skuId)  // 新增 SKU 条件
             ->inc('received_quantity', $quantity)
             ->update();
 
         if (!$result) {
-            throw new \Exception("更新采购订单已入库数量失败");
+            throw new \Exception("更新采购订单已入库数量失败，采购订单ID: {$purchaseOrderId}, 商品ID: {$productId}, SKU ID: {$skuId}");
         }
 
         // 检查并更新采购订单状态
@@ -801,7 +856,28 @@ class PurchaseStockController extends BaseController
             $order->save();
         }
     }
+    /**
+     * 获取商品名称
+     */
+    private function getProductName($productId)
+    {
+        $product = \app\kincount\model\Product::where('id', $productId)->value('name');
+        return $product ?: '未知商品';
+    }
 
+    /**
+     * 获取SKU信息
+     */
+    private function getSkuInfo($skuId)
+    {
+        $sku = \app\kincount\model\ProductSku::where('id', $skuId)->find();
+        if (!$sku) {
+            return '未知SKU';
+        }
+
+        // 根据你的SKU表结构返回合适的描述
+        return $sku->sku_code ?: 'SKU-' . $skuId;
+    }
     /**
      * 生成单号 - 修复重复问题版本
      */

@@ -14,95 +14,113 @@ use think\facade\Db;
 
 class PurchaseOrderController extends BaseController
 {
-public function index()
-{
-    try {
-        $params = input('get.');
-        $page = $params['page'] ?? 1;
-        $pageSize = $params['pageSize'] ?? 10;
-        
-        
-        // 构建查询条件
-        $query = PurchaseOrder::alias('po')
-            ->with([
-                'supplier', 
-                'warehouse', 
-                'creator', 
-                'auditor',
-                'items' => function($query) {
-                    $query->whereNull('deleted_at')
-                          ->with(['product.category']);
+    public function index()
+    {
+        try {
+            $params = input('get.');
+            $page = $params['page'] ?? 1;
+            $pageSize = $params['pageSize'] ?? 10;
+
+
+            // 构建查询条件
+            $query = PurchaseOrder::alias('po')
+                ->with([
+                    'supplier',
+                    'warehouse',
+                    'creator',
+                    'auditor',
+                    'items' => function ($query) {
+                        $query->whereNull('deleted_at')
+                            ->with(['product.category']);
+                    }
+                ])
+                ->where('po.deleted_at', null);
+
+            // 处理状态筛选
+            if (!empty($params['status'])) {
+                $status = is_array($params['status']) ? $params['status'] : [$params['status']];
+                $status = array_filter($status);
+
+                if (!empty($status)) {
+                    $query->whereIn('po.status', $status);
                 }
-            ])
-            ->where('po.deleted_at', null);
-
-        // 处理状态筛选
-        if (!empty($params['status'])) {
-            $status = is_array($params['status']) ? $params['status'] : [$params['status']];
-            $status = array_filter($status);
-            
-            if (!empty($status)) {
-                $query->whereIn('po.status', $status);
             }
-        }
 
-        // 处理关键词搜索 - 修复表名问题
-        if (!empty($params['keyword'])) {
-            $keyword = trim($params['keyword']);
-            
-            // 方法1：先尝试使用 suppliers 表名（复数形式）
-            try {
-                $query->join('suppliers s', 's.id = po.supplier_id', 'LEFT')
-                      ->where(function($q) use ($keyword) {
-                          $q->where('po.order_no', 'like', "%{$keyword}%")
-                            ->whereOr('s.name', 'like', "%{$keyword}%");
-                      });
-                
-            } catch (\Exception $e) {
-                // 如果 suppliers 表也不存在，回退到子查询方式
-                
-                $query->where(function($q) use ($keyword) {
-                    $q->where('po.order_no', 'like', "%{$keyword}%")
-                      ->whereOr('po.supplier_id', 'in', function($query) use ($keyword) {
-                          // 尝试不同的供应商表名
-                          try {
-                              $query->table('suppliers')->where('name', 'like', "%{$keyword}%")->field('id');
-                          } catch (\Exception $e) {
-                              // 如果 suppliers 不存在，尝试其他可能的表名
-                              $query->table('supplier')->where('name', 'like', "%{$keyword}%")->field('id');
-                          }
-                      });
-                });
+            // 处理关键词搜索 - 修复表名问题
+            if (!empty($params['keyword'])) {
+                $keyword = trim($params['keyword']);
+
+                // 方法1：先尝试使用 suppliers 表名（复数形式）
+                try {
+                    $query->join('suppliers s', 's.id = po.supplier_id', 'LEFT')
+                        ->where(function ($q) use ($keyword) {
+                            $q->where('po.order_no', 'like', "%{$keyword}%")
+                                ->whereOr('s.name', 'like', "%{$keyword}%");
+                        });
+                } catch (\Exception $e) {
+                    // 如果 suppliers 表也不存在，回退到子查询方式
+
+                    $query->where(function ($q) use ($keyword) {
+                        $q->where('po.order_no', 'like', "%{$keyword}%")
+                            ->whereOr('po.supplier_id', 'in', function ($query) use ($keyword) {
+                                // 尝试不同的供应商表名
+                                try {
+                                    $query->table('suppliers')->where('name', 'like', "%{$keyword}%")->field('id');
+                                } catch (\Exception $e) {
+                                    // 如果 suppliers 不存在，尝试其他可能的表名
+                                    $query->table('supplier')->where('name', 'like', "%{$keyword}%")->field('id');
+                                }
+                            });
+                    });
+                }
             }
-            
+
+            // 排序
+            $query->order('po.id', 'desc');
+
+            $list = $query->paginate([
+                'list_rows' => $pageSize,
+                'page' => $page
+            ]);
+
+
+            return $this->success($list);
+        } catch (\Exception $e) {
+            return $this->error('查询失败，请稍后重试');
         }
-
-        // 排序
-        $query->order('po.id', 'desc');
-
-        $list = $query->paginate([
-            'list_rows' => $pageSize,
-            'page' => $page
-        ]);
-
-
-        return $this->success($list);
-
-    } catch (\Exception $e) {
-        return $this->error('查询失败，请稍后重试');
     }
-}
     public function read($id)
     {
-        $order = PurchaseOrder::with(['supplier', 'warehouse', 'creator', 'auditor'])
-            ->where('deleted_at', null)->find($id);
-        if (!$order) return $this->error('采购订单不存在');
+        try {
+            $order = PurchaseOrder::with([
+                'supplier',
+                'warehouse',
+                'creator',
+                'auditor',
+                'items' => function ($query) {
+                    $query->whereNull('deleted_at')
+                        ->with([
+                            'product.category',
+                            'sku' => function ($q) {
+                                $q->field('id,sku_code,spec,cost_price,sale_price,barcode,unit,status');
+                            }
+                        ]);
+                }
+            ])
+                ->where('deleted_at', null)
+                ->find($id);
 
-        $order['items'] = PurchaseOrderItem::with(['product.category'])
-            ->where('purchase_order_id', $id)->select();
-        return $this->success($order);
+            if (!$order) {
+                return $this->error('采购订单不存在');
+            }
+
+            return $this->success($order);
+        } catch (\Exception $e) {
+            // 记录错误以便调试
+            \think\facade\Log::error('获取采购订单详情失败: ' . $e->getMessage());
+            return $this->error('获取订单详情失败');
+        }
     }
-
     public function save()
     {
         $post = input('post.');
