@@ -1,13 +1,12 @@
 <?php
 namespace app\kincount\model;
 
-
 class SaleOrderItem extends BaseModel
 {
-
     protected $type = [
         'sale_order_id' => 'integer',
         'product_id' => 'integer',
+        'sku_id' => 'integer',
         'quantity' => 'integer',
         'delivered_quantity' => 'integer',
         'price' => 'float',

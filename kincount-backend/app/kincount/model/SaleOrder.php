@@ -3,6 +3,13 @@ namespace app\kincount\model;
 
 class SaleOrder extends BaseModel
 {
+    // 销售订单状态常量
+    const STATUS_PENDING = 1;      // 待审核
+    const STATUS_AUDITED = 2;      // 已审核
+    const STATUS_PARTIAL = 3;      // 部分出库
+    const STATUS_COMPLETED = 4;    // 已完成
+    const STATUS_CANCELLED = 5;    // 已取消
+    
     protected $type = [
         'customer_id' => 'integer',
         'warehouse_id' => 'integer',
@@ -55,11 +62,11 @@ class SaleOrder extends BaseModel
     public function getStatusOptions()
     {
         return [
-            1 => '待审核',
-            2 => '已审核',
-            3 => '部分出库',
-            4 => '已完成',
-            5 => '已取消'
+            self::STATUS_PENDING => '待审核',
+            self::STATUS_AUDITED => '已审核',
+            self::STATUS_PARTIAL => '部分出库',
+            self::STATUS_COMPLETED => '已完成',
+            self::STATUS_CANCELLED => '已取消'
         ];
     }
     

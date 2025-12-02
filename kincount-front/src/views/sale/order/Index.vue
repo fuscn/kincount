@@ -35,7 +35,7 @@
                 {{ getStatusText(order.status) }}
               </van-tag>
             </div>
-            
+
             <div class="order-info">
               <div class="info-row">
                 <span class="label">客户：</span>
@@ -50,8 +50,24 @@
                 <span class="value">{{ order.customer.phone }}</span>
               </div>
               <div class="info-row">
+                <span class="label">仓库：</span>
+                <span class="value">{{ order.warehouse?.name || '--' }}</span>
+              </div>
+              <div class="info-row">
                 <span class="label">总金额：</span>
                 <span class="value amount">¥{{ formatPrice(order.total_amount) }}</span>
+              </div>
+              <div v-if="order.discount_amount > 0" class="info-row">
+                <span class="label">折扣金额：</span>
+                <span class="value discount">-¥{{ formatPrice(order.discount_amount) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">实收金额：</span>
+                <span class="value amount">¥{{ formatPrice(order.final_amount) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">已收金额：</span>
+                <span class="value amount">¥{{ formatPrice(order.paid_amount) }}</span>
               </div>
               <div class="info-row">
                 <span class="label">创建时间：</span>
@@ -61,9 +77,9 @@
                 <span class="label">订单日期：</span>
                 <span class="value">{{ formatDate(order.order_date) }}</span>
               </div>
-              <div v-if="order.delivery_date" class="info-row">
+              <div v-if="order.expected_date" class="info-row">
                 <span class="label">交货日期：</span>
-                <span class="value">{{ formatDate(order.delivery_date) }}</span>
+                <span class="value">{{ formatDate(order.expected_date) }}</span>
               </div>
               <div v-if="order.remark" class="info-row">
                 <span class="label">备注：</span>
@@ -74,7 +90,7 @@
         </div>
 
         <!-- 空状态 -->
-        <van-empty v-if="!listLoading && !refreshing && orderList.length === 0" description="暂无销售订单" image="search" />
+        <van-empty v-if="!listLoading && !refreshing && orderList.length === 0" description="暂无销售订单" />
       </van-list>
     </van-pull-refresh>
 
@@ -87,14 +103,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  showToast
+  showToast,
+  showSuccessToast,
+  showFailToast
 } from 'vant'
 import { PERM } from '@/constants/permissions'
 import { useSaleStore } from '@/store/modules/sale'
+import { useCustomerStore } from '@/store/modules/customer'
 import { getCustomerList } from '@/api/customer'
 
 const router = useRouter()
 const saleStore = useSaleStore()
+const customerStore = useCustomerStore()
 
 // 响应式数据
 const filters = reactive({
@@ -190,7 +210,6 @@ const getStatusTagType = (status) => {
 
 // 加载订单列表
 const loadOrderList = async (isRefresh = false) => {
-  console.log('📥 加载订单列表，模式:', isRefresh ? '刷新' : '加载更多')
 
   if (isRefresh) {
     pagination.page = 1
@@ -212,32 +231,38 @@ const loadOrderList = async (isRefresh = false) => {
       if (params[key] === '' || params[key] == null) delete params[key]
     })
 
+
+    // 调用 store 的 loadOrderList 方法
     await saleStore.loadOrderList(params)
 
-    let listData = []
-    let totalCount = 0
+    // 直接从 store 中获取数据
+    let listData = saleStore.orderList || []
+    let totalCount = saleStore.orderTotal || 0
 
-    if (saleStore.orderList && Array.isArray(saleStore.orderList)) {
-      listData = saleStore.orderList
-      totalCount = saleStore.orderTotal || 0
-    }
 
     if (isRefresh) {
       orderList.value = listData
     } else {
-      orderList.value = [...orderList.value, ...listData]
+      // 去重处理
+      const existingIds = new Set(orderList.value.map(item => item.id))
+      const newItems = listData.filter(item => !existingIds.has(item.id))
+      orderList.value = [...orderList.value, ...newItems]
     }
 
     pagination.total = totalCount
 
     // 检查是否加载完成
-    if (orderList.value.length >= pagination.total) {
+    if (listData.length < pagination.pageSize) {
+      finished.value = true
+    }
+
+    // 如果当前页没有数据，也标记为完成
+    if (listData.length === 0 && pagination.page > 1) {
       finished.value = true
     }
 
   } catch (error) {
-    console.error('加载销售订单失败:', error)
-    showToast('加载销售订单失败')
+    showFailToast('加载销售订单失败')
     finished.value = true
   } finally {
     refreshing.value = false
@@ -249,27 +274,39 @@ const loadOrderList = async (isRefresh = false) => {
 // 加载客户选项
 const loadCustomerOptions = async () => {
   try {
-    const response = await getCustomerList()
-    console.log('客户列表响应:', response)
-    
+    const params = {
+      page: 1,
+      limit: 50,
+      status: 1,
+      keyword: ''
+    }
+
+    const response = await customerStore.loadList(params)
+
     // 根据实际返回的数据结构提取客户列表
     let customerList = []
-    
-    if (response?.code === 200 && response.data?.list) {
+
+    if (response && response.code === 200) {
       // 结构为: { code: 200, msg: "获取成功", data: { list: [...], total: ... } }
-      customerList = response.data.list
-    } else if (response?.list) {
-      // 结构为: { list: [...], total: ... }
-      customerList = response.list
+      if (Array.isArray(response.data)) {
+        customerList = response.data
+      } else if (response.data && response.data.list && Array.isArray(response.data.list)) {
+        customerList = response.data.list
+      }
     } else if (Array.isArray(response)) {
       // 直接是数组
       customerList = response
+    } else if (response && response.list) {
+      // 结构为: { list: [...], total: ... }
+      customerList = response.list
     } else if (response?.data && Array.isArray(response.data)) {
       // 结构为: { data: [...] }
       customerList = response.data
+    } else {
+      // 从store中获取
+      customerList = customerStore.list || []
     }
 
-    console.log('提取的客户列表:', customerList)
 
     customerOptions.value = [
       { text: '全部客户', value: '' },
@@ -280,7 +317,6 @@ const loadCustomerOptions = async () => {
     ]
 
   } catch (error) {
-    console.error('加载客户列表失败:', error)
     showToast('加载客户列表失败')
   }
 }
@@ -301,7 +337,10 @@ const handleClearSearch = () => {
 
 onMounted(() => {
   loadCustomerOptions()
-  loadOrderList(true)
+  // 使用setTimeout确保dom渲染完成后再加载列表
+  setTimeout(() => {
+    loadOrderList(true)
+  }, 100)
 })
 </script>
 
@@ -328,7 +367,14 @@ onMounted(() => {
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
   .order-header {
     display: flex;
     justify-content: space-between;
@@ -336,47 +382,63 @@ onMounted(() => {
     margin-bottom: 12px;
     padding-bottom: 12px;
     border-bottom: 1px solid #f5f5f5;
-    
+
     .order-no {
       font-size: 16px;
       font-weight: 600;
       color: #323233;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      margin-right: 8px;
+    }
+
+    :deep(.van-tag) {
+      flex-shrink: 0;
     }
   }
-  
+
   .order-info {
     .info-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-size: 14px;
       line-height: 1.4;
-      
+
       &:last-child {
         margin-bottom: 0;
       }
-      
+
       .label {
         color: #646566;
         white-space: nowrap;
         margin-right: 8px;
+        flex-shrink: 0;
       }
-      
+
       .value {
         color: #323233;
         text-align: right;
         flex: 1;
         word-break: break-word;
-        
+
         &.amount {
           font-weight: 600;
           color: #ee0a24;
         }
-        
+
+        &.discount {
+          color: #07c160;
+          font-weight: 500;
+        }
+
         &.remark {
           color: #969799;
           font-style: italic;
+          font-size: 13px;
         }
       }
     }
@@ -388,5 +450,29 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   height: 200px;
+}
+
+:deep(.van-empty) {
+  padding: 40px 0;
+
+  .van-empty__image {
+    width: 100px;
+    height: 100px;
+  }
+
+  .van-empty__description {
+    color: #969799;
+    font-size: 14px;
+  }
+}
+
+:deep(.van-search) {
+  padding: 10px 12px;
+}
+
+:deep(.van-dropdown-menu) {
+  .van-dropdown-menu__bar {
+    box-shadow: none;
+  }
 }
 </style>

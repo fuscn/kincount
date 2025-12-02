@@ -1,5 +1,6 @@
 <?php
-declare (strict_types = 1);
+
+declare(strict_types=1);
 
 namespace app\kincount\controller;
 
@@ -19,12 +20,12 @@ class SaleOrderController extends BaseController
         $limit = (int)input('limit', 15);
         $kw    = input('keyword', '');
         $cusId = (int)input('customer_id', 0);
-        $status= input('status', '');
+        $status = input('status', '');
         $sDate = input('start_date', '');
         $eDate = input('end_date', '');
 
         $query = SaleOrder::with(['customer', 'warehouse', 'creator'])
-                          ->where('deleted_at', null);
+            ->where('deleted_at', null);
 
         if ($kw) $query->whereLike('order_no', "%{$kw}%");
         if ($cusId) $query->where('customer_id', $cusId);
@@ -33,30 +34,31 @@ class SaleOrderController extends BaseController
         if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
 
         return $this->paginate($query->order('id', 'desc')
-                                   ->paginate(['list_rows' => $limit, 'page' => $page]));
+            ->paginate(['list_rows' => $limit, 'page' => $page]));
     }
 
     public function read($id)
     {
         $order = SaleOrder::with(['customer', 'warehouse', 'creator', 'auditor'])
-                          ->where('deleted_at', null)->find($id);
+            ->where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
 
         $order['items'] = SaleOrderItem::with(['product.category'])
-                                       ->where('sale_order_id', $id)->select();
+            ->where('sale_order_id', $id)->select();
         return $this->success($order);
     }
 
-    public function save()
-    {
-        $post = input('post.');
-        $validate = new \think\Validate([
-            'customer_id'  => 'require|integer',
-            'warehouse_id' => 'require|integer',
-            'items'        => 'require|array|min:1'
-        ]);
-        if (!$validate->check($post)) return $this->error($validate->getError());
+ public function save()
+{
+    $post = input('post.');
+    $validate = new \think\Validate([
+        'customer_id'  => 'require|integer',
+        'warehouse_id' => 'require|integer',
+        'items'        => 'require|array|min:1'
+    ]);
+    if (!$validate->check($post)) return $this->error($validate->getError());
 
+    try {
         $order = Db::transaction(function () use ($post) {
             $orderNo = $this->generateOrderNo('SO');
             $customer = Customer::where('deleted_at', null)->find($post['customer_id']);
@@ -73,23 +75,34 @@ class SaleOrderController extends BaseController
                 'expected_date' => $post['expected_date'] ?? null,
             ]);
 
-            /* 明细 + 库存校验 */
+            /* 明细 + 库存校验（修改为SKU维度） */
             $total = 0;
             foreach ($post['items'] as $v) {
-                if (empty($v['product_id']) || empty($v['quantity']) || empty($v['price'])) {
+                if (empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
                     throw new \Exception('商品明细不完整');
                 }
-                $stock = Stock::where('product_id', $v['product_id'])
+                
+                // 通过sku_id获取product_id
+                $sku = \app\kincount\model\ProductSku::find($v['sku_id']);
+                if (!$sku) {
+                    throw new \Exception('SKU不存在');
+                }
+                
+                // 库存检查（SKU维度）
+                $stock = Stock::where('sku_id', $v['sku_id'])
                               ->where('warehouse_id', $post['warehouse_id'])->find();
                 if (!$stock || $stock->quantity < $v['quantity']) {
-                    $prod = Product::find($v['product_id']);
-                    throw new \Exception("商品 {$prod->name} 库存不足");
+                    $prod = Product::find($sku->product_id);
+                    $stockMsg = $stock ? "当前库存：{$stock->quantity}" : "无库存";
+                    throw new \Exception("商品 {$prod->name} (SKU: {$sku->sku_code}) 库存不足，{$stockMsg}");
                 }
+                
                 $rowTotal = $v['quantity'] * $v['price'];
                 SaleOrderItem::create([
-                    'sale_order_id'    => $order->id,
-                    'product_id'       => $v['product_id'],
-                    'quantity'         => $v['quantity'],
+                    'sale_order_id'     => $order->id,
+                    'product_id'        => $sku->product_id,
+                    'sku_id'            => $v['sku_id'],
+                    'quantity'          => $v['quantity'],
                     'delivered_quantity'=> 0,
                     'price'            => $v['price'],
                     'total_amount'     => $rowTotal,
@@ -109,7 +122,11 @@ class SaleOrderController extends BaseController
         });
 
         return $this->success(['id' => $order->id], '销售订单创建成功');
+        
+    } catch (\Exception $e) {
+        return $this->error($e->getMessage());
     }
+}
 
     public function update($id)
     {
@@ -136,7 +153,7 @@ class SaleOrderController extends BaseController
                 $total = 0;
                 foreach ($post['items'] as $v) {
                     $stock = Stock::where('product_id', $v['product_id'])
-                                  ->where('warehouse_id', $post['warehouse_id'] ?? $order->warehouse_id)->find();
+                        ->where('warehouse_id', $post['warehouse_id'] ?? $order->warehouse_id)->find();
                     if (!$stock || $stock->quantity < $v['quantity']) {
                         $prod = Product::find($v['product_id']);
                         throw new \Exception("商品 {$prod->name} 库存不足");
@@ -146,7 +163,7 @@ class SaleOrderController extends BaseController
                         'sale_order_id'     => $order->id,
                         'product_id'        => $v['product_id'],
                         'quantity'          => $v['quantity'],
-                        'delivered_quantity'=> 0,
+                        'delivered_quantity' => 0,
                         'price'             => $v['price'],
                         'total_amount'      => $rowTotal,
                     ]);
@@ -230,7 +247,7 @@ class SaleOrderController extends BaseController
 
         Db::transaction(function () use ($order, $post) {
             $stock = Stock::where('product_id', $post['product_id'])
-                          ->where('warehouse_id', $order->warehouse_id)->find();
+                ->where('warehouse_id', $order->warehouse_id)->find();
             if (!$stock || $stock->quantity < $post['quantity']) {
                 $prod = Product::find($post['product_id']);
                 throw new \Exception("商品 {$prod->name} 库存不足");
@@ -240,7 +257,7 @@ class SaleOrderController extends BaseController
                 'sale_order_id'     => $order->id,
                 'product_id'        => $post['product_id'],
                 'quantity'          => $post['quantity'],
-                'delivered_quantity'=> 0,
+                'delivered_quantity' => 0,
                 'price'             => $post['price'],
                 'total_amount'      => $rowTotal,
             ]);
@@ -271,10 +288,16 @@ class SaleOrderController extends BaseController
         $newPrice = $post['price'] ?? $item->price;
         $newTotal = $newQty * $newPrice;
 
+        // ========== 新增：检查是否超过已出库数量 ==========
+        if ($newQty < $item->delivered_quantity) {
+            throw new \Exception("新数量 {$newQty} 小于已出库数量 {$item->delivered_quantity}");
+        }
+        // ========== 新增结束 ==========
+
         Db::transaction(function () use ($item, $order, $oldTotal, $newTotal, $newQty, $newPrice) {
             if ($newQty != $item->quantity) {
                 $stock = Stock::where('product_id', $item->product_id)
-                              ->where('warehouse_id', $order->warehouse_id)->find();
+                    ->where('warehouse_id', $order->warehouse_id)->find();
                 if (!$stock || $stock->quantity < $newQty) {
                     $prod = Product::find($item->product_id);
                     throw new \Exception("商品 {$prod->name} 库存不足");
@@ -301,6 +324,12 @@ class SaleOrderController extends BaseController
 
         $item = SaleOrderItem::where('sale_order_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');
+
+        // ========== 新增：检查是否已有出库记录 ==========
+        if ($item->delivered_quantity > 0) {
+            return $this->error('该商品已有出库记录，无法删除');
+        }
+        // ========== 新增结束 ==========
 
         Db::transaction(function () use ($item, $order) {
             $total = $order->total_amount - $item->total_amount;

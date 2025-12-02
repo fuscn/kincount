@@ -78,85 +78,108 @@ class PurchaseStockController extends BaseController
     /**
      * 创建入库单
      */
-    public function save()
-    {
-        $post = input('post.');
-        $validate = new \think\Validate([
-            'supplier_id'  => 'require|integer',
-            'warehouse_id' => 'require|integer',
-            'items'        => 'require|array|min:1'
+public function save()
+{
+    $post = input('post.');
+    $validate = new \think\Validate([
+        'supplier_id'  => 'require|integer',
+        'warehouse_id' => 'require|integer',
+        'items'        => 'require|array|min:1'
+    ]);
+
+    if (!$validate->check($post)) {
+        return $this->error($validate->getError());
+    }
+
+    Db::startTrans();
+    try {
+        // 如果有采购订单ID，检查采购订单剩余数量（包含待审核的入库单）
+        if (!empty($post['purchase_order_id'])) {
+            $this->validatePurchaseOrder($post['purchase_order_id'], $post['items']);
+        }
+
+        $stockNo = $this->generateStockNo('PS');
+        $total   = 0;
+
+        /* 主表 */
+        $stock = PurchaseStock::create([
+            'stock_no'          => $stockNo,
+            'purchase_order_id' => $post['purchase_order_id'] ?? 0,
+            'supplier_id'       => $post['supplier_id'],
+            'warehouse_id'      => $post['warehouse_id'],
+            'total_amount'      => 0,
+            'status'            => 1, // 待审核
+            'remark'            => $post['remark'] ?? '',
+            'created_by'        => $this->getUserId(),
         ]);
 
-        if (!$validate->check($post)) {
-            return $this->error($validate->getError());
-        }
+        /* 明细 */
+        foreach ($post['items'] as $v) {
+            if (empty($v['product_id']) || empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                throw new \Exception('商品明细不完整');
+            }
 
-        // 手动管理事务
-        Db::startTrans();
-        try {
-            // 如果有采购订单ID，检查采购订单状态和可入库数量
+            // ========== 新增：检查采购订单剩余数量（考虑待审核入库单） ==========
             if (!empty($post['purchase_order_id'])) {
-                $this->validatePurchaseOrder($post['purchase_order_id'], $post['items']);
-            }
+                $orderItem = PurchaseOrderItem::where('purchase_order_id', $post['purchase_order_id'])
+                    ->where('sku_id', $v['sku_id'])
+                    ->find();
 
-            $stockNo = $this->generateStockNo('PS');
-            $total   = 0;
-
-            /* 主表 */
-            $stock = PurchaseStock::create([
-                'stock_no'          => $stockNo,
-                'purchase_order_id' => $post['purchase_order_id'] ?? 0,
-                'supplier_id'       => $post['supplier_id'],
-                'warehouse_id'      => $post['warehouse_id'],
-                'total_amount'      => 0,
-                'status'            => 1,
-                'remark'            => $post['remark'] ?? '',
-                'created_by'        => $this->getUserId(),
-            ]);
-
-            /* 明细 - 确保包含 sku_id */
-            foreach ($post['items'] as $v) {
-                if (empty($v['product_id']) || empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
-                    throw new \Exception('商品明细不完整，请检查product_id、sku_id、quantity、price');
+                if (!$orderItem) {
+                    $sku = \app\kincount\model\ProductSku::find($v['sku_id']);
+                    throw new \Exception("商品 SKU: {$sku->sku_code} 不在采购订单中");
                 }
 
-                $rowTotal = $v['quantity'] * $v['price'];
-                PurchaseStockItem::create([
-                    'purchase_stock_id' => $stock->id,
-                    'product_id'        => $v['product_id'],
-                    'sku_id'           => $v['sku_id'], // 确保这一行存在
-                    'quantity'          => $v['quantity'],
-                    'price'             => $v['price'],
-                    'total_amount'      => $rowTotal,
-                ]);
-                $total += $rowTotal;
+                // 计算剩余可入库数量
+                $remainingQuantity = $orderItem->quantity - $orderItem->received_quantity;
 
-                // 如果有采购订单ID，更新采购订单明细的已入库数量
-                if (!empty($post['purchase_order_id'])) {
-                    $this->updatePurchaseOrderReceivedQuantity(
-                        $post['purchase_order_id'],
-                        $v['product_id'],
-                        $v['sku_id'],  // 新增 sku_id 参数
-                        $v['quantity']
-                    );
+                // 计算已创建但未审核的入库单数量
+                $pendingInbound = PurchaseStockItem::alias('i')
+                    ->join('purchase_stocks s', 's.id = i.purchase_stock_id')
+                    ->where('s.purchase_order_id', $post['purchase_order_id'])
+                    ->where('s.status', 1)  // 待审核状态
+                    ->where('i.sku_id', $v['sku_id'])
+                    ->sum('i.quantity');
+
+                // 真正的剩余数量 = 订单总数量 - 已入库数量 - 待审核入库数量
+                $realRemaining = $remainingQuantity - $pendingInbound;
+
+                if ($v['quantity'] > $realRemaining) {
+                    $sku = \app\kincount\model\ProductSku::find($v['sku_id']);
+                    $message = "商品 SKU: {$sku->sku_code} 入库数量 {$v['quantity']} 超过订单剩余数量";
+                    if ($realRemaining < 0) {
+                        $message .= "（已有 {$pendingInbound} 个在待审核入库单中）";
+                    }
+                    throw new \Exception($message);
                 }
             }
+            // ========== 新增结束 ==========
 
-            // 更新入库单总金额
-            $stock->save(['total_amount' => $total]);
-
-            Db::commit();
-            return $this->success(['id' => $stock->id], '采购入库单创建成功');
-        } catch (\Exception $e) {
-            Db::rollback();
-            // 记录详细错误日志
-            \think\facade\Log::error('入库单创建失败: ' . $e->getMessage(), [
-                'post_data' => $post,
-                'trace' => $e->getTraceAsString()
+            $rowTotal = $v['quantity'] * $v['price'];
+            PurchaseStockItem::create([
+                'purchase_stock_id' => $stock->id,
+                'product_id'        => $v['product_id'],
+                'sku_id'           => $v['sku_id'],
+                'quantity'          => $v['quantity'],
+                'price'             => $v['price'],
+                'total_amount'      => $rowTotal,
             ]);
-            return $this->error('入库单创建失败: ' . $e->getMessage());
+            $total += $rowTotal;
+            
+            // ⚠️ 移除：不再在创建时更新采购订单的已入库数量
+            // if (!empty($post['purchase_order_id'])) {
+            //     $this->updatePurchaseOrderReceivedQuantity(...);
+            // }
         }
+
+        $stock->save(['total_amount' => $total]);
+        Db::commit();
+        return $this->success(['id' => $stock->id], '采购入库单创建成功');
+    } catch (\Exception $e) {
+        Db::rollback();
+        return $this->error('入库单创建失败: ' . $e->getMessage());
     }
+}
 
     /**
      * 入库单详情
@@ -289,50 +312,56 @@ class PurchaseStockController extends BaseController
     /**
      * 审核入库单
      */
-    /**
-     * 审核入库单
-     */
-    public function audit($id)
-    {
-        try {
-            Db::transaction(function () use ($id) {
-                $stock = PurchaseStock::with(['items'])->find($id);
-                if (!$stock) {
-                    throw new \Exception('入库单不存在');
-                }
+public function audit($id)
+{
+    try {
+        Db::transaction(function () use ($id) {
+            $stock = PurchaseStock::with(['items'])->find($id);
+            if (!$stock) {
+                throw new \Exception('入库单不存在');
+            }
 
-                if ($stock->status != 1) {
-                    throw new \Exception('只有待审核状态的入库单可以审核');
-                }
+            if ($stock->status != 1) {
+                throw new \Exception('只有待审核状态的入库单可以审核');
+            }
 
-                // 更新库存
-                foreach ($stock->items as $item) {
-                    $this->updateStockQuantity(
-                        $item->product_id,
-                        $item->sku_id, // 注意：这里需要SKU ID，但你的入库单明细表可能没有sku_id字段
-                        $stock->warehouse_id,
-                        $item->quantity,
-                        $item->price
-                    );
-                }
-
-                // 更新入库单状态
-                $stock->status = 2; // 已审核
-                $stock->audit_by = $this->getUserId();
-                $stock->audit_time = date('Y-m-d H:i:s');
-                $stock->save();
-
-                // 如果入库单有关联的采购订单，需要在审核时更新采购订单状态
+            // 更新库存
+            foreach ($stock->items as $item) {
+                $this->updateStockQuantity(
+                    $item->product_id,
+                    $item->sku_id,
+                    $stock->warehouse_id,
+                    $item->quantity,
+                    $item->price
+                );
+                
+                // ⚠️ 在审核时才更新采购订单的已入库数量
                 if ($stock->purchase_order_id) {
-                    $this->updatePurchaseOrderStatus($stock->purchase_order_id);
+                    PurchaseOrderItem::where('purchase_order_id', $stock->purchase_order_id)
+                        ->where('product_id', $item->product_id)
+                        ->where('sku_id', $item->sku_id)
+                        ->inc('received_quantity', $item->quantity)
+                        ->update();
                 }
-            });
+            }
 
-            return $this->success([], '审核成功');
-        } catch (\Exception $e) {
-            return $this->error($e->getMessage());
-        }
+            // 更新入库单状态
+            $stock->status = 2; // 已审核
+            $stock->audit_by = $this->getUserId();
+            $stock->audit_time = date('Y-m-d H:i:s');
+            $stock->save();
+
+            // 更新采购订单状态
+            if ($stock->purchase_order_id) {
+                $this->updatePurchaseOrderStatus($stock->purchase_order_id);
+            }
+        });
+
+        return $this->success([], '审核成功');
+    } catch (\Exception $e) {
+        return $this->error($e->getMessage());
     }
+}
 
     /**
      * 更新库存数量

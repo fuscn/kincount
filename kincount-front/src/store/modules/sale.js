@@ -1,106 +1,295 @@
 // src/store/modules/sale.js
 import { defineStore } from 'pinia'
 import {
-  getSaleOrderList, getSaleOrderDetail, auditSaleOrder,
-  getSaleStockList, getSaleStockDetail, auditSaleStock,
-  getSaleReturnList, getSaleReturnDetail, auditSaleReturn
+  getSaleOrderList, getSaleOrderDetail, auditSaleOrder, addSaleOrder, updateSaleOrder, deleteSaleOrder,
+  cancelSaleOrder, completeSaleOrder,
+  getSaleStockList, getSaleStockDetail, auditSaleStock, addSaleStock, updateSaleStock, deleteSaleStock,
+  cancelSaleStock, completeSaleStock,
+  getSaleReturnList, getSaleReturnDetail, auditSaleReturn, addSaleReturn,
+  cancelSaleReturn, completeSaleReturn
 } from '@/api/sale'
 
 export const useSaleStore = defineStore('sale', {
   state: () => ({
-    orderList: [], orderTotal: 0, currentOrder: {},
-    stockList: [], stockTotal: 0, currentStock: {}
+    orderList: [],
+    orderTotal: 0,
+    currentOrder: {},
+    stockList: [],
+    stockTotal: 0,
+    currentStock: {},
+    returnList: [], // 添加退货列表状态
+    returnTotal: 0, // 添加退货总数状态
+    currentReturn: {} // 添加当前退货详情状态
   }),
 
   actions: {
+    // ===== 销售订单相关 =====
     async loadOrderList(params) {
-      const { list, total } = await getSaleOrderList(params)
-      this.orderList = list
-      this.orderTotal = total
+      try {
+        const response = await getSaleOrderList(params)
+
+        // 处理响应结构
+        let listData = []
+        let totalCount = 0
+
+        if (response && response.code === 200) {
+          // 标准响应结构：{ code: 200, msg: "获取成功", data: { list: [], total: X } }
+          if (response.data && response.data.list) {
+            listData = response.data.list
+            totalCount = response.data.total || 0
+          }
+        } else if (response && response.list) {
+          // 直接返回列表结构：{ list: [], total: X }
+          listData = response.list
+          totalCount = response.total || 0
+        } else if (Array.isArray(response)) {
+          // 直接返回数组
+          listData = response
+          totalCount = response.length
+        } else {
+          listData = response || []
+          totalCount = response?.total || 0
+        }
+
+        this.orderList = listData
+        this.orderTotal = totalCount
+
+
+        return { list: listData, total: totalCount }
+      } catch (error) {
+        this.orderList = []
+        this.orderTotal = 0
+        throw error
+      }
     },
+
     async loadOrderDetail(id) {
-      this.currentOrder = await getSaleOrderDetail(id)
+      try {
+        const response = await getSaleOrderDetail(id)
+
+        // 处理不同的响应结构
+        if (response && response.code === 200 && response.data) {
+          this.currentOrder = response.data
+        } else {
+          this.currentOrder = response
+        }
+
+        return this.currentOrder
+      } catch (error) {
+        this.currentOrder = {}
+        throw error
+      }
     },
+
+    async addOrder(data) {
+      const result = await addSaleOrder(data)
+      return result
+    },
+
+    async updateOrder(id, data) {
+      const result = await updateSaleOrder(id, data)
+      return result
+    },
+
+    async deleteOrder(id) {
+      const result = await deleteSaleOrder(id)
+      return result
+    },
+
     async auditOrder(id) {
-      await auditSaleOrder(id)
+      try {
+        // 调用审核API
+        await auditSaleOrder(id)
+        // 刷新当前订单数据
+        await this.loadOrderDetail(id)
+        return this.currentOrder
+      } catch (error) {
+        throw error
+      }
+    },
+
+    async cancelOrder(id) {
+      await cancelSaleOrder(id)
       await this.loadOrderDetail(id)
     },
 
+    async completeOrder(id) {
+      await completeSaleOrder(id)
+      await this.loadOrderDetail(id)
+    },
+
+    // ===== 销售出库相关 =====
     async loadStockList(params) {
       try {
-        console.log('🔄 调用销售出库列表API，参数:', params)
-        const result = await getSaleStockList(params)
-        console.log('📦 销售出库列表API响应:', result)
+        const response = await getSaleStockList(params)
 
         // 处理不同的响应结构
         let listData = []
         let totalCount = 0
 
-        if (result && result.list) {
-          listData = result.list
-          totalCount = result.total || 0
-        } else if (result && result.data && result.data.list) {
-          listData = result.data.list
-          totalCount = result.data.total || 0
-        } else if (Array.isArray(result)) {
-          listData = result
-          totalCount = result.length
+        if (response && response.code === 200) {
+          // 标准响应结构
+          if (response.data && response.data.list) {
+            listData = response.data.list
+            totalCount = response.data.total || 0
+          } else if (response.data && Array.isArray(response.data)) {
+            listData = response.data
+            totalCount = response.data.length
+          }
+        } else if (response && response.list) {
+          // 直接返回列表结构：{ list: [], total: X }
+          listData = response.list
+          totalCount = response.total || 0
+        } else if (Array.isArray(response)) {
+          // 直接返回数组
+          listData = response
+          totalCount = response.length
         } else {
-          listData = result || []
-          totalCount = result?.total || 0
+          listData = response || []
+          totalCount = response?.total || 0
         }
 
         this.stockList = listData
         this.stockTotal = totalCount
 
-        console.log('✅ 处理后的销售出库数据:', this.stockList)
 
         return { list: listData, total: totalCount }
       } catch (error) {
-        console.error('加载销售出库列表失败:', error)
         this.stockList = []
         this.stockTotal = 0
         throw error
       }
     },
+
     async loadStockDetail(id) {
       try {
-        console.log('🔄 加载销售出库详情，ID:', id)
-        const result = await getSaleStockDetail(id)
-        console.log('📦 销售出库详情响应:', result)
+        const response = await getSaleStockDetail(id)
 
         // 处理不同的响应结构
-        if (result && result.data) {
-          this.currentStock = result.data
+        if (response && response.code === 200 && response.data) {
+          this.currentStock = response.data
         } else {
-          this.currentStock = result
+          this.currentStock = response
         }
 
-        console.log('✅ 处理后的销售出库详情:', this.currentStock)
         return this.currentStock
       } catch (error) {
-        console.error('加载销售出库详情失败:', error)
         this.currentStock = {}
         throw error
       }
     },
+
+    async addStock(data) {
+      const result = await addSaleStock(data)
+      return result
+    },
+
+    async updateStock(id, data) {
+      const result = await updateSaleStock(id, data)
+      return result
+    },
+
+    async deleteStock(id) {
+      const result = await deleteSaleStock(id)
+      return result
+    },
+
     async auditStock(id) {
       await auditSaleStock(id)
       await this.loadStockDetail(id)
     },
-    /* ===== 销售退货 ===== */
+
+    async completeStock(id) {
+      await completeSaleStock(id)
+      await this.loadStockDetail(id)
+    },
+
+    async cancelStock(id) {
+      await cancelSaleStock(id)
+      await this.loadStockDetail(id)
+    },
+
+    // ===== 销售退货相关 =====
     async loadReturnList(params) {
-      const { list, total } = await getSaleReturnList(params)
-      this.returnList = list
-      this.returnTotal = total
+      try {
+        const response = await getSaleReturnList(params)
+
+        // 处理不同的响应结构
+        let listData = []
+        let totalCount = 0
+
+        if (response && response.code === 200) {
+          // 标准响应结构
+          if (response.data && response.data.list) {
+            listData = response.data.list
+            totalCount = response.data.total || 0
+          } else if (response.data && Array.isArray(response.data)) {
+            listData = response.data
+            totalCount = response.data.length
+          }
+        } else if (response && response.list) {
+          // 直接返回列表结构：{ list: [], total: X }
+          listData = response.list
+          totalCount = response.total || 0
+        } else if (Array.isArray(response)) {
+          // 直接返回数组
+          listData = response
+          totalCount = response.length
+        } else {
+          listData = response || []
+          totalCount = response?.total || 0
+        }
+
+        this.returnList = listData
+        this.returnTotal = totalCount
+
+
+        return { list: listData, total: totalCount }
+      } catch (error) {
+        this.returnList = []
+        this.returnTotal = 0
+        throw error
+      }
     },
 
     async loadReturnDetail(id) {
-      this.currentReturn = await getSaleReturnDetail(id)
+      try {
+        const response = await getSaleReturnDetail(id)
+
+        // 处理不同的响应结构
+        if (response && response.code === 200 && response.data) {
+          this.currentReturn = response.data
+        } else {
+          this.currentReturn = response
+        }
+
+        return this.currentReturn
+      } catch (error) {
+        this.currentReturn = {}
+        throw error
+      }
     },
+
+    async addReturn(data) {
+      const result = await addSaleReturn(data)
+      return result
+    },
+
+    // 注意：apisale.js 中没有 updateSaleReturn 和 deleteSaleReturn 函数
+    // 所以这里不提供 updateReturn 和 deleteReturn 方法
 
     async auditReturn(id) {
       await auditSaleReturn(id)
+      await this.loadReturnDetail(id)
+    },
+
+    async completeReturn(id) {
+      await completeSaleReturn(id)
+      await this.loadReturnDetail(id)
+    },
+
+    async cancelReturn(id) {
+      await cancelSaleReturn(id)
       await this.loadReturnDetail(id)
     }
   }

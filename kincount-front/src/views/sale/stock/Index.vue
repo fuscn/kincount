@@ -5,7 +5,7 @@
       fixed
       placeholder
     >
-      <template #right>
+      <!-- <template #right>
         <van-button 
           size="small" 
           type="primary" 
@@ -14,7 +14,7 @@
         >
           新建出库
         </van-button>
-      </template>
+      </template> -->
     </van-nav-bar>
 
     <!-- 搜索和筛选 -->

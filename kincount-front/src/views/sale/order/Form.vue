@@ -35,14 +35,7 @@
           @click="showWarehousePicker = true" 
           :rules="[{ required: true, message: '请选择仓库' }]" 
         />
-        <!-- 订单编号 -->
-        <van-field 
-          v-model="form.order_no" 
-          name="order_no" 
-          label="订单编号" 
-          placeholder="系统自动生成" 
-          readonly
-        />
+        <!-- 删除订单编号字段 -->
         <!-- 订单日期 -->
         <van-field 
           v-model="form.order_date" 
@@ -333,7 +326,6 @@ import dayjs from 'dayjs'
 import { useSaleStore } from '@/store/modules/sale'
 import { useCustomerStore } from '@/store/modules/customer'
 import { useWarehouseStore } from '@/store/modules/warehouse'
-import { generateNumber } from '@/api/utils'
 import { SkuSelect } from '@/components'
 
 // 路由相关
@@ -351,9 +343,8 @@ const formRef = ref(null)
 const skuSelectRef = ref(null)
 const submitting = ref(false)
 
-// 表单数据
+// 表单数据 - 移除 order_no 字段
 const form = reactive({
-  order_no: '',
   customer_id: '',
   customer_name: '',
   warehouse_id: '',
@@ -487,7 +478,7 @@ watch(() => form.items, (newItems) => {
   })
 }, { deep: true })
 
-// 初始化表单数据
+// 初始化表单数据 - 移除生成订单编号的逻辑
 const initForm = async () => {
   if (isEdit) {
     // 编辑模式：加载订单详情
@@ -497,7 +488,8 @@ const initForm = async () => {
       const orderDetail = saleStore.currentOrder
       
       if (orderDetail) {
-        form.order_no = orderDetail.order_no
+        // 订单编号从后端获取，但不在表单中显示
+        // form.order_no = orderDetail.order_no
         form.customer_id = orderDetail.customer_id
         form.customer_name = orderDetail.customer?.name || ''
         form.warehouse_id = orderDetail.warehouse_id
@@ -564,31 +556,12 @@ const initForm = async () => {
     form.expected_date = tomorrow.format('YYYY-MM-DD')
     deliveryDate.value = [tomorrow.year(), tomorrow.month() + 1, tomorrow.date()]
     
-    // 生成订单编号
-    await generateOrderNo()
+    // 移除生成订单编号的调用，由后端自动生成
+    // await generateOrderNo()
   }
 }
 
-// 生成订单编号
-const generateOrderNo = async () => {
-  try {
-    const result = await generateNumber('sale_order')
-    // 处理不同的响应结构
-    if (typeof result === 'string') {
-      form.order_no = result
-    } else if (result?.data) {
-      form.order_no = result.data
-    } else if (result?.number) {
-      form.order_no = result.number
-    } else if (result?.order_no) {
-      form.order_no = result.order_no
-    } else {
-      form.order_no = `SO${dayjs().format('YYYYMMDDHHmmss')}`
-    }
-  } catch (error) {
-    form.order_no = `SO${dayjs().format('YYYYMMDDHHmmss')}`
-  }
-}
+// 移除 generateOrderNo 函数
 
 // 加载客户列表
 const loadCustomers = async (page = 1, keyword = '') => {
@@ -915,7 +888,7 @@ const validateForm = () => {
   return true
 }
 
-// 表单提交
+// 表单提交 - 移除 order_no 字段
 const handleSubmit = async () => {
   if (!validateForm()) {
     return
@@ -923,7 +896,7 @@ const handleSubmit = async () => {
   
   submitting.value = true
   try {
-    // 准备提交数据 - 根据saleapi.js中的数据结构
+    // 准备提交数据 - 移除 order_no 字段，由后端自动生成
     const submitData = {
       customer_id: form.customer_id,
       warehouse_id: form.warehouse_id,
@@ -950,8 +923,8 @@ const handleSubmit = async () => {
 
     let result
     if (isEdit) {
-      // 编辑订单 - 需要根据你的API调整
-      // result = await saleStore.updateOrder(route.params.id, submitData)
+      // 编辑订单
+      result = await saleStore.updateOrder(route.params.id, submitData)
       showSuccessToast('更新成功')
     } else {
       // 创建新订单

@@ -3,6 +3,10 @@ namespace app\kincount\model;
 
 class PurchaseStock extends BaseModel
 {
+    // 采购入库状态常量
+    const STATUS_PENDING = 1;      // 待审核
+    const STATUS_AUDITED = 2;      // 已审核
+    const STATUS_CANCELLED = 3;    // 已取消
     
     protected $type = [
         'purchase_order_id' => 'integer',
@@ -54,9 +58,9 @@ class PurchaseStock extends BaseModel
     public function getStatusOptions()
     {
         return [
-            1 => '待审核',
-            2 => '已审核',
-            3 => '已取消'
+            self::STATUS_PENDING => '待审核',
+            self::STATUS_AUDITED => '已审核',
+            self::STATUS_CANCELLED => '已取消'
         ];
     }
     
