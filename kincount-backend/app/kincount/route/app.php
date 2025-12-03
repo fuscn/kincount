@@ -221,30 +221,30 @@ Route::group(function () use ($jwtMiddleware) {
     // 统一退货模块
     Route::group('returns', function () {
         // 基础CRUD
-        Route::get('/', 'ReturnController/index');                     // 退货单列表（可按类型筛选）
-        Route::post('/', 'ReturnController/save');                     // 创建退货单
-        Route::get('/:id', 'ReturnController/read');                   // 退货单详情
-        Route::put('/:id', 'ReturnController/update');                 // 更新退货单
-        Route::delete('/:id', 'ReturnController/delete');              // 删除退货单
+        Route::get('/', 'ReturnOrderController/index');                     // 退货单列表（可按类型筛选）
+        Route::post('/', 'ReturnOrderController/save');                     // 创建退货单
+        Route::get('/:id', 'ReturnOrderController/read');                   // 退货单详情
+        Route::put('/:id', 'ReturnOrderController/update');                 // 更新退货单
+        Route::delete('/:id', 'ReturnOrderController/delete');              // 删除退货单
 
         // 流程操作
-        Route::post('/:id/audit', 'ReturnController/audit');           // 审核退货单
-        Route::post('/:id/cancel', 'ReturnController/cancel');         // 取消退货单
-        Route::post('/:id/complete', 'ReturnController/complete');     // 完成退货单
+        Route::post('/:id/audit', 'ReturnOrderController/audit');           // 审核退货单
+        Route::post('/:id/cancel', 'ReturnOrderController/cancel');         // 取消退货单
+        Route::post('/:id/complete', 'ReturnOrderController/complete');     // 完成退货单
 
         // 明细管理
-        Route::get('/:id/items', 'ReturnController/items');            // 退货明细列表
-        Route::post('/:id/items', 'ReturnController/addItem');         // 添加退货明细
-        Route::put('/:id/items/:item_id', 'ReturnController/updateItem'); // 更新明细
-        Route::delete('/:id/items/:item_id', 'ReturnController/deleteItem'); // 删除明细
+        Route::get('/:id/items', 'ReturnOrderController/items');            // 退货明细列表
+        Route::post('/:id/items', 'ReturnOrderController/addItem');         // 添加退货明细
+        Route::put('/:id/items/:item_id', 'ReturnOrderController/updateItem'); // 更新明细
+        Route::delete('/:id/items/:item_id', 'ReturnOrderController/deleteItem'); // 删除明细
 
         // 款项处理
-        Route::post('/:id/refund', 'ReturnController/refund');         // 退款/收款操作
-        Route::get('/:id/refunds', 'ReturnController/refunds');        // 款项记录
+        Route::post('/:id/refund', 'ReturnOrderController/refund');         // 退款/收款操作
+        Route::get('/:id/refunds', 'ReturnOrderController/refunds');        // 款项记录
 
         // 出入库相关
-        Route::get('/:id/stocks', 'ReturnController/stocks');          // 关联出入库单列表
-        Route::post('/:id/create_stock', 'ReturnController/createStock'); // 创建出入库单
+        Route::get('/:id/stocks', 'ReturnOrderController/stocks');          // 关联出入库单列表
+        Route::post('/:id/create_stock', 'ReturnOrderController/createStock'); // 创建出入库单
     });
     // 退货出入库单
     Route::group('return_stocks', function () {

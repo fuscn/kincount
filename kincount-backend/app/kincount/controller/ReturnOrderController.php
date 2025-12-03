@@ -3,7 +3,7 @@ declare (strict_types = 1);
 
 namespace app\kincount\controller;
 
-use app\kincount\model\ReturnModel;
+use app\kincount\model\ReturnOrder;
 use app\kincount\model\ReturnItem;
 use app\kincount\model\ReturnStock;
 use app\kincount\model\ReturnStockItem;
@@ -15,7 +15,7 @@ use app\kincount\model\ProductSku;
 use think\facade\Db;
 use think\Validate;
 
-class ReturnController extends BaseController
+class ReturnOrderController extends BaseController
 {
     /**
      * 退货单列表（支持按类型筛选）
@@ -30,7 +30,7 @@ class ReturnController extends BaseController
         $startDate = input('start_date', '');
         $endDate = input('end_date', '');
 
-        $query = ReturnModel::where('deleted_at', null)
+        $query = ReturnOrder::where('deleted_at', null)
             ->with(['creator', 'auditor', 'target', 'warehouse']);
 
         // 关键词搜索（单号/源单号/对方名称）
@@ -96,7 +96,7 @@ class ReturnController extends BaseController
         }
 
         // 验证目标对象存在性
-        if ($post['type'] == ReturnModel::TYPE_SALE) {
+        if ($post['type'] == ReturnOrder::TYPE_SALE) {
             $customer = Customer::find($post['target_id']);
             if (!$customer) {
                 return $this->error('客户不存在');
@@ -118,7 +118,7 @@ class ReturnController extends BaseController
             }
 
             // 创建退货单
-            $return = new ReturnModel();
+            $return = new ReturnOrder();
             $return->type = (int)$post['type'];
             $return->target_id = (int)$post['target_id'];
             $return->warehouse_id = (int)$post['warehouse_id'];
@@ -128,9 +128,9 @@ class ReturnController extends BaseController
             $return->refund_amount = $totalAmount; // 默认为全额退款
             $return->return_type = $post['return_type'] ?? 1;
             $return->remark = $post['remark'] ?? '';
-            $return->status = ReturnModel::STATUS_PENDING_AUDIT;
-            $return->stock_status = ReturnModel::STOCK_PENDING;
-            $return->refund_status = ReturnModel::REFUND_PENDING;
+            $return->status = ReturnOrder::STATUS_PENDING_AUDIT;
+            $return->stock_status = ReturnOrder::STOCK_PENDING;
+            $return->refund_status = ReturnOrder::REFUND_PENDING;
             $return->created_by = $this->getUserId();
             $return->save();
 
@@ -157,7 +157,7 @@ class ReturnController extends BaseController
      */
     public function read($id)
     {
-        $return = ReturnModel::where('deleted_at', null)
+        $return = ReturnOrder::where('deleted_at', null)
             ->with([
                 'items' => function ($q) {
                     $q->with('product,sku,sourceOrderItem,sourceStockItem');
@@ -187,13 +187,13 @@ class ReturnController extends BaseController
      */
     public function update($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 只有待审核状态可更新
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可更新');
         }
 
@@ -258,13 +258,13 @@ class ReturnController extends BaseController
      */
     public function delete($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 只有待审核状态可删除
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可删除');
         }
 
@@ -287,25 +287,25 @@ class ReturnController extends BaseController
      */
     public function audit($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可审核');
         }
 
         Db::transaction(function () use ($return) {
             // 更新退货单状态
-            $return->status = ReturnModel::STATUS_AUDITED;
+            $return->status = ReturnOrder::STATUS_AUDITED;
             $return->audit_by = $this->getUserId();
             $return->audit_time = date('Y-m-d H:i:s');
             $return->save();
 
             // 创建账款记录
-            $accountType = $return->type == ReturnModel::TYPE_SALE ? 1 : 2; // 1-应收(客户) 2-应付(供应商)
-            $balanceAmount = $return->type == ReturnModel::TYPE_SALE 
+            $accountType = $return->type == ReturnOrder::TYPE_SALE ? 1 : 2; // 1-应收(客户) 2-应付(供应商)
+            $balanceAmount = $return->type == ReturnOrder::TYPE_SALE 
                 ? '-' . $return->refund_amount  // 销售退货减少应收
                 : '-' . $return->refund_amount; // 采购退货减少应付
 
@@ -330,22 +330,22 @@ class ReturnController extends BaseController
      */
     public function cancel($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 已完成和已取消状态不能再取消
         if (in_array($return->status, [
-            ReturnModel::STATUS_COMPLETED,
-            ReturnModel::STATUS_CANCELLED
+            ReturnOrder::STATUS_COMPLETED,
+            ReturnOrder::STATUS_CANCELLED
         ])) {
             return $this->error('当前状态无法取消');
         }
 
         Db::transaction(function () use ($return) {
             // 更新退货单状态
-            $return->status = ReturnModel::STATUS_CANCELLED;
+            $return->status = ReturnOrder::STATUS_CANCELLED;
             $return->save();
 
             // 取消关联的出入库单
@@ -364,25 +364,25 @@ class ReturnController extends BaseController
      */
     public function complete($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 检查状态是否允许完成
-        if ($return->status == ReturnModel::STATUS_COMPLETED || $return->status == ReturnModel::STATUS_CANCELLED) {
+        if ($return->status == ReturnOrder::STATUS_COMPLETED || $return->status == ReturnOrder::STATUS_CANCELLED) {
             return $this->error('当前状态无法完成');
         }
 
         // 检查出入库和退款是否完成
-        if ($return->stock_status != ReturnModel::STOCK_COMPLETE) {
+        if ($return->stock_status != ReturnOrder::STOCK_COMPLETE) {
             return $this->error('请先完成所有出入库操作');
         }
-        if ($return->refund_status != ReturnModel::REFUND_COMPLETE) {
+        if ($return->refund_status != ReturnOrder::REFUND_COMPLETE) {
             return $this->error('请先完成所有退款操作');
         }
 
-        $return->status = ReturnModel::STATUS_COMPLETED;
+        $return->status = ReturnOrder::STATUS_COMPLETED;
         $return->save();
 
         return $this->success([], '标记完成成功');
@@ -406,11 +406,11 @@ class ReturnController extends BaseController
      */
     public function addItem($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可添加明细');
         }
 
@@ -456,11 +456,11 @@ class ReturnController extends BaseController
      */
     public function updateItem($id, $item_id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可更新明细');
         }
 
@@ -504,11 +504,11 @@ class ReturnController extends BaseController
      */
     public function deleteItem($id, $item_id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
-        if ($return->status != ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status != ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核的退货单可删除明细');
         }
 
@@ -536,16 +536,16 @@ class ReturnController extends BaseController
      */
     public function refund($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 检查状态
-        if ($return->status == ReturnModel::STATUS_CANCELLED) {
+        if ($return->status == ReturnOrder::STATUS_CANCELLED) {
             return $this->error('已取消的退货单无法操作退款');
         }
-        if ($return->stock_status != ReturnModel::STOCK_COMPLETE) {
+        if ($return->stock_status != ReturnOrder::STOCK_COMPLETE) {
             return $this->error('请先完成出入库操作');
         }
 
@@ -575,14 +575,14 @@ class ReturnController extends BaseController
             
             // 更新退款状态
             if ($return->refunded_amount >= $return->refund_amount) {
-                $return->refund_status = ReturnModel::REFUND_COMPLETE;
+                $return->refund_status = ReturnOrder::REFUND_COMPLETE;
             } else {
-                $return->refund_status = ReturnModel::REFUND_PART;
+                $return->refund_status = ReturnOrder::REFUND_PART;
             }
             $return->save();
 
             // 创建财务记录
-            $financeType = $return->type == ReturnModel::TYPE_SALE ? 2 : 1; // 1-收入(采购退货收款) 2-支出(销售退货退款)
+            $financeType = $return->type == ReturnOrder::TYPE_SALE ? 2 : 1; // 1-收入(采购退货收款) 2-支出(销售退货退款)
             FinancialRecord::create([
                 'record_no' => $this->generateFinanceNo($financeType),
                 'type' => $financeType,
@@ -617,7 +617,7 @@ class ReturnController extends BaseController
      */
     public function refunds($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
@@ -649,16 +649,16 @@ class ReturnController extends BaseController
      */
     public function createStock($id)
     {
-        $return = ReturnModel::where('deleted_at', null)->with('items')->find($id);
+        $return = ReturnOrder::where('deleted_at', null)->with('items')->find($id);
         if (!$return) {
             return $this->error('退货单不存在');
         }
 
         // 检查状态
-        if ($return->status == ReturnModel::STATUS_CANCELLED) {
+        if ($return->status == ReturnOrder::STATUS_CANCELLED) {
             return $this->error('已取消的退货单无法创建出入库单');
         }
-        if ($return->status == ReturnModel::STATUS_PENDING_AUDIT) {
+        if ($return->status == ReturnOrder::STATUS_PENDING_AUDIT) {
             return $this->error('请先审核退货单');
         }
 

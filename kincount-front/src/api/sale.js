@@ -164,16 +164,16 @@ export function deleteSaleStockItem(id, itemId) {
 
 /* ===== 销售退货（SKU 维度） ===== */
 export function getSaleReturnList(params) {
-  return request({ url: '/sale/returns', method: 'get', params })
+  return request({ url: '/returns', method: 'get', params })
 }
 export function getSaleReturnDetail(id) {
-  return request({ url: `/sale/returns/${id}`, method: 'get' })
+  return request({ url: `/returns/${id}`, method: 'get' })
 }
 
 // 新增退货（SKU）
 export function addSaleReturn(data) {
   return request({
-    url: '/sale/returns',
+    url: '/returns',
     method: 'post',
     data: {
       ...data,
@@ -185,13 +185,70 @@ export function addSaleReturn(data) {
     }
   })
 }
+// 更新退货单
+export function updateSaleReturn(id, data) {
+  return request({
+    url: `/returns/${id}`,
+    method: 'put',
+    data: {
+      ...data,
+      items: data.items.map(i => ({
+        sku_id: i.sku_id,
+        return_quantity: i.return_quantity,
+        price: i.price
+      }))
+    }
+  })
+}
 
+// 删除退货单
+export function deleteSaleReturn(id) {
+  return request({ url: `/returns/${id}`, method: 'delete' })
+}
+
+// 退货明细管理
+export function getSaleReturnItems(id) {
+  return request({ url: `/returns/${id}/items`, method: 'get' })
+}
+export function addSaleReturnItem(id, data) {
+  return request({
+    url: `/returns/${id}/items`,
+    method: 'post',
+    data: { sku_id: data.sku_id, return_quantity: data.return_quantity, price: data.price }
+  })
+}
+export function updateSaleReturnItem(returnId, itemId, data) {
+  return request({
+    url: `/returns/${returnId}/items/${itemId}`,
+    method: 'put',
+    data: { sku_id: data.sku_id, return_quantity: data.return_quantity, price: data.price }
+  })
+}
+export function deleteSaleReturnItem(returnId, itemId) {
+  return request({ url: `/returns/${returnId}/items/${itemId}`, method: 'delete' })
+}
+
+// 款项处理
+export function refundSaleReturn(id, data) {
+  return request({ url: `/returns/${id}/refund`, method: 'post', data })
+}
+export function getSaleReturnRefunds(id) {
+  return request({ url: `/returns/${id}/refunds`, method: 'get' })
+}
+
+// 出入库相关
+export function getSaleReturnStocks(id) {
+  return request({ url: `/returns/${id}/stocks`, method: 'get' })
+}
+export function createSaleReturnStock(id, data) {
+  return request({ url: `/returns/${id}/create_stock`, method: 'post', data })
+}
 export function auditSaleReturn(id) {
-  return request({ url: `/sale/returns/${id}/audit`, method: 'post' })
+  return request({ url: `/returns/${id}/audit`, method: 'post' })
 }
 export function cancelSaleReturn(id) {
-  return request({ url: `/sale/returns/${id}/cancel`, method: 'post' })
+  return request({ url: `/returns/${id}/cancel`, method: 'post' })
 }
 export function completeSaleReturn(id) {
-  return request({ url: `/sale/returns/${id}/complete`, method: 'post' })
+  return request({ url: `/returns/${id}/complete`, method: 'post' })
 }

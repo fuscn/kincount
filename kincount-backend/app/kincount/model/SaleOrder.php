@@ -47,8 +47,8 @@ class SaleOrder extends BaseModel
 
     public function returns(): HasMany
     {
-        return $this->hasMany(ReturnModel::class, 'source_order_id')
-            ->where('type', ReturnModel::TYPE_SALE)
+        return $this->hasMany(ReturnOrder::class, 'source_order_id')
+            ->where('type', ReturnOrder::TYPE_SALE)
             ->whereNull('deleted_at');
     }
     // 关联仓库
@@ -134,7 +134,7 @@ class SaleOrder extends BaseModel
     {
         $total = 0;
         $returns = $this->returns()
-            ->where('status', '>=', ReturnModel::STATUS_AUDITED)
+            ->where('status', '>=', ReturnOrder::STATUS_AUDITED)
             ->select();
 
         foreach ($returns as $return) {
@@ -163,14 +163,14 @@ class SaleOrder extends BaseModel
             $statistics['total_amount'] += $return->total_amount;
             $statistics['returned_amount'] += $return->refunded_amount;
 
-            if ($return->status == ReturnModel::STATUS_COMPLETED) {
+            if ($return->status == ReturnOrder::STATUS_COMPLETED) {
                 $statistics['completed_count']++;
             } elseif (in_array($return->status, [
-                ReturnModel::STATUS_PENDING_AUDIT,
-                ReturnModel::STATUS_AUDITED,
-                ReturnModel::STATUS_PART_STOCK,
-                ReturnModel::STATUS_STOCK_COMPLETE,
-                ReturnModel::STATUS_REFUND_COMPLETE
+                ReturnOrder::STATUS_PENDING_AUDIT,
+                ReturnOrder::STATUS_AUDITED,
+                ReturnOrder::STATUS_PART_STOCK,
+                ReturnOrder::STATUS_STOCK_COMPLETE,
+                ReturnOrder::STATUS_REFUND_COMPLETE
             ])) {
                 $statistics['pending_count']++;
             }

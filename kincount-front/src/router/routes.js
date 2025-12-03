@@ -254,7 +254,7 @@ export default [
       {
         path: 'sale/return/create',
         name: 'SaleReturnCreate',
-        component: () => import('@/views/sale/return/RetunCreate.vue'),
+        component: () => import('@/views/sale/return/RetunForm.vue'),
         meta: { title: '新建退货' }
       },
       {

@@ -4,7 +4,7 @@ namespace app\kincount\model;
 
 use think\model\relation\HasMany;
 
-class ReturnModel extends BaseModel
+class ReturnOrder extends BaseModel
 {
     // 退货单类型
     const TYPE_SALE = 1;      // 销售退货
