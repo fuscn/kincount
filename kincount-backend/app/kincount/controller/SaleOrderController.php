@@ -43,90 +43,157 @@ class SaleOrderController extends BaseController
             ->where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
 
-        $order['items'] = SaleOrderItem::with(['product.category'])
+        // 加载明细，同时加载商品分类、品牌和SKU信息
+        $order['items'] = SaleOrderItem::with(['product.category', 'product.brand', 'sku'])
             ->where('sale_order_id', $id)->select();
+
+        // 格式化SKU规格信息（如果SKU存在spec字段）
+        if (!empty($order['items'])) {
+            foreach ($order['items'] as &$item) {
+                if (isset($item['sku']) && !empty($item['sku']['spec'])) {
+                    // 如果spec是JSON字符串，解析为数组
+                    if (is_string($item['sku']['spec'])) {
+                        $item['sku']['spec'] = json_decode($item['sku']['spec'], true);
+                    }
+                    // 生成规格显示文本
+                    if (is_array($item['sku']['spec']) && !empty($item['sku']['spec'])) {
+                        $specText = [];
+                        foreach ($item['sku']['spec'] as $key => $value) {
+                            $specText[] = "{$key}:{$value}";
+                        }
+                        $item['sku']['spec_text'] = implode(' ', $specText);
+                    } else {
+                        $item['sku']['spec_text'] = '';
+                    }
+                } else {
+                    // 如果没有SKU信息，设置默认值
+                    $item['sku'] = $item['sku'] ?? [
+                        'id' => 0,
+                        'sku_code' => '',
+                        'spec' => [],
+                        'spec_text' => '',
+                        'barcode' => ''
+                    ];
+                }
+
+                // 计算未出库数量
+                $item['undelivered_quantity'] = $item['quantity'] - $item['delivered_quantity'];
+            }
+            unset($item); // 解除引用
+        }
+
+        // 获取客户信息
+        if ($order->customer) {
+            $order['customer']['level_text'] = match ($order->customer->level) {
+                1 => '普通',
+                2 => '银牌',
+                3 => '金牌',
+                default => '未知'
+            };
+        }
+
+        // 获取仓库信息
+        if ($order->warehouse) {
+            $order['warehouse_info'] = [
+                'name' => $order->warehouse->name,
+                'code' => $order->warehouse->code,
+                'address' => $order->warehouse->address
+            ];
+        }
+
+        // 获取订单状态文本
+        $statusOptions = $order->getStatusOptions();
+        $order['status_text'] = $statusOptions[$order->status] ?? '未知状态';
+
+        // 计算付款进度
+        $order['payment_progress'] = $order->final_amount > 0
+            ? round(($order->paid_amount / $order->final_amount) * 100, 2)
+            : 0;
+
+        // 计算未付金额
+        $order['unpaid_amount'] = $order->final_amount - $order->paid_amount;
+
         return $this->success($order);
     }
 
- public function save()
-{
-    $post = input('post.');
-    $validate = new \think\Validate([
-        'customer_id'  => 'require|integer',
-        'warehouse_id' => 'require|integer',
-        'items'        => 'require|array|min:1'
-    ]);
-    if (!$validate->check($post)) return $this->error($validate->getError());
+    public function save()
+    {
+        $post = input('post.');
+        $validate = new \think\Validate([
+            'customer_id'  => 'require|integer',
+            'warehouse_id' => 'require|integer',
+            'items'        => 'require|array|min:1'
+        ]);
+        if (!$validate->check($post)) return $this->error($validate->getError());
 
-    try {
-        $order = Db::transaction(function () use ($post) {
-            $orderNo = $this->generateOrderNo('SO');
-            $customer = Customer::where('deleted_at', null)->find($post['customer_id']);
-            $discount = $customer ? $customer->discount : 1.0;
+        try {
+            $order = Db::transaction(function () use ($post) {
+                $orderNo = $this->generateOrderNo('SO');
+                $customer = Customer::where('deleted_at', null)->find($post['customer_id']);
+                $discount = $customer ? $customer->discount : 1.0;
 
-            /* 主表 */
-            $order = SaleOrder::create([
-                'order_no'      => $orderNo,
-                'customer_id'   => $post['customer_id'],
-                'warehouse_id'  => $post['warehouse_id'],
-                'status'        => 1,
-                'remark'        => $post['remark'] ?? '',
-                'created_by'    => $this->getUserId(),
-                'expected_date' => $post['expected_date'] ?? null,
-            ]);
-
-            /* 明细 + 库存校验（修改为SKU维度） */
-            $total = 0;
-            foreach ($post['items'] as $v) {
-                if (empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
-                    throw new \Exception('商品明细不完整');
-                }
-                
-                // 通过sku_id获取product_id
-                $sku = \app\kincount\model\ProductSku::find($v['sku_id']);
-                if (!$sku) {
-                    throw new \Exception('SKU不存在');
-                }
-                
-                // 库存检查（SKU维度）
-                $stock = Stock::where('sku_id', $v['sku_id'])
-                              ->where('warehouse_id', $post['warehouse_id'])->find();
-                if (!$stock || $stock->quantity < $v['quantity']) {
-                    $prod = Product::find($sku->product_id);
-                    $stockMsg = $stock ? "当前库存：{$stock->quantity}" : "无库存";
-                    throw new \Exception("商品 {$prod->name} (SKU: {$sku->sku_code}) 库存不足，{$stockMsg}");
-                }
-                
-                $rowTotal = $v['quantity'] * $v['price'];
-                SaleOrderItem::create([
-                    'sale_order_id'     => $order->id,
-                    'product_id'        => $sku->product_id,
-                    'sku_id'            => $v['sku_id'],
-                    'quantity'          => $v['quantity'],
-                    'delivered_quantity'=> 0,
-                    'price'            => $v['price'],
-                    'total_amount'     => $rowTotal,
+                /* 主表 */
+                $order = SaleOrder::create([
+                    'order_no'      => $orderNo,
+                    'customer_id'   => $post['customer_id'],
+                    'warehouse_id'  => $post['warehouse_id'],
+                    'status'        => 1,
+                    'remark'        => $post['remark'] ?? '',
+                    'created_by'    => $this->getUserId(),
+                    'expected_date' => $post['expected_date'] ?? null,
                 ]);
-                $total += $rowTotal;
-            }
 
-            /* 折扣/最终金额 */
-            $discountAmount = $total * (1 - $discount);
-            $order->save([
-                'total_amount'   => $total,
-                'discount_amount'=> $discountAmount,
-                'final_amount'   => $total - $discountAmount,
-            ]);
+                /* 明细 + 库存校验（修改为SKU维度） */
+                $total = 0;
+                foreach ($post['items'] as $v) {
+                    if (empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                        throw new \Exception('商品明细不完整');
+                    }
 
-            return $order;
-        });
+                    // 通过sku_id获取product_id
+                    $sku = \app\kincount\model\ProductSku::find($v['sku_id']);
+                    if (!$sku) {
+                        throw new \Exception('SKU不存在');
+                    }
 
-        return $this->success(['id' => $order->id], '销售订单创建成功');
-        
-    } catch (\Exception $e) {
-        return $this->error($e->getMessage());
+                    // 库存检查（SKU维度）
+                    $stock = Stock::where('sku_id', $v['sku_id'])
+                        ->where('warehouse_id', $post['warehouse_id'])->find();
+                    if (!$stock || $stock->quantity < $v['quantity']) {
+                        $prod = Product::find($sku->product_id);
+                        $stockMsg = $stock ? "当前库存：{$stock->quantity}" : "无库存";
+                        throw new \Exception("商品 {$prod->name} (SKU: {$sku->sku_code}) 库存不足，{$stockMsg}");
+                    }
+
+                    $rowTotal = $v['quantity'] * $v['price'];
+                    SaleOrderItem::create([
+                        'sale_order_id'     => $order->id,
+                        'product_id'        => $sku->product_id,
+                        'sku_id'            => $v['sku_id'],
+                        'quantity'          => $v['quantity'],
+                        'delivered_quantity' => 0,
+                        'price'            => $v['price'],
+                        'total_amount'     => $rowTotal,
+                    ]);
+                    $total += $rowTotal;
+                }
+
+                /* 折扣/最终金额 */
+                $discountAmount = $total * (1 - $discount);
+                $order->save([
+                    'total_amount'   => $total,
+                    'discount_amount' => $discountAmount,
+                    'final_amount'   => $total - $discountAmount,
+                ]);
+
+                return $order;
+            });
+
+            return $this->success(['id' => $order->id], '销售订单创建成功');
+        } catch (\Exception $e) {
+            return $this->error($e->getMessage());
+        }
     }
-}
 
     public function update($id)
     {

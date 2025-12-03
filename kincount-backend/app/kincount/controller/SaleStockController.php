@@ -21,10 +21,19 @@ class SaleStockController extends BaseController
         $sDate = input('start_date', '');
         $eDate = input('end_date', '');
 
-        $query = SaleStock::with(['customer', 'warehouse', 'creator'])
+        $query = SaleStock::with(['customer', 'warehouse', 'creator', 'saleOrder'])
             ->where('deleted_at', null);
 
-        if ($kw) $query->whereLike('stock_no', "%{$kw}%");
+        if ($kw) {
+            // 同时搜索出库单号和关联的销售订单号
+            $query->where(function ($q) use ($kw) {
+                $q->whereLike('stock_no', "%{$kw}%")
+                    ->orWhereHas('saleOrder', function ($subQuery) use ($kw) {
+                        $subQuery->whereLike('order_no', "%{$kw}%");
+                    });
+            });
+        }
+
         if ($cusId) $query->where('customer_id', $cusId);
         if ($status !== '') $query->where('status', $status);
         if ($sDate) $query->where('created_at', '>=', $sDate);
@@ -33,15 +42,16 @@ class SaleStockController extends BaseController
         return $this->paginate($query->order('id', 'desc')
             ->paginate(['list_rows' => $limit, 'page' => $page]));
     }
-
     public function read($id)
     {
-        $stock = SaleStock::with(['customer', 'warehouse', 'creator', 'auditor'])
+        $stock = SaleStock::with(['customer', 'warehouse', 'creator', 'auditor', 'saleOrder'])
             ->where('deleted_at', null)->find($id);
         if (!$stock) return $this->error('销售出库单不存在');
 
-        $stock['items'] = SaleStockItem::with(['product.category'])
+        // 加载明细，包含商品分类和SKU信息
+        $stock['items'] = SaleStockItem::with(['product.category', 'sku'])
             ->where('sale_stock_id', $id)->select();
+
         return $this->success($stock);
     }
     public function save()
@@ -172,6 +182,11 @@ class SaleStockController extends BaseController
                         ->inc('delivered_quantity', $item->quantity)->save();
                 }
             }
+
+            // 新增：检查销售订单是否全部出库完成
+            if ($stock->sale_order_id) {
+                $this->updateSaleOrderStatus($stock->sale_order_id);
+            }
         });
 
         return $this->success([], '审核成功');
@@ -261,5 +276,60 @@ class SaleStockController extends BaseController
         $date = date('Ymd');
         $num  = SaleStock::whereLike('stock_no', $prefix . $date . '%')->count() + 1;
         return $prefix . $date . str_pad((string)$num, 4, '0', STR_PAD_LEFT);
+    }
+    /**
+     * 更新销售订单状态
+     * 
+     * @param int $saleOrderId 销售订单ID
+     * @return void
+     */
+    private function updateSaleOrderStatus($saleOrderId)
+    {
+        // 查询销售订单项的总数量和总已出库数量
+        $result = \app\kincount\model\SaleOrderItem::where('sale_order_id', $saleOrderId)
+            ->field('SUM(quantity) as total_quantity, SUM(delivered_quantity) as total_delivered')
+            ->find();
+
+        if (!$result) {
+            return;
+        }
+
+        $totalQuantity = $result->total_quantity ?? 0;
+        $totalDelivered = $result->total_delivered ?? 0;
+
+        // 查询是否有未完成出库的订单项（已出库但未出完）
+        $partialItems = \app\kincount\model\SaleOrderItem::where('sale_order_id', $saleOrderId)
+            ->where('delivered_quantity', '>', 0)
+            ->where('delivered_quantity', '<', Db::raw('quantity')) // 使用 Db::raw 比较字段
+            ->count();
+
+        // 查询是否有完全未出库的订单项
+        $notDeliveredItems = \app\kincount\model\SaleOrderItem::where('sale_order_id', $saleOrderId)
+            ->where('delivered_quantity', '=', 0)
+            ->count();
+
+        $totalItems = \app\kincount\model\SaleOrderItem::where('sale_order_id', $saleOrderId)->count();
+
+        // 判断并更新销售订单状态
+        if ($totalQuantity > 0 && $totalDelivered >= $totalQuantity) {
+            // 全部出库完成
+            $newStatus = \app\kincount\model\SaleOrder::STATUS_COMPLETED;
+        } else if ($partialItems > 0 || ($totalDelivered > 0 && $totalDelivered < $totalQuantity)) {
+            // 部分出库
+            $newStatus = \app\kincount\model\SaleOrder::STATUS_PARTIAL;
+        } else if ($totalDelivered == 0 && $notDeliveredItems == $totalItems) {
+            // 未出库（保持已审核状态）
+            $newStatus = \app\kincount\model\SaleOrder::STATUS_AUDITED;
+        } else {
+            // 其他情况保持原状态
+            return;
+        }
+
+        // 更新销售订单状态（不更新 completed_at 字段，因为表中没有该字段）
+        $updateData = ['status' => $newStatus];
+
+        \app\kincount\model\SaleOrder::where('id', $saleOrderId)
+            ->where('status', '!=', \app\kincount\model\SaleOrder::STATUS_CANCELLED) // 已取消的订单不更新状态
+            ->update($updateData);
     }
 }

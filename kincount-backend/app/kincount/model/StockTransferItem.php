@@ -24,4 +24,9 @@ class StockTransferItem extends BaseModel
     {
         return $this->belongsTo(Product::class);
     }
+        // 关联SKU
+    public function sku()
+    {
+        return $this->belongsTo(ProductSku::class,'sku_id');
+    }
 }

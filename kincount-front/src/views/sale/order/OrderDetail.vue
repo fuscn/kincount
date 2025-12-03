@@ -99,14 +99,14 @@
           <div v-else class="items-list">
             <div v-for="(item, index) in orderData.items" :key="item.id || index" class="item-card">
               <div class="item-info">
-                <div class="item-name">{{ getProductName(item) }}</div>
+                <div class="item-name">{{ getProductName(item) }}&nbsp&nbsp&nbsp&nbsp#{{ item.product?.product_no || '无编码' }}</div>
                 <div class="item-specs" v-if="getSkuSpecs(item).length > 0">
                   <van-tag v-for="(spec, specIndex) in getSkuSpecs(item)" :key="specIndex" size="small" type="primary"
                     plain>
                     {{ spec }}
                   </van-tag>
                 </div>
-                <div class="item-code">{{ item.product?.product_no || '无编码' }}</div>
+                <!-- <div class="item-code">{{ item.product?.product_no || '无编码' }}</div> -->
                 <div v-if="item.sku?.sku_code" class="item-sku">
                   SKU: {{ item.sku.sku_code }}
                 </div>

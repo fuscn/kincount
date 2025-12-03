@@ -1,6 +1,6 @@
 <?php
 namespace app\kincount\model;
-
+use think\model\relation\HasMany;
 class PurchaseStock extends BaseModel
 {
     // 采购入库状态常量
@@ -68,5 +68,40 @@ class PurchaseStock extends BaseModel
     public function generateStockNo()
     {
         return $this->generateUniqueNo('PS');
+    }
+    /**
+     * 关联采购退货单
+     */
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ReturnModel::class, 'source_stock_id')
+            ->where('type', ReturnModel::TYPE_PURCHASE)
+            ->whereNull('deleted_at');
+    }
+    
+    /**
+     * 获取可退货明细
+     */
+    public function getReturnableItems(): array
+    {
+        $returnableItems = [];
+        
+        foreach ($this->items as $item) {
+            $returnableQty = $item->getReturnableQuantity();
+            if ($returnableQty > 0) {
+                $returnableItems[] = [
+                    'stock_item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'sku_id' => $item->sku_id,
+                    'product_info' => $item->getFullProductInfo(),
+                    'quantity' => $item->quantity,
+                    'returned_quantity' => $item->returned_quantity,
+                    'returnable_quantity' => $returnableQty,
+                    'price' => $item->price
+                ];
+            }
+        }
+        
+        return $returnableItems;
     }
 }

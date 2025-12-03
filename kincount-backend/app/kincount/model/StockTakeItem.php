@@ -1,10 +1,11 @@
 <?php
+
 namespace app\kincount\model;
 
 
 class StockTakeItem extends BaseModel
 {
-    
+
     protected $type = [
         'stock_take_id' => 'integer',
         'product_id' => 'integer',
@@ -14,19 +15,23 @@ class StockTakeItem extends BaseModel
         'cost_price' => 'float',
         'difference_amount' => 'float'
     ];
-    
+
     // 关联盘点单
     public function stockTake()
     {
         return $this->belongsTo(StockTake::class);
     }
-    
+
     // 关联商品
     public function product()
     {
         return $this->belongsTo(Product::class);
     }
-    
+    // 关联SKU
+    public function sku()
+    {
+        return $this->belongsTo(ProductSku::class, 'sku_id');
+    }
     // 差异类型
     public function getDifferenceTypeAttr()
     {

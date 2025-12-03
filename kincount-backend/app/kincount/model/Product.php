@@ -55,12 +55,16 @@ class Product extends BaseModel
         return $this->hasMany(Stock::class, 'sku_id', 'id');
     }
 
-    // 状态选项 - 如果 BaseModel 中已定义，可以删除或重命名
-    public function getProductStatusOptions()
+    // 商品状态常量
+    const STATUS_DISABLED = 0; // 下架
+    const STATUS_ENABLED = 1;  // 上架
+
+    // 状态文本映射方法（替换原getProductStatusOptions）
+    public function getStatusOptions()
     {
         return [
-            0 => '下架',
-            1 => '上架'
+            self::STATUS_DISABLED => '下架',
+            self::STATUS_ENABLED => '上架'
         ];
     }
 
@@ -299,5 +303,23 @@ class Product extends BaseModel
     public function putOffSale()
     {
         return $this->updateStatus(0);
+    }
+        /**
+     * 获取商品完整信息（包含分类和品牌）
+     */
+    public function getFullInfo(): array
+    {
+        return [
+            'id' => $this->id,
+            'product_no' => $this->product_no,
+            'name' => $this->name,
+            'category_name' => $this->category->name ?? '',
+            'brand_name' => $this->brand->name ?? '',
+            'unit' => $this->unit,
+            'cost_price' => $this->cost_price,
+            'sale_price' => $this->sale_price,
+            'images' => $this->images ? json_decode($this->images, true) : [],
+            'description' => $this->description
+        ];
     }
 }

@@ -1,7 +1,7 @@
 <template>
-  <div class="purchase-stock-container">
+  <div class="sale-stock-container">
     <!-- 导航栏 -->
-    <van-nav-bar title="采购入库单管理" left-text="返回" left-arrow @click-left="$router.back()" />
+    <van-nav-bar title="销售出库单管理" left-text="返回" left-arrow @click-left="$router.back()" />
 
     <!-- 筛选区域 -->
     <div class="filter-wrapper">
@@ -10,16 +10,17 @@
         <van-tab title="全部" name="" />
         <van-tab title="待审核" name="1" />
         <van-tab title="已审核" name="2" />
-        <van-tab title="已取消" name="3" />
+        <van-tab title="已完成" name="3" />
+        <van-tab title="已取消" name="4" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->
       <div class="search-filter">
-        <van-search v-model="searchParams.stock_no" placeholder="搜索入库单号" @search="handleSearch"
+        <van-search v-model="searchParams.keyword" placeholder="搜索出库单号、客户名称" @search="handleSearch"
           @clear="handleClearSearch" />
         <van-dropdown-menu>
-          <!-- 供应商筛选 -->
-          <van-dropdown-item v-model="searchParams.supplier_id" :options="supplierOptions" placeholder="选择供应商"
+          <!-- 客户筛选 -->
+          <van-dropdown-item v-model="searchParams.customer_id" :options="customerOptions" placeholder="选择客户"
             @change="handleFilterChange" />
           <!-- 仓库筛选 -->
           <van-dropdown-item v-model="searchParams.warehouse_id" :options="warehouseOptions" placeholder="选择仓库"
@@ -46,10 +47,10 @@
           @load="onLoad">
           <!-- 空状态 -->
           <div v-if="stockList.length === 0 && !loading" class="empty-state">
-            <van-empty image="search" description="暂无入库单数据" />
+            <van-empty image="search" description="暂无出库单数据" />
           </div>
 
-          <!-- 入库单列表 -->
+          <!-- 出库单列表 -->
           <div v-for="item in stockList" :key="item.id" class="stock-item" @click="handleViewDetail(item)">
             <div class="stock-header">
               <span class="stock-no">{{ item.stock_no }}</span>
@@ -61,37 +62,40 @@
             <div class="stock-content">
               <div class="stock-info">
                 <div class="info-item">
-                  <span class="label">供应商：</span>
-                  <span class="value">{{ item.supplier?.name || '未知' }}</span>
+                  <span class="label">客户：</span>
+                  <span class="value">{{ item.customer?.name || '未知' }}</span>
                   <span class="label">仓库：</span>
                   <span class="value">{{ item.warehouse?.name || '未知' }}</span>
                 </div>
 
                 <div class="info-item">
-                  <span class="label">关联采购单：</span>
-                  <span class="value">{{ item.purchaseOrder?.order_no || `PO${item.purchase_order_id}`}}</span>
+                  <span class="label">关联销售单：</span>
+                  <span class="value">{{ item.saleOrder?.order_no || `SO${item.sale_order_id}`}}</span>
                   <span class="label">金额：</span>
                   <span class="value amount">¥{{ formatPrice(item.total_amount) }}</span>
-
                 </div>
 
                 <div class="info-item">
                   <span class="label">创建时间：</span>
                   <span class="value time">{{ formatDate(item.created_at) }}</span>
-                  <van-button v-if="item.status === 1" size="mini" type="primary" @click.stop="handleAudit(item)">
+                  <van-button v-if="item.status === 1" size="mini" type="primary" @click.stop="handleAudit(item)"
+                    v-perm="PERM.SALE_AUDIT">
                     审核
                   </van-button>
-                  <van-button v-if="item.status === 2" size="mini" type="warning" @click.stop="handleCancelAudit(item)">
+                  <van-button v-if="item.status === 2" size="mini" type="warning" @click.stop="handleCancelAudit(item)"
+                    v-perm="PERM.SALE_AUDIT_CANCEL">
                     取消审核
                   </van-button>
-                  <van-button v-if="item.status !== 3" size="mini" type="danger" @click.stop="handleCancel(item)">
+                  <van-button v-if="item.status === 2" size="mini" type="success" @click.stop="handleComplete(item)"
+                    v-perm="PERM.SALE_COMPLETE">
+                    出库
+                  </van-button>
+                  <van-button v-if="item.status !== 4 && item.status !== 3" size="mini" type="danger"
+                    @click.stop="handleCancel(item)" v-perm="PERM.SALE_CANCEL">
                     取消
                   </van-button>
-
                 </div>
               </div>
-
-
             </div>
           </div>
         </van-list>
@@ -110,14 +114,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { usePurchaseStore } from '@/store/modules/purchase'
-import { useSupplierStore } from '@/store/modules/supplier'
+import { useSaleStore } from '@/store/modules/sale'
+import { useCustomerStore } from '@/store/modules/customer'
 import { useWarehouseStore } from '@/store/modules/warehouse'
 import { showConfirmDialog, showToast } from 'vant'
 import { useRouter } from 'vue-router'
+import { PERM } from '@/constants/permissions'
 
-const purchaseStore = usePurchaseStore()
-const supplierStore = useSupplierStore()
+const saleStore = useSaleStore()
+const customerStore = useCustomerStore()
 const warehouseStore = useWarehouseStore()
 const router = useRouter()
 
@@ -126,8 +131,8 @@ const activeStatus = ref('')
 
 // 搜索参数
 const searchParams = ref({
-  stock_no: '',
-  supplier_id: '',
+  keyword: '',
+  customer_id: '',
   warehouse_id: '',
   status: '',
   start_date: '',
@@ -141,9 +146,9 @@ const startDate = ref([])
 const endDate = ref([])
 const dateDropdown = ref(null)
 
-// 供应商选项
-const supplierOptions = ref([
-  { text: '全部供应商', value: '' },
+// 客户选项
+const customerOptions = ref([
+  { text: '全部客户', value: '' },
 ])
 
 // 仓库选项
@@ -155,7 +160,7 @@ const warehouseOptions = ref([
 const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
-const stockList = computed(() => purchaseStore.stockList)
+const stockList = computed(() => saleStore.stockList || [])
 
 // 分页参数
 const pagination = ref({
@@ -182,7 +187,8 @@ const getStatusText = (status) => {
   const statusMap = {
     1: '待审核',
     2: '已审核',
-    3: '已取消'
+    3: '已完成',
+    4: '已取消'
   }
   return statusMap[status] || '未知'
 }
@@ -191,25 +197,26 @@ const getStatusText = (status) => {
 const getStatusTagType = (status) => {
   const typeMap = {
     1: 'warning',  // 待审核 - 警告色
-    2: 'success',  // 已审核 - 成功色
-    3: 'danger'    // 已取消 - 危险色
+    2: 'primary',  // 已审核 - 主要色
+    3: 'success',  // 已完成 - 成功色
+    4: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }
 
 // 查看详情 - 跳转到详情页面
 const handleViewDetail = (item) => {
-  router.push(`/purchase/stock/detail/${item.id}`)
+  router.push(`/sale/stock/detail/${item.id}`)
 }
 
 // 审核操作
 const handleAudit = (item) => {
   showConfirmDialog({
     title: '确认审核',
-    message: `确定要审核入库单 ${item.stock_no} 吗？审核后将更新库存数量。`
+    message: `确定要审核出库单 ${item.stock_no} 吗？审核后将允许出库操作。`
   }).then(async () => {
     try {
-      await purchaseStore.auditStock(item.id)
+      await saleStore.auditStock(item.id)
       showToast('审核成功')
       onRefresh() // 刷新列表
     } catch (error) {
@@ -224,10 +231,10 @@ const handleAudit = (item) => {
 const handleCancelAudit = (item) => {
   showConfirmDialog({
     title: '确认取消审核',
-    message: `确定要取消审核入库单 ${item.stock_no} 吗？取消审核将回退库存数量。`
+    message: `确定要取消审核出库单 ${item.stock_no} 吗？`
   }).then(async () => {
     try {
-      await purchaseStore.cancelAuditStock(item.id)
+      await saleStore.cancelAuditStock(item.id)
       showToast('取消审核成功')
       onRefresh() // 刷新列表
     } catch (error) {
@@ -238,14 +245,32 @@ const handleCancelAudit = (item) => {
   })
 }
 
+// 完成出库操作
+const handleComplete = (item) => {
+  showConfirmDialog({
+    title: '确认出库',
+    message: `确定要完成出库单 ${item.stock_no} 的出库操作吗？此操作将更新库存数量。`
+  }).then(async () => {
+    try {
+      await saleStore.completeStock(item.id)
+      showToast('出库成功')
+      onRefresh() // 刷新列表
+    } catch (error) {
+      showToast('出库失败: ' + (error.message || '未知错误'))
+    }
+  }).catch(() => {
+    // 用户取消
+  })
+}
+
 // 取消操作
 const handleCancel = (item) => {
   showConfirmDialog({
     title: '确认取消',
-    message: `确定要取消入库单 ${item.stock_no} 吗？此操作不可恢复。`
+    message: `确定要取消出库单 ${item.stock_no} 吗？此操作不可恢复。`
   }).then(async () => {
     try {
-      await purchaseStore.cancelStock(item.id)
+      await saleStore.cancelStock(item.id)
       showToast('取消成功')
       onRefresh() // 刷新列表
     } catch (error) {
@@ -271,7 +296,7 @@ const handleSearch = () => {
 
 // 清除搜索
 const handleClearSearch = () => {
-  searchParams.value.stock_no = ''
+  searchParams.value.keyword = ''
   handleSearch()
 }
 
@@ -331,7 +356,7 @@ const onLoad = async (isRefresh = false) => {
       }
     })
 
-    await purchaseStore.loadStockList(params)
+    await saleStore.loadStockList(params)
 
     if (isRefresh) {
       refreshing.value = false
@@ -340,8 +365,8 @@ const onLoad = async (isRefresh = false) => {
     }
 
     // 检查是否加载完毕
-    const currentLength = purchaseStore.stockList.length
-    const total = purchaseStore.stockTotal
+    const currentLength = stockList.value.length
+    const total = saleStore.stockTotal || 0
 
     if (currentLength >= total || currentLength === 0) {
       finished.value = true
@@ -349,6 +374,7 @@ const onLoad = async (isRefresh = false) => {
       pagination.value.page++
     }
   } catch (error) {
+    console.error('加载销售出库列表失败:', error)
     if (isRefresh) {
       refreshing.value = false
     } else {
@@ -376,30 +402,31 @@ const onEndDateConfirm = (value) => {
   showEndDatePicker.value = false
 }
 
-// 加载供应商选项
-const loadSupplierOptions = async () => {
+// 加载客户选项
+const loadCustomerOptions = async () => {
   try {
-    const response = await supplierStore.loadList({ page: 1, page_size: 1000 })
+    const response = await customerStore.loadList({ page: 1, page_size: 1000 })
 
-    let supplierList = []
+    let customerList = []
     if (response && response.list) {
-      supplierList = response.list
+      customerList = response.list
     } else if (response && response.data && response.data.list) {
-      supplierList = response.data.list
+      customerList = response.data.list
     } else if (Array.isArray(response)) {
-      supplierList = response
+      customerList = response
     }
 
     // 转换格式为 { text: name, value: id }
-    supplierOptions.value = [
-      { text: '全部供应商', value: '' },
-      ...supplierList.map(item => ({
+    customerOptions.value = [
+      { text: '全部客户', value: '' },
+      ...customerList.map(item => ({
         text: item.name,
         value: item.id
       }))
     ]
   } catch (error) {
-    showToast('加载供应商列表失败')
+    console.error('加载客户列表失败:', error)
+    showToast('加载客户列表失败')
   }
 }
 
@@ -412,24 +439,23 @@ const loadWarehouseOptions = async () => {
       ...warehouseStore.options
     ]
   } catch (error) {
+    console.error('加载仓库列表失败:', error)
     showToast('加载仓库列表失败')
   }
 }
 
 // 初始化加载
 onMounted(async () => {
-  // 加载供应商和仓库选项
+  // 加载客户和仓库选项
   await Promise.all([
-    loadSupplierOptions(),
+    loadCustomerOptions(),
     loadWarehouseOptions()
   ])
-
-  // 让van-list自动触发第一次加载
 })
 </script>
 
 <style scoped lang="scss">
-.purchase-stock-container {
+.sale-stock-container {
   padding: 0;
   background-color: #f7f8fa;
   min-height: 100vh;
@@ -523,6 +549,7 @@ onMounted(async () => {
   display: flex;
   margin-bottom: 6px;
   font-size: 13px;
+  align-items: center;
 }
 
 .info-item .label {
@@ -544,16 +571,10 @@ onMounted(async () => {
   color: #646566;
 }
 
-.stock-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
 :deep(.van-button--mini) {
   height: 24px;
   padding: 0 8px;
   font-size: 11px;
+  margin-left: 8px;
 }
 </style>

@@ -159,6 +159,8 @@ Route::group(function () use ($jwtMiddleware) {
         Route::post('/:id/items', 'PurchaseOrderController/addItem');     // 添加明细
         Route::put('/:id/items/:item_id', 'PurchaseOrderController/updateItem'); // 更新明细
         Route::delete('/:id/items/:item_id', 'PurchaseOrderController/deleteItem'); // 删除明细
+        Route::get('/:id/returns', 'PurchaseOrderController/returns');     // 查看采购订单退货记录
+        Route::get('/:id/returnable_items', 'PurchaseOrderController/returnableItems'); // 可退货商品
     });
 
     // 采购入库
@@ -176,6 +178,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::delete('/:id/items/:item_id', 'PurchaseStockController/deleteItem'); // 删除明细
         Route::get('/check_availability/:id', 'PurchaseStockController/checkStockAvailability'); // 检查入库可用性
         Route::get('/by_order/:order_id', 'PurchaseStockController/getStocksByOrderId'); // 根据采购订单获取入库单
+        Route::get('/:id/returns', 'PurchaseStockController/returns');     // 查看采购入库退货记录
     });
 
     // ==================== 销售管理模块 ====================
@@ -194,6 +197,8 @@ Route::group(function () use ($jwtMiddleware) {
         Route::post('/:id/items', 'SaleOrderController/addItem');         // 添加明细
         Route::put('/:id/items/:item_id', 'SaleOrderController/updateItem'); // 更新明细
         Route::delete('/:id/items/:item_id', 'SaleOrderController/deleteItem'); // 删除明细
+        Route::get('/:id/returns', 'SaleOrderController/returns');         // 查看销售订单退货记录
+        Route::get('/:id/returnable_items', 'SaleOrderController/returnableItems'); // 可退货商品
     });
 
     // 销售出库
@@ -210,8 +215,50 @@ Route::group(function () use ($jwtMiddleware) {
         Route::put('/:id/items/:item_id', 'SaleStockController/updateItem'); // 更新明细
         Route::delete('/:id/items/:item_id', 'SaleStockController/deleteItem'); // 删除明细
         Route::post('/:id/complete', 'SaleStockController/complete');       // 完成出库
+        Route::get('/:id/returns', 'SaleStockController/returns');         // 查看销售出库退货记录
     });
 
+    // 统一退货模块
+    Route::group('returns', function () {
+        // 基础CRUD
+        Route::get('/', 'ReturnController/index');                     // 退货单列表（可按类型筛选）
+        Route::post('/', 'ReturnController/save');                     // 创建退货单
+        Route::get('/:id', 'ReturnController/read');                   // 退货单详情
+        Route::put('/:id', 'ReturnController/update');                 // 更新退货单
+        Route::delete('/:id', 'ReturnController/delete');              // 删除退货单
+
+        // 流程操作
+        Route::post('/:id/audit', 'ReturnController/audit');           // 审核退货单
+        Route::post('/:id/cancel', 'ReturnController/cancel');         // 取消退货单
+        Route::post('/:id/complete', 'ReturnController/complete');     // 完成退货单
+
+        // 明细管理
+        Route::get('/:id/items', 'ReturnController/items');            // 退货明细列表
+        Route::post('/:id/items', 'ReturnController/addItem');         // 添加退货明细
+        Route::put('/:id/items/:item_id', 'ReturnController/updateItem'); // 更新明细
+        Route::delete('/:id/items/:item_id', 'ReturnController/deleteItem'); // 删除明细
+
+        // 款项处理
+        Route::post('/:id/refund', 'ReturnController/refund');         // 退款/收款操作
+        Route::get('/:id/refunds', 'ReturnController/refunds');        // 款项记录
+
+        // 出入库相关
+        Route::get('/:id/stocks', 'ReturnController/stocks');          // 关联出入库单列表
+        Route::post('/:id/create_stock', 'ReturnController/createStock'); // 创建出入库单
+    });
+    // 退货出入库单
+    Route::group('return_stocks', function () {
+        Route::get('/', 'ReturnStockController/index');                // 出入库单列表
+        Route::post('/', 'ReturnStockController/save');                // 创建出入库单
+        Route::get('/:id', 'ReturnStockController/read');              // 出入库单详情
+        Route::put('/:id', 'ReturnStockController/update');            // 更新出入库单
+        Route::delete('/:id', 'ReturnStockController/delete');         // 删除出入库单
+        Route::post('/:id/audit', 'ReturnStockController/audit');      // 审核出入库单
+        Route::post('/:id/cancel', 'ReturnStockController/cancel');    // 取消出入库单
+        Route::get('/:id/items', 'ReturnStockController/items');       // 出入库明细
+        Route::post('/:id/items', 'ReturnStockController/addItem');    // 添加明细
+        Route::delete('/:id/items/:item_id', 'ReturnStockController/deleteItem'); // 删除明细
+    });
     // ==================== 库存管理模块 ====================
 
     # 库存模块改为 SKU 维度

@@ -1,5 +1,6 @@
 <?php
 namespace app\kincount\model;
+use think\model\relation\HasMany;
 
 class PurchaseOrder extends BaseModel
 {
@@ -82,5 +83,42 @@ class PurchaseOrder extends BaseModel
         
         if ($totalQuantity == 0) return 0;
         return round(($receivedQuantity / $totalQuantity) * 100, 2);
+    }
+     /**
+     * 关联采购退货单
+     */
+    public function returns(): HasMany
+    {
+        return $this->hasMany(ReturnModel::class, 'source_order_id')
+            ->where('type', ReturnModel::TYPE_PURCHASE)
+            ->whereNull('deleted_at');
+    }
+    
+    /**
+     * 获取可退货商品明细
+     */
+    public function getReturnableItems(): array
+    {
+        $returnableItems = [];
+        
+        foreach ($this->items as $item) {
+            $returnableQty = $item->getReturnableQuantity();
+            if ($returnableQty > 0) {
+                $returnableItems[] = [
+                    'order_item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'sku_id' => $item->sku_id,
+                    'product_info' => $item->getFullProductInfo(),
+                    'quantity' => $item->quantity,
+                    'received_quantity' => $item->received_quantity,
+                    'returned_quantity' => $item->returned_quantity,
+                    'returnable_quantity' => $returnableQty,
+                    'price' => $item->price,
+                    'total_amount' => $item->total_amount
+                ];
+            }
+        }
+        
+        return $returnableItems;
     }
 }
