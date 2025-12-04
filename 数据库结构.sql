@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-03 12:27:39
+-- 导出时间: 2025-12-04 22:40:13
 -- 共 32 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -292,9 +292,9 @@ CREATE TABLE `purchase_stocks` (
 
 
 -- ==================================================
--- 表: return_items
+-- 表: return_order_items
 -- ==================================================
-CREATE TABLE `return_items` (
+CREATE TABLE `return_order_items` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `return_id` bigint(20) unsigned NOT NULL COMMENT '退货单ID',
   `source_order_item_id` bigint(20) unsigned DEFAULT NULL COMMENT '源订单明细ID',
@@ -315,7 +315,45 @@ CREATE TABLE `return_items` (
   KEY `idx_source_order_item` (`source_order_item_id`),
   KEY `idx_source_stock_item` (`source_stock_item_id`),
   KEY `idx_return_items_product` (`product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+
+
+-- ==================================================
+-- 表: return_orders
+-- ==================================================
+CREATE TABLE `return_orders` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `return_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退货单号',
+  `type` tinyint(4) NOT NULL COMMENT '类型：1-销售退货 2-采购退货',
+  `source_order_id` bigint(20) unsigned DEFAULT NULL COMMENT '源订单ID(sale_orders.id/purchase_orders.id)',
+  `source_stock_id` bigint(20) unsigned DEFAULT NULL COMMENT '源出入库ID(sale_stocks.id/purchase_stocks.id)',
+  `target_id` bigint(20) unsigned NOT NULL COMMENT '对方ID(客户ID/供应商ID)',
+  `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '仓库ID',
+  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '退货总金额',
+  `refund_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '应退/应付金额',
+  `refunded_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '已退/已收金额',
+  `return_type` tinyint(4) DEFAULT '1' COMMENT '退货原因类型：1-质量问题 2-数量问题 3-客户/供应商取消 4-其他',
+  `return_reason` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '退货原因',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-部分入库/出库 4-已入库/出库 5-已退款/收款 6-已完成 7-已取消',
+  `stock_status` tinyint(4) DEFAULT '1' COMMENT '出入库状态：1-待处理 2-部分处理 3-已完成',
+  `refund_status` tinyint(4) DEFAULT '1' COMMENT '款项状态：1-待处理 2-部分处理 3-已完成',
+  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
+  `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
+  `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
+  `audit_time` datetime DEFAULT NULL COMMENT '审核时间',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `return_no` (`return_no`),
+  KEY `idx_type` (`type`),
+  KEY `idx_target` (`target_id`),
+  KEY `idx_warehouse` (`warehouse_id`),
+  KEY `idx_source_order` (`source_order_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_return_type` (`return_type`),
+  KEY `idx_returns_type_status` (`type`,`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================
@@ -366,44 +404,6 @@ CREATE TABLE `return_stocks` (
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
-
-
--- ==================================================
--- 表: returns
--- ==================================================
-CREATE TABLE `returns` (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `return_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退货单号',
-  `type` tinyint(4) NOT NULL COMMENT '类型：1-销售退货 2-采购退货',
-  `source_order_id` bigint(20) unsigned DEFAULT NULL COMMENT '源订单ID(sale_orders.id/purchase_orders.id)',
-  `source_stock_id` bigint(20) unsigned DEFAULT NULL COMMENT '源出入库ID(sale_stocks.id/purchase_stocks.id)',
-  `target_id` bigint(20) unsigned NOT NULL COMMENT '对方ID(客户ID/供应商ID)',
-  `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '仓库ID',
-  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '退货总金额',
-  `refund_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '应退/应付金额',
-  `refunded_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '已退/已收金额',
-  `return_type` tinyint(4) DEFAULT '1' COMMENT '退货原因类型：1-质量问题 2-数量问题 3-客户/供应商取消 4-其他',
-  `return_reason` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '退货原因',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-部分入库/出库 4-已入库/出库 5-已退款/收款 6-已完成 7-已取消',
-  `stock_status` tinyint(4) DEFAULT '1' COMMENT '出入库状态：1-待处理 2-部分处理 3-已完成',
-  `refund_status` tinyint(4) DEFAULT '1' COMMENT '款项状态：1-待处理 2-部分处理 3-已完成',
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
-  `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
-  `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
-  `audit_time` datetime DEFAULT NULL COMMENT '审核时间',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `return_no` (`return_no`),
-  KEY `idx_type` (`type`),
-  KEY `idx_target` (`target_id`),
-  KEY `idx_warehouse` (`warehouse_id`),
-  KEY `idx_source_order` (`source_order_id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_return_type` (`return_type`),
-  KEY `idx_returns_type_status` (`type`,`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================

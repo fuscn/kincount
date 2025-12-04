@@ -39,7 +39,7 @@ class ReturnStock extends BaseModel
      */
     public function return(): BelongsTo
     {
-        return $this->belongsTo(ReturnModel::class, 'return_id');
+        return $this->belongsTo(ReturnOrder::class, 'return_id');
     }
     
     /**
@@ -56,7 +56,7 @@ class ReturnStock extends BaseModel
      */
     public function target()
     {
-        if ($this->return && $this->return->type == ReturnModel::TYPE_SALE) {
+        if ($this->return && $this->return->type == ReturnOrder::TYPE_SALE) {
             return $this->belongsTo(Customer::class, 'target_id');
         } else {
             return $this->belongsTo(Supplier::class, 'target_id');
@@ -114,7 +114,7 @@ class ReturnStock extends BaseModel
     public function getOperationType(): string
     {
         if ($this->return) {
-            return $this->return->type == ReturnModel::TYPE_SALE ? '销售退货入库' : '采购退货出库';
+            return $this->return->type == ReturnOrder::TYPE_SALE ? '销售退货入库' : '采购退货出库';
         }
         return '退货出入库';
     }
@@ -144,7 +144,7 @@ class ReturnStock extends BaseModel
     public function getStockDirection(): string
     {
         if ($this->return) {
-            return $this->return->type == ReturnModel::TYPE_SALE ? '入库' : '出库';
+            return $this->return->type == ReturnOrder::TYPE_SALE ? '入库' : '出库';
         }
         return '';
     }

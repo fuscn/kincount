@@ -35,7 +35,6 @@ class ReturnOrder extends BaseModel
     const REFUND_PART = 2;           // 部分处理
     const REFUND_COMPLETE = 3;       // 已完成
 
-    protected $table = 'returns';
     
     // 自动写入字段
     protected $auto = [];
@@ -83,7 +82,7 @@ class ReturnOrder extends BaseModel
      */
     public function items(): HasMany
     {
-        return $this->hasMany(ReturnItem::class, 'return_id')
+        return $this->hasMany(ReturnOrderItem::class, 'return_id')
             ->whereNull('deleted_at');
     }
     
@@ -101,8 +100,8 @@ class ReturnOrder extends BaseModel
      */
     public function customer()
     {
-        return $this->belongsTo(Customer::class, 'target_id')
-            ->where('type', self::TYPE_SALE);
+        return $this->belongsTo(Customer::class, 'target_id');
+           
     }
     
     /**
@@ -110,8 +109,7 @@ class ReturnOrder extends BaseModel
      */
     public function supplier()
     {
-        return $this->belongsTo(Supplier::class, 'target_id')
-            ->where('type', self::TYPE_PURCHASE);
+        return $this->belongsTo(Supplier::class, 'target_id');
     }
     
     /**

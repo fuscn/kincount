@@ -22,11 +22,11 @@
         v-model="filters.keyword"
         placeholder="搜索退货单号/订单号"
         show-action
-        @search="loadReturnList(true)"
+        @search="handleSearch"
         @clear="handleClearSearch"
       >
         <template #action>
-          <div @click="loadReturnList(true)">搜索</div>
+          <div @click="handleSearch">搜索</div>
         </template>
       </van-search>
       
@@ -34,26 +34,31 @@
         <van-dropdown-item 
           v-model="filters.status" 
           :options="statusOptions" 
-          @change="loadReturnList(true)"
+          @change="handleFilterChange"
         />
         <van-dropdown-item 
           v-model="filters.return_type" 
           :options="returnTypeOptions" 
-          @change="loadReturnList(true)"
+          @change="handleFilterChange"
         />
       </van-dropdown-menu>
     </div>
 
-    <!-- 退货单列表：修复immediate-check属性，确保初始加载 -->
-    <van-pull-refresh v-model="refreshing" @refresh="loadReturnList(true)">
+    <!-- 优化后的列表加载逻辑 -->
+    <van-pull-refresh 
+      v-model="refreshing" 
+      @refresh="onRefresh"
+      :disabled="initialLoading"
+    >
       <van-list
         v-model:loading="listLoading"
         :finished="finished"
-        :immediate-check="true"
-        :finished-text="returnList.length === 0 ? '暂无退货记录' : '没有更多了'"
-        @load="loadReturnList"
+        finished-text="没有更多了"
+        @load="onLoad"
+        :immediate-check="false"
       >
-        <div class="return-list">
+        <!-- 列表内容 -->
+        <div class="return-list" v-if="!initialLoading">
           <div 
             v-for="returnOrder in returnList" 
             :key="returnOrder.id" 
@@ -70,11 +75,11 @@
             <div class="return-info">
               <div class="info-row">
                 <span class="label">关联订单：</span>
-                <span class="value">{{ returnOrder.order_no || '--' }}</span>
+                <span class="value">{{ returnOrder.source_order_id || '--' }}</span>
               </div>
               <div class="info-row">
                 <span class="label">客户：</span>
-                <span class="value">{{ returnOrder.customer_name || '--' }}</span>
+                <span class="value">{{ returnOrder.target?.name || '--' }}</span>
               </div>
               <div class="info-row">
                 <span class="label">退货类型：</span>
@@ -82,36 +87,36 @@
               </div>
               <div class="info-row">
                 <span class="label">退货日期：</span>
-                <span class="value">{{ returnOrder.return_date || formatDate(returnOrder.created_at) }}</span>
+                <span class="value">{{ formatDate(returnOrder.created_at) }}</span>
               </div>
               <div class="info-row">
                 <span class="label">退货金额：</span>
                 <span class="value amount">-¥{{ formatPrice(returnOrder.total_amount) }}</span>
               </div>
               <div class="info-row">
-                <span class="label">仓库：</span>
-                <span class="value">{{ returnOrder.warehouse_name || '--' }}</span>
+                <span class="label">退货原因：</span>
+                <span class="value">{{ returnOrder.return_reason || '--' }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 空状态：优化条件，避免加载中时显示空状态 -->
+        <!-- 空状态显示 -->
         <van-empty
-          v-if="!listLoading && !refreshing && returnList.length === 0"
-          description="暂无退货记录"
+          v-if="!initialLoading && returnList.length === 0"
+          :description="emptyDescription"
           image="search"
         />
       </van-list>
     </van-pull-refresh>
 
-    <!-- 初始加载状态：确保只在首次加载时显示 -->
-    <van-loading v-if="initialLoading && returnList.length === 0" class="page-loading" />
+    <!-- 初始加载 -->
+    <van-loading v-if="initialLoading" class="page-loading" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
   showToast,
@@ -143,28 +148,36 @@ const statusOptions = ref([
   { text: '已取消', value: '4' }
 ])
 
+// 根据API响应调整退货类型选项 - 现在是数字类型
 const returnTypeOptions = ref([
   { text: '全部类型', value: '' },
-  { text: '质量问题', value: 'quality' },
-  { text: '客户原因', value: 'customer' },
-  { text: '发错货', value: 'wrong_delivery' },
-  { text: '其他', value: 'other' }
+  { text: '质量问题', value: '1' },
+  { text: '客户原因', value: '2' },
+  { text: '发错货', value: '3' },
+  { text: '其他', value: '4' }
 ])
 
 const returnList = ref([])
 const refreshing = ref(false)
 const listLoading = ref(false)
-const initialLoading = ref(true)  // 首次加载标记
+const initialLoading = ref(true)
 const finished = ref(false)
 
-// 格式化价格
+// 计算属性
+const emptyDescription = computed(() => {
+  if (filters.keyword || filters.status || filters.return_type) {
+    return '未找到相关退货记录'
+  }
+  return '暂无退货记录'
+})
+
+// 格式化函数
 const formatPrice = (price) => {
   if (price === null || price === undefined || price === '') return '0.00'
   const num = Number(price)
   return isNaN(num) ? '0.00' : num.toFixed(2)
 }
 
-// 格式化日期
 const formatDate = (date) => {
   if (!date) return '--'
   try {
@@ -173,13 +186,15 @@ const formatDate = (date) => {
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    const hour = String(d.getHours()).padStart(2, '0')
+    const minute = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hour}:${minute}`
   } catch (error) {
     return '--'
   }
 }
 
-// 获取状态文本
+// 状态处理函数 - 根据API响应调整
 const getStatusText = (status) => {
   const statusMap = {
     1: '待审核',
@@ -190,7 +205,6 @@ const getStatusText = (status) => {
   return statusMap[status] || '未知状态'
 }
 
-// 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
     1: 'warning',
@@ -201,82 +215,126 @@ const getStatusTagType = (status) => {
   return typeMap[status] || 'default'
 }
 
-// 获取退货类型文本
+// 退货类型处理函数 - 根据API响应调整为数字映射
 const getReturnTypeText = (type) => {
+  // 根据您的API响应，return_type是数字
   const typeMap = {
-    quality: '质量问题',
-    customer: '客户原因',
-    wrong_delivery: '发错货',
-    other: '其他'
+    1: '质量问题',
+    2: '客户原因',
+    3: '发错货',
+    4: '其他'
   }
   return typeMap[type] || '未知类型'
 }
 
-// 加载退货列表：优化逻辑，确保请求触发且状态正确
-const loadReturnList = async (isRefresh = false) => {
-  // 防止重复请求
-  if ((isRefresh && refreshing.value) || (!isRefresh && listLoading.value)) {
-    return
-  }
-
-  if (isRefresh) {
-    pagination.page = 1
-    finished.value = false
-    refreshing.value = true
-  } else {
-    listLoading.value = true
-  }
-
+// 数据加载函数 - 修复数据结构问题
+const fetchReturnList = async (isRefresh = false) => {
   try {
     const params = {
-      page: pagination.page,
+      page: isRefresh ? 1 : pagination.page,
       limit: pagination.pageSize,
       ...filters
     }
 
-    // 移除空值参数（避免后端接口报错）
+    // 清理空参数
     Object.keys(params).forEach(key => {
       if (params[key] === '' || params[key] == null) delete params[key]
     })
 
-    console.log('请求参数：', params)  // 调试日志，查看是否正确传参
-    // 调用store接口获取数据（确保store中的方法正确发送请求）
-    const response = await saleStore.loadReturnList(params)
+    console.log('请求参数:', params) // 调试
     
-    // 假设store返回的数据格式符合后端规范：{ code: 200, msg: '', data: { list: [], total: 0 } }
-    const { data } = response || {}
-    const listData = data?.list || []
-    const totalCount = data?.total || 0
+    // 调用store接口获取数据
+    const response = await saleStore.loadReturnList(params)
+    console.log('API响应:', response) // 调试
+    
+    // 根据日志，response 直接是 {list: Array(4), total: 4}，而不是 {code: 200, data: {...}}
+    // 所以直接使用 response 而不是 response.data
+    const listData = response?.list || []
+    const totalCount = response?.total || 0
+
+    console.log('列表数据:', listData) // 调试
+    
+    if (listData.length > 0) {
+      console.log('第一条数据详情:', listData[0])
+      console.log('客户名称:', listData[0].target?.name)
+      console.log('退货类型:', listData[0].return_type)
+      console.log('状态:', listData[0].status)
+    }
 
     if (isRefresh) {
-      returnList.value = listData  // 下拉刷新：覆盖数据
+      returnList.value = listData
     } else {
-      // 上拉加载：去重并追加数据
+      // 去重合并
       const existingIds = new Set(returnList.value.map(item => item.id))
       const newItems = listData.filter(item => !existingIds.has(item.id))
       returnList.value = [...returnList.value, ...newItems]
     }
+
+    // 更新分页信息
+    if (isRefresh) {
+      pagination.page = 1
+    } else {
+      pagination.page += 1
+    }
     
     pagination.total = totalCount
 
-    // 检查是否加载完成（当前页数据不足一页，说明没有更多）
-    if (listData.length < pagination.pageSize) {
+    // 判断是否已加载完所有数据
+    if (listData.length < pagination.pageSize || returnList.value.length >= totalCount) {
       finished.value = true
+    } else {
+      finished.value = false
     }
 
+    return true
   } catch (error) {
     console.error('加载退货记录失败:', error)
     showFailToast('加载退货记录失败，请重试')
-    finished.value = false  // 加载失败时允许重新加载
-  } finally {
-    // 重置所有加载状态
-    refreshing.value = false
-    listLoading.value = false
-    initialLoading.value = false  // 首次加载完成，隐藏初始加载动画
+    return false
   }
 }
 
-// 事件处理
+// 事件处理函数
+const onRefresh = async () => {
+  refreshing.value = true
+  finished.value = false
+  await fetchReturnList(true)
+  refreshing.value = false
+}
+
+const onLoad = async () => {
+  if (finished.value || listLoading.value) return
+  
+  listLoading.value = true
+  const success = await fetchReturnList()
+  listLoading.value = false
+  
+  if (!success) {
+    finished.value = false
+  }
+}
+
+const handleSearch = () => {
+  initialLoading.value = true
+  finished.value = false
+  pagination.page = 1
+  returnList.value = []
+  
+  setTimeout(async () => {
+    await fetchReturnList(true)
+    initialLoading.value = false
+  }, 100)
+}
+
+const handleFilterChange = () => {
+  handleSearch()
+}
+
+const handleClearSearch = () => {
+  filters.keyword = ''
+  handleSearch()
+}
+
 const handleCreateReturn = () => {
   router.push('/sale/return/create')
 }
@@ -285,18 +343,12 @@ const handleViewReturn = (returnOrder) => {
   router.push(`/sale/return/detail/${returnOrder.id}`)
 }
 
-const handleClearSearch = () => {
-  filters.keyword = ''
-  loadReturnList(true)  // 清空搜索后重新加载
-}
-
-// 可选：手动触发初始加载（双重保障，避免van-list自动加载失效）
+// 生命周期
 onMounted(() => {
-  // 延迟100ms，确保van-list初始化完成后再触发
-  setTimeout(() => {
-    if (returnList.value.length === 0 && initialLoading.value) {
-      loadReturnList(true)
-    }
+  // 初始加载
+  setTimeout(async () => {
+    await fetchReturnList(true)
+    initialLoading.value = false
   }, 100)
 })
 </script>
@@ -367,25 +419,25 @@ onMounted(() => {
     }
     
     .amount {
-      color: #f53f3f;  // 调整为红色，更符合退款金额的视觉习惯
+      color: #f53f3f;
       font-weight: 500;
     }
   }
 }
 
 .page-loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
-/* 优化下拉刷新和上拉加载的样式兼容性 */
+/* 优化样式 */
 :deep(.van-pull-refresh) {
-  background-color: #f7f8fa;
+  min-height: 100px;
 }
 
-:deep(.van-list__loading) {
-  padding: 15px 0;
+:deep(.van-empty) {
+  padding-top: 100px;
 }
 </style>

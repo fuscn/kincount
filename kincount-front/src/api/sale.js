@@ -172,17 +172,82 @@ export function getSaleReturnDetail(id) {
 
 // 新增退货（SKU）
 export function addSaleReturn(data) {
+  console.log('=== API addSaleReturn 开始 ===')
+  console.log('API接收到的原始数据:', JSON.stringify(data, null, 2))
+  
+  // 检查items数组
+  if (data.items && Array.isArray(data.items)) {
+    console.log('Items数组详情:')
+    data.items.forEach((item, index) => {
+      console.log(`Item ${index}:`, {
+        sku_id: item.sku_id,
+        product_id: item.product_id,
+        return_quantity: item.return_quantity,
+        price: item.price,
+        source_item_id: item.source_item_id
+      })
+    })
+  }
+  
+  // 构建请求数据 - 确保所有字段都存在
+  const requestData = {
+    type: data.type || 1,
+    target_id: data.target_id,
+    warehouse_id: data.warehouse_id,
+    return_date: data.return_date,
+    return_type: data.return_type,
+    return_reason: data.return_reason || '',
+    remark: data.remark || '',
+    items: []
+  }
+  
+  // 设置源单字段
+  if (data.source_order_id) {
+    requestData.source_order_id = data.source_order_id
+  }
+  if (data.source_stock_id) {
+    requestData.source_stock_id = data.source_stock_id
+  }
+  
+  // 处理items - 确保包含所有必要字段
+  requestData.items = data.items.map(item => {
+    const newItem = {
+      sku_id: Number(item.sku_id),
+      price: Number(item.price)
+    }
+    
+    // 确保product_id存在
+    if (item.product_id !== undefined && item.product_id !== null) {
+      newItem.product_id = Number(item.product_id)
+    } else {
+      console.warn('警告: item缺少product_id', item)
+      // 如果没有product_id，可以尝试设置默认值或抛出错误
+      newItem.product_id = 0 // 或根据业务逻辑处理
+    }
+    
+    // 确保return_quantity存在
+    if (item.return_quantity !== undefined && item.return_quantity !== null) {
+      newItem.return_quantity = Number(item.return_quantity)
+    } else {
+      console.warn('警告: item缺少return_quantity', item)
+      newItem.return_quantity = 1 // 默认值
+    }
+    
+    // 可选字段
+    if (item.source_item_id) {
+      newItem.source_item_id = Number(item.source_item_id)
+    }
+    
+    return newItem
+  })
+  
+  console.log('API构建的请求数据:', JSON.stringify(requestData, null, 2))
+  console.log('=== API addSaleReturn 结束 ===')
+  
   return request({
     url: '/returns',
     method: 'post',
-    data: {
-      ...data,
-      items: data.items.map(i => ({
-        sku_id: i.sku_id,
-        quantity: i.quantity,
-        price: i.price
-      }))
-    }
+    data: requestData
   })
 }
 // 更新退货单
@@ -194,8 +259,10 @@ export function updateSaleReturn(id, data) {
       ...data,
       items: data.items.map(i => ({
         sku_id: i.sku_id,
+        product_id: i.product_id, // 添加 product_id
         return_quantity: i.return_quantity,
-        price: i.price
+        price: i.price,
+        source_item_id: i.source_item_id || 0
       }))
     }
   })

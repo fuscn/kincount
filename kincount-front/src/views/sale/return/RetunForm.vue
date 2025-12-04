@@ -1,15 +1,8 @@
 <template>
   <div class="sale-return-form">
-    <van-nav-bar 
-      :title="isEdit ? '编辑销售退货单' : '新建销售退货单'" 
-      fixed 
-      placeholder 
-      left-text="取消" 
-      right-text="保存"
-      @click-left="handleBack" 
-      @click-right="handleSubmit" 
-    />
-    
+    <van-nav-bar :title="isEdit ? '编辑销售退货单' : '新建销售退货单'" fixed placeholder left-text="取消" right-text="保存"
+      @click-left="handleBack" @click-right="handleSubmit" />
+
     <div class="form-container">
       <van-form ref="formRef" @submit="handleSubmit">
         <!-- 源单信息 -->
@@ -17,7 +10,7 @@
           <div class="section-header">
             <h3>退货源单信息</h3>
           </div>
-          
+
           <!-- 源单类型选择 -->
           <van-radio-group v-model="sourceType" direction="horizontal" class="source-type-group">
             <van-radio name="order">
@@ -33,109 +26,55 @@
               </div>
             </van-radio>
           </van-radio-group>
-          
+
           <!-- 源单选择 -->
-          <van-field 
-            v-model="sourceForm.source_name" 
-            :label="sourceType === 'order' ? '销售订单' : '销售出库单'"
-            placeholder="请选择源单" 
-            is-link 
-            readonly
-            @click="showSourcePicker = true" 
-            :rules="[{ required: true, message: '请选择源单' }]" 
-          />
-          
-          <van-field 
-            v-model="sourceForm.customer_name" 
-            label="客户" 
-            readonly
-          />
-          
-          <van-field 
-            v-model="sourceForm.order_no" 
-            :label="sourceType === 'order' ? '订单编号' : '出库单号'"
-            readonly
-          />
+          <van-field v-model="sourceForm.source_name" :label="sourceType === 'order' ? '销售订单' : '销售出库单'"
+            placeholder="请选择源单" is-link readonly @click="showSourcePicker = true"
+            :rules="[{ required: true, message: '请选择源单' }]" />
+
+          <van-field v-model="sourceForm.customer_name" label="客户" readonly />
+
+          <van-field v-model="sourceForm.order_no" :label="sourceType === 'order' ? '订单编号' : '出库单号'" readonly />
         </div>
-        
+
         <!-- 退货基本信息 -->
         <div class="return-section">
           <div class="section-header">
             <h3>退货信息</h3>
           </div>
-          
+
           <!-- 退货仓库 -->
-          <van-field 
-            v-model="form.warehouse_name" 
-            name="warehouse" 
-            label="退货仓库" 
-            placeholder="请选择退货仓库" 
-            is-link 
-            readonly
-            @click="showWarehousePicker = true" 
-            :rules="[{ required: true, message: '请选择退货仓库' }]" 
-          />
-          
+          <van-field v-model="form.warehouse_name" name="warehouse" label="退货仓库" placeholder="请选择退货仓库" is-link readonly
+            @click="showWarehousePicker = true" :rules="[{ required: true, message: '请选择退货仓库' }]" />
+
           <!-- 退货日期 -->
-          <van-field 
-            v-model="form.return_date" 
-            name="return_date" 
-            label="退货日期" 
-            placeholder="请选择退货日期" 
-            is-link 
-            readonly
-            @click="showDatePicker = true" 
-            :rules="[{ required: true, message: '请选择退货日期' }]" 
-          />
-          
+          <van-field v-model="form.return_date" name="return_date" label="退货日期" placeholder="请选择退货日期" is-link readonly
+            @click="showDatePicker = true" :rules="[{ required: true, message: '请选择退货日期' }]" />
+
           <!-- 退货原因 -->
-          <van-field 
-            v-model="form.return_type_text" 
-            name="return_type" 
-            label="退货原因" 
-            placeholder="请选择退货原因" 
-            is-link 
-            readonly
-            @click="showReasonPicker = true" 
-            :rules="[{ required: true, message: '请选择退货原因' }]" 
-          />
-          
+          <van-field v-model="form.return_type_text" name="return_type" label="退货原因" placeholder="请选择退货原因" is-link
+            readonly @click="showReasonPicker = true" :rules="[{ required: true, message: '请选择退货原因' }]" />
+
           <!-- 备注 -->
-          <van-field 
-            v-model="form.remark" 
-            name="remark" 
-            label="备注" 
-            type="textarea" 
-            placeholder="请输入备注信息" 
-            rows="3" 
-            maxlength="200"
-            show-word-limit
-          />
+          <van-field v-model="form.remark" name="remark" label="备注" type="textarea" placeholder="请输入备注信息" rows="3"
+            maxlength="200" show-word-limit />
         </div>
-        
+
         <!-- 退货商品明细 -->
         <div class="sku-section">
           <div class="section-title">
             <span>退货商品明细</span>
-            <van-button 
-              size="small" 
-              type="primary" 
-              @click="showSkuSelect = true" 
-              icon="plus"
-              :disabled="!sourceForm.source_id || form.items.length >= (sourceForm.items?.length || 0)"
-            >
+            <van-button size="small" type="primary" @click="showSkuSelect = true" icon="plus"
+              :disabled="!sourceForm.source_id || form.items.length >= (sourceForm.items?.length || 0)">
               选择商品
             </van-button>
           </div>
-          
+
           <!-- 商品列表 -->
           <van-empty v-if="form.items.length === 0" description="请选择退货商品" />
           <van-cell-group v-else class="sku-list">
-            <van-swipe-cell 
-              v-for="(item, index) in form.items" 
-              :key="`${item.sku_id}_${item.source_item_id}_${index}`" 
-              class="sku-item"
-            >
+            <van-swipe-cell v-for="(item, index) in form.items" :key="`${item.sku_id}_${item.source_item_id}_${index}`"
+              class="sku-item">
               <van-cell class="sku-cell">
                 <template #title>
                   <div class="product-title">
@@ -148,10 +87,12 @@
                     <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
-                      <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0 }})</span>
+                      <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
+                      }})</span>
                     </div>
                     <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity || 0 }}</span>{{ item.unit }}
+                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}
                     </div>
                   </div>
                 </template>
@@ -160,26 +101,16 @@
                     <div class="price-quantity">
                       <!-- 单价（只读） -->
                       <div class="input-field price-field">
-                        <van-field 
-                          v-model="item.unit_price" 
-                          type="number" 
-                          readonly
-                          class="readonly-field compact-field"
-                        >
+                        <van-field v-model="item.unit_price" type="number" readonly
+                          class="readonly-field compact-field">
                           <template #extra>元</template>
                         </van-field>
                       </div>
                       <!-- 退货数量输入框 -->
                       <div class="input-field quantity-field">
-                        <van-field 
-                          v-model.number="item.return_quantity" 
-                          type="number" 
-                          placeholder="0" 
-                          class="editable-field compact-field"
-                          @blur="validateReturnQuantity(item, index)" 
-                          @input="updateItemAmount(item)"
-                          :error-message="item.quantityError"
-                        >
+                        <van-field v-model.number="item.return_quantity" type="number" placeholder="0"
+                          class="editable-field compact-field" @blur="validateReturnQuantity(item, index)"
+                          @input="updateItemAmount(item)" :error-message="item.quantityError">
                           <template #extra>{{ item.unit || '个' }}</template>
                         </van-field>
                       </div>
@@ -191,18 +122,12 @@
                 </template>
               </van-cell>
               <template #right>
-                <van-button 
-                  square 
-                  type="danger" 
-                  text="删除" 
-                  class="delete-btn" 
-                  @click="deleteReturnItem(index)" 
-                />
+                <van-button square type="danger" text="删除" class="delete-btn" @click="deleteReturnItem(index)" />
               </template>
             </van-swipe-cell>
           </van-cell-group>
         </div>
-        
+
         <!-- 合计金额 -->
         <div class="total-section" v-if="form.items.length > 0">
           <div class="total-row">
@@ -220,133 +145,60 @@
         </div>
       </van-form>
     </div>
-    
+
     <!-- 源单选择弹窗 -->
-    <van-popup 
-      v-model:show="showSourcePicker" 
-      position="bottom" 
-      :style="{ height: '70%' }"
-      :close-on-click-overlay="true"
-    >
+    <van-popup v-model:show="showSourcePicker" position="bottom" :style="{ height: '70%' }"
+      :close-on-click-overlay="true">
       <div class="picker-header">
-        <van-nav-bar 
-          :title="sourceType === 'order' ? '选择销售订单' : '选择销售出库单'" 
-          left-text="取消" 
-          @click-left="closeSourcePicker" 
-        />
-        <van-search 
-          v-model="sourceSearch" 
-          :placeholder="sourceType === 'order' ? '搜索订单编号/客户名称' : '搜索出库单号/客户名称'"
-          @update:model-value="searchSources" 
-        />
+        <van-nav-bar :title="sourceType === 'order' ? '选择销售订单' : '选择销售出库单'" left-text="取消"
+          @click-left="closeSourcePicker" />
+        <van-search v-model="sourceSearch" :placeholder="sourceType === 'order' ? '搜索订单编号/客户名称' : '搜索出库单号/客户名称'"
+          @update:model-value="searchSources" />
       </div>
-      <van-list 
-        v-model:loading="sourceLoading" 
-        :finished="sourceFinished" 
-        finished-text="没有更多了"
-        @load="loadMoreSources"
-        :immediate-check="false"
-      >
-        <van-cell 
-          v-for="source in sourceList" 
-          :key="source.id" 
-          :title="sourceType === 'order' ? source.order_no : source.stock_no"
-          :label="getSourceCellLabel(source)"
-          @click="selectSource(source)" 
-        />
-        <van-empty 
-          v-if="!sourceLoading && sourceList.length === 0" 
-          :description="sourceSearch ? '未找到相关源单' : '暂无源单数据'"
-        />
+      <van-list v-model:loading="sourceLoading" :finished="sourceFinished" finished-text="没有更多了" @load="loadMoreSources"
+        :immediate-check="false">
+        <van-cell v-for="source in sourceList" :key="source.id"
+          :title="sourceType === 'order' ? source.order_no : source.stock_no" :label="getSourceCellLabel(source)"
+          @click="selectSource(source)" />
+        <van-empty v-if="!sourceLoading && sourceList.length === 0"
+          :description="sourceSearch ? '未找到相关源单' : '暂无源单数据'" />
       </van-list>
     </van-popup>
-    
+
     <!-- 仓库选择弹窗 -->
-    <van-popup 
-      v-model:show="showWarehousePicker" 
-      position="bottom" 
-      :style="{ height: '70%' }"
-      :close-on-click-overlay="true"
-    >
+    <van-popup v-model:show="showWarehousePicker" position="bottom" :style="{ height: '70%' }"
+      :close-on-click-overlay="true">
       <div class="picker-header">
-        <van-nav-bar 
-          title="选择退货仓库" 
-          left-text="取消" 
-          @click-left="closeWarehousePicker" 
-        />
-        <van-search 
-          v-model="warehouseSearch" 
-          placeholder="搜索仓库名称" 
-          @update:model-value="searchWarehouses" 
-        />
+        <van-nav-bar title="选择退货仓库" left-text="取消" @click-left="closeWarehousePicker" />
+        <van-search v-model="warehouseSearch" placeholder="搜索仓库名称" @update:model-value="searchWarehouses" />
       </div>
-      <van-list 
-        v-model:loading="warehouseLoading" 
-        :finished="warehouseFinished" 
-        finished-text="没有更多了"
-        @load="loadMoreWarehouses"
-        :immediate-check="false"
-      >
-        <van-cell 
-          v-for="warehouse in warehouseList" 
-          :key="warehouse.id" 
-          :title="warehouse.name"
-          :label="getWarehouseCellLabel(warehouse)"
-          @click="selectWarehouse(warehouse)" 
-        />
-        <van-empty 
-          v-if="!warehouseLoading && warehouseList.length === 0" 
-          :description="warehouseSearch ? '未找到相关仓库' : '暂无仓库数据'"
-        />
+      <van-list v-model:loading="warehouseLoading" :finished="warehouseFinished" finished-text="没有更多了"
+        @load="loadMoreWarehouses" :immediate-check="false">
+        <van-cell v-for="warehouse in warehouseList" :key="warehouse.id" :title="warehouse.name"
+          :label="getWarehouseCellLabel(warehouse)" @click="selectWarehouse(warehouse)" />
+        <van-empty v-if="!warehouseLoading && warehouseList.length === 0"
+          :description="warehouseSearch ? '未找到相关仓库' : '暂无仓库数据'" />
       </van-list>
     </van-popup>
-    
+
     <!-- 日期选择器 -->
-    <van-popup 
-      v-model:show="showDatePicker" 
-      position="bottom" 
-      :close-on-click-overlay="true"
-    >
-      <van-date-picker 
-        v-model="selectedDate" 
-        :title="'选择退货日期'" 
-        :min-date="minDate" 
-        :max-date="maxDate"
-        @confirm="onDateConfirm" 
-        @cancel="closeDatePicker" 
-      />
+    <van-popup v-model:show="showDatePicker" position="bottom" :close-on-click-overlay="true">
+      <van-date-picker v-model="selectedDate" :title="'选择退货日期'" :min-date="minDate" :max-date="maxDate"
+        @confirm="onDateConfirm" @cancel="closeDatePicker" />
     </van-popup>
-    
+
     <!-- 退货原因选择器 -->
-    <van-action-sheet 
-      v-model:show="showReasonPicker" 
-      :actions="returnReasonOptions" 
-      @select="onReasonSelect"
-    />
-    
+    <van-action-sheet v-model:show="showReasonPicker" :actions="returnReasonOptions" @select="onReasonSelect" />
+
     <!-- 商品选择弹窗 -->
-    <van-popup 
-      v-model:show="showSkuSelect" 
-      position="bottom" 
-      :style="{ height: '80%' }" 
-      :close-on-click-overlay="true"
-    >
+    <van-popup v-model:show="showSkuSelect" position="bottom" :style="{ height: '80%' }" :close-on-click-overlay="true">
       <div class="sku-picker">
-        <van-nav-bar 
-          title="选择退货商品" 
-          left-text="取消" 
-          right-text="确认"
-          @click-left="closeSkuPicker" 
-          @click-right="handleSkuSelectConfirm"
-        />
+        <van-nav-bar title="选择退货商品" left-text="取消" right-text="确认" @click-left="closeSkuPicker"
+          @click-right="handleSkuSelectConfirm" />
         <div class="sku-picker-content">
           <van-checkbox-group v-model="selectedSourceItemIds">
             <van-cell-group>
-              <van-cell 
-                v-for="item in availableSourceItems" 
-                :key="`${item.sku_id}_${item.id}`"
-                clickable
-              >
+              <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable>
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
@@ -358,10 +210,12 @@
                     <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
-                      <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0 }})</span>
+                      <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
+                      }})</span>
                     </div>
                     <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity || 0 }}</span>{{ item.unit }}
+                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}
                     </div>
                   </div>
                 </template>
@@ -371,10 +225,7 @@
               </van-cell>
             </van-cell-group>
           </van-checkbox-group>
-          <van-empty 
-            v-if="availableSourceItems.length === 0" 
-            description="没有可退货的商品"
-          />
+          <van-empty v-if="availableSourceItems.length === 0" description="没有可退货的商品" />
         </div>
       </div>
     </van-popup>
@@ -433,7 +284,7 @@ const sourceForm = reactive({
 })
 
 // 源单类型
-const sourceType = ref('order') // order:销售订单, stock:销售出库单
+const sourceType = ref('stock') // order:销售订单, stock:销售出库单
 
 // 选择器状态
 const showSourcePicker = ref(false)
@@ -465,18 +316,18 @@ const selectedDate = ref([])
 const minDate = new Date(2020, 0, 1)
 const maxDate = new Date()
 
-// 退货原因选项
+// 退货原因选项（映射到后端的数字类型）
 const returnReasonOptions = ref([
-  { name: '质量问题', value: 'quality' },
-  { name: '客户原因', value: 'customer' },
-  { name: '发错货', value: 'wrong_delivery' },
-  { name: '其他', value: 'other' }
+  { name: '质量问题', value: 1 },
+  { name: '客户原因', value: 2 },
+  { name: '发错货', value: 3 },
+  { name: '其他', value: 4 }
 ])
 
 // 计算属性
 const availableSourceItems = computed(() => {
   if (!sourceForm.items || sourceForm.items.length === 0) return []
-  
+
   return sourceForm.items.filter(item => {
     // 只显示还有可退数量的商品
     const maxReturnQuantity = calculateMaxReturnQuantity(item)
@@ -575,7 +426,7 @@ const initForm = async () => {
     try {
       await saleStore.loadReturnDetail(id)
       const returnDetail = saleStore.currentReturn
-      
+
       if (returnDetail) {
         // 设置退货基本信息
         form.source_id = returnDetail.sale_order_id || returnDetail.sale_stock_id
@@ -583,13 +434,13 @@ const initForm = async () => {
         form.warehouse_name = returnDetail.warehouse_name || ''
         form.return_date = returnDetail.return_date || dayjs().format('YYYY-MM-DD')
         form.return_type = returnDetail.return_type || ''
-        
+
         // 获取退货原因文本
         const reasonOption = returnReasonOptions.value.find(opt => opt.value === form.return_type)
         form.return_type_text = reasonOption ? reasonOption.name : ''
-        
+
         form.remark = returnDetail.remark || ''
-        
+
         // 设置源单类型
         if (returnDetail.sale_order_id) {
           sourceType.value = 'order'
@@ -598,7 +449,7 @@ const initForm = async () => {
           sourceType.value = 'stock'
           await loadSourceDetail(returnDetail.sale_stock_id, 'stock')
         }
-        
+
         // 设置退货商品明细
         if (returnDetail.items && Array.isArray(returnDetail.items)) {
           form.items = returnDetail.items.map(item => {
@@ -619,11 +470,11 @@ const initForm = async () => {
               quantityError: ''
             }
           })
-          
+
           // 设置选中的源单明细ID
           selectedSourceItemIds.value = form.items.map(item => item.source_item_id).filter(Boolean)
         }
-        
+
         // 设置日期选择器的当前值
         if (form.return_date) {
           const date = new Date(form.return_date)
@@ -650,7 +501,7 @@ const initForm = async () => {
 }
 
 // 源单类型变化
-const onSourceTypeChange = () => {
+watch(sourceType, () => {
   // 清空源单相关数据
   sourceForm.source_id = ''
   sourceForm.source_name = ''
@@ -662,7 +513,7 @@ const onSourceTypeChange = () => {
   form.source_id = ''
   selectedSourceItemIds.value = []
   isFirstLoad.value = false
-}
+})
 
 // 监听源单选择器显示/隐藏
 watch(showSourcePicker, (newVal) => {
@@ -673,7 +524,7 @@ watch(showSourcePicker, (newVal) => {
     sourceFinished.value = false
     sourceSearch.value = ''
     isFirstLoad.value = false
-    
+
     // 延迟加载，确保DOM已渲染
     nextTick(() => {
       loadSourceList(1, '', true)
@@ -687,7 +538,7 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
   if (sourceLoading.value) {
     return []
   }
-  
+
   // 如果是刷新，重置状态
   if (isRefresh) {
     sourceList.value = []
@@ -695,9 +546,9 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
     sourcePage.value = 1
     page = 1
   }
-  
+
   sourceLoading.value = true
-  
+
   try {
     let res
     const params = {
@@ -705,9 +556,7 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
       limit: 20,
       keyword: keyword.trim()
     }
-    
-    console.log(`请求第${page}页，源单类型: ${sourceType.value}, 参数:`, params)
-    
+
     // 根据源单类型添加状态参数
     if (sourceType.value === 'order') {
       // 销售订单：已审核、部分出库、已完成
@@ -718,9 +567,7 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
       params.status = '2,3'
       res = await saleStore.loadStockList(params)
     }
-    
-    console.log(`第${page}页响应:`, res)
-    
+
     // 处理响应数据
     let list = []
     if (res && res.code === 200) {
@@ -737,9 +584,7 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
       // 直接返回数组
       list = res
     }
-    
-    console.log(`第${page}页解析后的列表:`, list)
-    
+
     // 更新列表
     if (page === 1) {
       sourceList.value = list
@@ -750,30 +595,30 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
       const newItems = list.filter(item => !existingIds.has(item.id))
       sourceList.value = [...sourceList.value, ...newItems]
     }
-    
+
     // 判断是否加载完成
     sourceFinished.value = list.length < 20
-    
+
     // 如果第一页就没数据，直接标记完成
     if (page === 1 && list.length === 0) {
       sourceFinished.value = true
     }
-    
+
     return list
   } catch (error) {
     console.error(`加载第${page}页失败:`, error)
-    
+
     // 如果是第一页请求失败，重置状态
     if (page === 1) {
       sourceList.value = []
       sourceFinished.value = true
     }
-    
+
     // 显示错误提示
     if (page === 1 && error.response?.status !== 500) {
       showFailToast('加载失败: ' + (error.message || '网络错误'))
     }
-    
+
     return []
   } finally {
     sourceLoading.value = false
@@ -798,7 +643,7 @@ const loadMoreSources = () => {
   if (sourceLoading.value || sourceFinished.value || !isFirstLoad.value) {
     return
   }
-  
+
   sourcePage.value += 1
   loadSourceList(sourcePage.value, sourceSearch.value)
 }
@@ -812,12 +657,10 @@ const selectSource = async (source) => {
       showSourcePicker.value = false
       sourceSearch.value = ''
       form.source_id = source.id
-      
+
       // 清空之前选择的商品
       form.items = []
       selectedSourceItemIds.value = []
-      
-      showSuccessToast('源单加载成功')
     }
   } catch (error) {
     console.error('选择源单失败:', error)
@@ -844,13 +687,13 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.customer_id = detail.customer_id
         sourceForm.customer_name = detail.customer?.name || detail.customer_name || ''
         sourceForm.order_no = detail.order_no
-        
+
         // 处理订单商品明细
         if (detail.items && Array.isArray(detail.items)) {
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
-            
+
             return {
               id: item.id,
               sku_id: item.sku_id,
@@ -880,13 +723,13 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.customer_id = detail.customer_id
         sourceForm.customer_name = detail.customer?.name || detail.customer_name || ''
         sourceForm.order_no = detail.stock_no
-        
+
         // 处理出库商品明细
         if (detail.items && Array.isArray(detail.items)) {
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
-            
+
             return {
               id: item.id,
               sku_id: item.sku_id,
@@ -908,7 +751,7 @@ const loadSourceDetail = async (sourceId, type) => {
         }
       }
     }
-    
+
     return detail
   } catch (error) {
     console.error('加载源单详情失败:', error)
@@ -925,7 +768,7 @@ watch(showWarehousePicker, (newVal) => {
     warehousePage.value = 1
     warehouseFinished.value = false
     warehouseSearch.value = ''
-    
+
     // 延迟加载，确保DOM已渲染
     nextTick(() => {
       loadWarehouses(1, '', true)
@@ -939,7 +782,7 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
   if (warehouseLoading.value) {
     return []
   }
-  
+
   // 如果是刷新，重置状态
   if (isRefresh) {
     warehouseList.value = []
@@ -947,9 +790,9 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
     warehousePage.value = 1
     page = 1
   }
-  
+
   warehouseLoading.value = true
-  
+
   try {
     const params = {
       page,
@@ -957,9 +800,7 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
       keyword: keyword.trim(),
       status: 1
     }
-    
-    console.log(`请求第${page}页仓库，参数:`, params)
-    
+
     // 使用仓库store加载列表
     let res
     if (warehouseStore && warehouseStore.loadList) {
@@ -968,9 +809,7 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
       console.warn('仓库store未找到loadList方法')
       return []
     }
-    
-    console.log(`第${page}页仓库响应:`, res)
-    
+
     // 处理响应数据
     let list = []
     if (res && res.code === 200) {
@@ -987,9 +826,7 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
       // 直接返回数组
       list = res
     }
-    
-    console.log(`第${page}页仓库解析后的列表:`, list)
-    
+
     // 更新列表
     if (page === 1) {
       warehouseList.value = list
@@ -999,25 +836,25 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
       const newItems = list.filter(item => !existingIds.has(item.id))
       warehouseList.value = [...warehouseList.value, ...newItems]
     }
-    
+
     // 判断是否加载完成
     warehouseFinished.value = list.length < 20
-    
+
     return list
   } catch (error) {
     console.error(`加载第${page}页仓库失败:`, error)
-    
+
     // 如果是第一页请求失败，重置状态
     if (page === 1) {
       warehouseList.value = []
       warehouseFinished.value = true
     }
-    
+
     // 显示错误提示
     if (page === 1) {
       showFailToast('加载仓库失败: ' + (error.message || '网络错误'))
     }
-    
+
     return []
   } finally {
     warehouseLoading.value = false
@@ -1041,7 +878,7 @@ const loadMoreWarehouses = () => {
   if (warehouseLoading.value || warehouseFinished.value) {
     return
   }
-  
+
   warehousePage.value += 1
   loadWarehouses(warehousePage.value, warehouseSearch.value)
 }
@@ -1087,26 +924,26 @@ const handleSkuSelectConfirm = () => {
   }
 
   // 获取选中的源单明细
-  const selectedItems = sourceForm.items.filter(item => 
+  const selectedItems = sourceForm.items.filter(item =>
     selectedSourceItemIds.value.includes(item.id)
   )
 
   // 添加到退货商品列表
   selectedItems.forEach(sourceItem => {
     // 检查是否已存在相同SKU和源单明细ID的退货项
-    const existingIndex = form.items.findIndex(item => 
-      item.sku_id === sourceItem.sku_id && 
+    const existingIndex = form.items.findIndex(item =>
+      item.sku_id === sourceItem.sku_id &&
       item.source_item_id === sourceItem.id
     )
-    
+
     if (existingIndex === -1) {
       // 计算最大可退数量
       const maxReturnQuantity = calculateMaxReturnQuantity(sourceItem)
-      
+
       // 新增退货项
       form.items.push({
         sku_id: sourceItem.sku_id,
-        product_id: sourceItem.product_id,
+        product_id: sourceItem.product_id, // 确保包含product_id
         product_name: sourceItem.product_name,
         sku_code: sourceItem.sku_code,
         spec: sourceItem.spec,
@@ -1124,6 +961,9 @@ const handleSkuSelectConfirm = () => {
 
   showSkuSelect.value = false
   showSuccessToast(`已添加 ${selectedItems.length} 个商品`)
+
+  // 清空选中的源单明细ID
+  selectedSourceItemIds.value = []
 }
 
 // 关闭商品选择器
@@ -1141,7 +981,7 @@ const deleteReturnItem = (index) => {
   if (itemIndex > -1) {
     selectedSourceItemIds.value.splice(itemIndex, 1)
   }
-  
+
   form.items.splice(index, 1)
 }
 
@@ -1149,17 +989,17 @@ const deleteReturnItem = (index) => {
 const validateReturnQuantity = (item, index) => {
   const quantity = Number(item.return_quantity) || 0
   const maxQuantity = item.max_return_quantity || 0
-  
+
   if (isNaN(quantity) || quantity <= 0) {
     item.quantityError = '退货数量必须大于0'
     return false
   }
-  
+
   if (quantity > maxQuantity) {
     item.quantityError = `退货数量不能超过${maxQuantity}`
     return false
   }
-  
+
   item.quantityError = ''
   return true
 }
@@ -1172,113 +1012,201 @@ const updateItemAmount = (item) => {
 
 // 验证表单
 const validateForm = () => {
+  // 验证必填字段
   if (!form.source_id) {
     showToast('请选择退货源单')
     return false
   }
-  
+
+  if (!sourceForm.customer_id) {
+    showToast('请选择退货客户')
+    return false
+  }
+
   if (!form.warehouse_id) {
     showToast('请选择退货仓库')
     return false
   }
-  
+
   if (!form.return_date) {
     showToast('请选择退货日期')
     return false
   }
-  
+
   if (!form.return_type) {
     showToast('请选择退货原因')
     return false
   }
-  
+
   if (form.items.length === 0) {
     showToast('请至少添加一个退货商品')
     return false
   }
-  
+
   // 验证每个商品的退货数量
   for (const item of form.items) {
     const quantity = Number(item.return_quantity) || 0
     const maxQuantity = item.max_return_quantity || 0
-    
+
     if (isNaN(quantity) || quantity <= 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的退货数量`)
       return false
     }
-    
+
     if (quantity > maxQuantity) {
       showToast(`商品"${getProductDisplayName(item)}"的退货数量不能超过${maxQuantity}`)
       return false
     }
+
+    // 验证product_id是否存在
+    if (!item.product_id) {
+      showToast(`商品"${getProductDisplayName(item)}"缺少产品ID，请重新选择商品`)
+      return false
+    }
+
+    // 验证sku_id是否存在
+    if (!item.sku_id) {
+      showToast(`商品"${getProductDisplayName(item)}"缺少SKU ID，请重新选择商品`)
+      return false
+    }
   }
-  
+
   return true
 }
 
 // 构建提交数据
 const buildSubmitData = () => {
+  // 根据源单类型确定source_order_id和source_stock_id
   const submitData = {
-    type: 1, // 销售退货
-    source_order_id: sourceType.value === 'order' ? form.source_id : null,
-    source_stock_id: sourceType.value === 'stock' ? form.source_id : null,
-    target_id: sourceForm.customer_id,
+    type: 1, // 销售退货类型（后端需要1表示销售退货）
+    target_id: sourceForm.customer_id, // 客户ID
     warehouse_id: form.warehouse_id,
     return_date: form.return_date,
-    return_type: form.return_type,
+    return_type: form.return_type, // 退货原因类型（数字）
     return_reason: form.return_type_text, // 退货原因描述
-    remark: form.remark,
-    items: form.items.map(item => ({
-      source_item_id: item.source_item_id, // 源单明细ID
-      sku_id: item.sku_id,
+    remark: form.remark || '',
+    items: []
+  }
+
+  // 根据源单类型设置不同的source字段
+  if (sourceType.value === 'order') {
+    submitData.source_order_id = form.source_id
+    submitData.source_stock_id = null
+  } else {
+    submitData.source_order_id = null
+    submitData.source_stock_id = form.source_id
+  }
+
+  // 构建items数组，确保包含所有必填字段
+  submitData.items = form.items.map(item => {
+    const itemData = {
+      sku_id: Number(item.sku_id),
+      product_id: Number(item.product_id),
       return_quantity: Number(item.return_quantity),
       price: Number(item.unit_price)
-    }))
-  }
-  
+    }
+
+    // 如果有源单明细ID，也传过去
+    if (item.source_item_id) {
+      itemData.source_item_id = item.source_item_id
+    }
+
+    return itemData
+  })
+
+  // 添加调试信息
+  console.log('=== 退货单提交数据详情 ===')
+  console.log('基础信息:', {
+    退货类型: submitData.type === 1 ? '销售退货' : '采购退货',
+    客户ID: submitData.target_id,
+    仓库ID: submitData.warehouse_id,
+    退货日期: submitData.return_date,
+    退货原因类型: submitData.return_type,
+    退货原因描述: submitData.return_reason
+  })
+
+  console.log('源单信息:', {
+    源单类型: sourceType.value,
+    源单ID: form.source_id,
+    销售订单ID: submitData.source_order_id,
+    销售出库单ID: submitData.source_stock_id
+  })
+
+  console.log('商品明细:', submitData.items.map(item => ({
+    SKU_ID: item.sku_id,
+    产品ID: item.product_id,
+    退货数量: item.return_quantity,
+    单价: item.price,
+    源单明细ID: item.source_item_id || '无'
+  })))
+
+  console.log('总退货数量:', totalReturnQuantity.value)
+  console.log('总退货金额:', totalReturnAmount.value.toFixed(2))
+  console.log('=======================')
+
   return submitData
 }
 
 // 表单提交
 const handleSubmit = async () => {
-  if (!validateForm()) {
+  console.log('=== 开始提交退货单 ===')
+
+  if (submitting.value) {
     return
   }
-  
-  submitting.value = true
-  try {
-    // 准备提交数据
-    const submitData = buildSubmitData()
-    console.log('提交的销售退货数据:', submitData)
 
-    if (isEdit) {
-      // 编辑退货单
-      // 注意：sale store中没有updateReturn方法
-      showFailToast('编辑功能暂未实现')
-      return
-    } else {
-      // 创建新退货单
-      const result = await saleStore.addReturn(submitData)
-      if (result && (result.code === 200 || result.success)) {
-        showSuccessToast('销售退货单创建成功')
-        // 创建成功后跳转到详情页
-        const returnId = result.data?.id || result.id
-        if (returnId) {
+  if (!validateForm()) {
+    console.log('表单验证失败')
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    const submitData = buildSubmitData()
+    console.log('组件构建的提交数据:', JSON.stringify(submitData, null, 2))
+
+    console.log('调用store的addReturn方法...')
+    const result = await saleStore.addReturn(submitData)
+
+    console.log('Store返回结果:', result)
+
+    if (result && result.code === 200) {
+      showSuccessToast('销售退货单创建成功')
+
+      // 如果后端返回了退货单ID，跳转到详情页
+      if (result.data && result.data.id) {
+        const returnId = result.data.id
+        setTimeout(() => {
           router.push(`/sale/return/detail/${returnId}`)
-        } else {
-          router.push('/sale/return')
-        }
-        return
+        }, 1500)
+      } else if (result.data && Array.isArray(result.data) && result.data[0] && result.data[0].id) {
+        // 如果返回的是数组，取第一个
+        const returnId = result.data[0].id
+        setTimeout(() => {
+          router.push(`/sale/return/detail/${returnId}`)
+        }, 1500)
       } else {
-        const errorMsg = result?.msg || result?.message || '创建失败'
-        throw new Error(errorMsg)
+        // 如果后端没有返回ID，跳转到列表页并刷新列表
+        console.log('后端未返回退货单ID，跳转到列表页')
+        setTimeout(async () => {
+          // 刷新退货单列表
+          await saleStore.loadReturnList({ page: 1, limit: 10 })
+          router.push('/sale/return')
+        }, 1500)
       }
+    } else {
+      const errorMsg = result?.msg || result?.message || '保存失败'
+      console.error('保存失败:', errorMsg)
+      throw new Error(errorMsg)
     }
   } catch (error) {
-    console.error('保存失败:', error)
-    if (error.message !== 'cancel') {
-      showFailToast(error.message || '保存失败')
-    }
+    console.error('保存失败详情:', error)
+    console.error('错误堆栈:', error.stack)
+
+    // 显示错误信息
+    const errorMessage = error.message || '保存失败，请稍后重试'
+    showFailToast(errorMessage)
   } finally {
     submitting.value = false
   }
@@ -1286,14 +1214,22 @@ const handleSubmit = async () => {
 
 // 返回上一页
 const handleBack = () => {
-  if (form.items.length > 0 || form.warehouse_id || form.remark) {
+  // 检查表单是否有内容
+  const hasChanges = form.items.length > 0 ||
+    form.warehouse_id ||
+    form.remark ||
+    form.return_type ||
+    form.source_id
+
+  if (hasChanges) {
     showConfirmDialog({
       title: '提示',
       message: '表单内容已修改，是否放弃保存？'
     }).then(() => {
       router.back()
     }).catch(() => {
-      // 取消返回
+      // 用户取消返回
+      console.log('用户取消返回')
     })
   } else {
     router.back()
@@ -1301,12 +1237,25 @@ const handleBack = () => {
 }
 
 onMounted(async () => {
-  await initForm()
-  
-  // 设置日期选择器初始值
-  if (!selectedDate.value.length && form.return_date) {
-    const date = new Date(form.return_date)
-    selectedDate.value = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+  console.log('=== 初始化退货单表单 ===')
+
+  try {
+    await initForm()
+
+    // 设置日期选择器初始值
+    if (!selectedDate.value.length && form.return_date) {
+      const date = new Date(form.return_date)
+      selectedDate.value = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    }
+
+    console.log('表单初始化完成:', {
+      编辑模式: isEdit,
+      表单数据: form,
+      源单数据: sourceForm
+    })
+  } catch (error) {
+    console.error('表单初始化失败:', error)
+    showFailToast('页面初始化失败')
   }
 })
 </script>
@@ -1337,7 +1286,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
   background-color: #fafafa;
-  
+
   h3 {
     margin: 0;
     font-size: 15px;
@@ -1349,19 +1298,19 @@ onMounted(async () => {
 .source-type-group {
   padding: 12px 16px;
   border-bottom: 1px solid #f0f0f0;
-  
+
   :deep(.van-radio) {
     margin-right: 16px;
-    
+
     .van-radio__label {
       margin-left: 4px;
     }
   }
-  
+
   .radio-label {
     font-size: 13px;
     line-height: 1.4;
-    
+
     .radio-desc {
       font-size: 11px;
       color: #969799;
@@ -1377,19 +1326,19 @@ onMounted(async () => {
     padding: 12px 16px;
     border-bottom: 1px solid #f0f0f0;
     background-color: #fafafa;
-    
+
     span {
       font-size: 15px;
       font-weight: 600;
       color: #323233;
     }
-    
+
     .van-button {
       border-radius: 6px;
       font-weight: 500;
       height: 32px;
       font-size: 13px;
-      
+
       :deep(.van-icon) {
         margin-right: 4px;
       }
@@ -1401,16 +1350,16 @@ onMounted(async () => {
 .sku-list {
   .sku-item {
     margin-bottom: 1px;
-    
+
     &:last-child {
       margin-bottom: 0;
     }
   }
-  
+
   .sku-cell {
     padding: 10px 16px;
     align-items: flex-start;
-    
+
     &:after {
       border-bottom: 1px solid #f5f5f5;
     }
@@ -1444,28 +1393,28 @@ onMounted(async () => {
 .product-label {
   font-size: 12px;
   color: #969799;
-  
+
   .spec-text {
     margin-bottom: 2px;
     color: #646566;
     line-height: 1.3;
   }
-  
+
   .stock-text {
     color: #1989fa;
     line-height: 1.3;
     margin-bottom: 2px;
-    
+
     .returned-info {
       color: #969799;
       margin-left: 4px;
     }
   }
-  
+
   .max-return-text {
     color: #1989fa;
     line-height: 1.3;
-    
+
     .out-of-stock {
       color: #ee0a24;
       font-weight: bold;
@@ -1485,22 +1434,22 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  
+
   .input-field {
     display: flex;
     flex-direction: column;
-    
+
     .editable-field {
       border: 1px solid #e0e0e0;
       border-radius: 4px;
       background: #fff;
       transition: all 0.2s;
       height: 32px;
-      
+
       :deep(.van-field__body) {
         min-height: auto;
       }
-      
+
       :deep(.van-field__control) {
         font-size: 13px;
         font-weight: 500;
@@ -1508,33 +1457,33 @@ onMounted(async () => {
         text-align: center;
         padding: 0 4px;
       }
-      
+
       :deep(.van-field__extra) {
         color: #969799;
         font-size: 11px;
         padding-left: 2px;
       }
-      
+
       &:focus-within {
         border-color: #1989fa;
         box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
       }
-      
+
       &.compact-field {
         width: 80px;
-        
+
         :deep(.van-field__control) {
           font-size: 12px;
         }
       }
     }
-    
+
     .readonly-field {
       border: 1px solid #f0f0f0;
       border-radius: 4px;
       background: #fafafa;
       height: 32px;
-      
+
       :deep(.van-field__control) {
         font-size: 13px;
         font-weight: 500;
@@ -1542,20 +1491,22 @@ onMounted(async () => {
         text-align: center;
         padding: 0 4px;
       }
-      
+
       &.compact-field {
         width: 80px;
       }
     }
-    
+
     &.price-field {
+
       .editable-field,
       .readonly-field {
         width: 85px;
       }
     }
-    
+
     &.quantity-field {
+
       .editable-field,
       .readonly-field {
         width: 85px;
@@ -1569,7 +1520,7 @@ onMounted(async () => {
   flex-direction: column;
   align-items: flex-end;
   min-width: 70px;
-  
+
   .total-amount {
     color: #f53f3f;
     font-weight: bold;
@@ -1592,21 +1543,21 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: 8px;
   font-size: 14px;
-  
+
   &:last-child {
     margin-bottom: 0;
   }
-  
+
   .value {
     font-weight: 500;
     color: #323233;
   }
-  
+
   &.final-amount {
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid #e9ecef;
-    
+
     .value {
       color: #f53f3f;
       font-weight: bold;
@@ -1632,7 +1583,7 @@ onMounted(async () => {
   .van-swipe-cell__wrapper {
     padding: 0;
   }
-  
+
   .delete-btn {
     height: 100%;
     border-radius: 0;
@@ -1644,7 +1595,7 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  
+
   .sku-picker-content {
     flex: 1;
     overflow-y: auto;
@@ -1661,7 +1612,7 @@ onMounted(async () => {
       font-weight: 500;
     }
   }
-  
+
   .van-field__label {
     color: #646566;
     font-weight: 500;
@@ -1671,12 +1622,12 @@ onMounted(async () => {
 // 修改空状态样式
 :deep(.van-empty) {
   padding: 30px 0;
-  
+
   .van-empty__image {
     width: 100px;
     height: 100px;
   }
-  
+
   .van-empty__description {
     color: #969799;
     font-size: 13px;

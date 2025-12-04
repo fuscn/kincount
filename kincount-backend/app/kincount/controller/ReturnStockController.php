@@ -6,9 +6,9 @@ namespace app\kincount\controller;
 
 use app\kincount\model\ReturnStock;
 use app\kincount\model\ReturnStockItem;
-use app\kincount\model\ReturnModel;
+use app\kincount\model\ReturnOrder;
 use app\kincount\model\Stock;
-use app\kincount\model\ReturnItem;
+use app\kincount\model\ReturnOrderItem;
 use app\kincount\model\ProductSku;
 use app\kincount\model\Customer;
 use app\kincount\model\Supplier;
@@ -110,7 +110,7 @@ class ReturnStockController extends BaseController
             'sku' => function ($q) {
                 $q->field('id, sku_code, spec, barcode, cost_price, sale_price');
             },
-            'returnItem' => function ($q) {
+            'ReturnOrderItem' => function ($q) {
                 $q->field('id, return_quantity, processed_quantity, price');
             }
         ])->where('return_stock_id', $id)
@@ -172,7 +172,7 @@ class ReturnStockController extends BaseController
         try {
             return Db::transaction(function () use ($post) {
                 // 获取退货单信息（使用 findOrFail 抛出异常）
-                $return = ReturnModel::findOrFail($post['return_id']);
+                $return = ReturnOrder::findOrFail($post['return_id']);
 
                 // 创建主表记录（使用 TP8 的 create 方法，自动过滤非法字段）
                 $stock = ReturnStock::create([
@@ -203,19 +203,19 @@ class ReturnStockController extends BaseController
                     }
 
                     // 验证退货明细是否存在
-                    $returnItem = ReturnItem::where([
+                    $ReturnOrderItem = ReturnOrderItem::where([
                         'id' => $itemData['return_item_id'],
                         'return_id' => $post['return_id']
                     ])->findOrFail();
 
                     // 检查数量是否超过可处理数量
-                    $availableQuantity = $returnItem->return_quantity - $returnItem->processed_quantity;
+                    $availableQuantity = $ReturnOrderItem->return_quantity - $ReturnOrderItem->processed_quantity;
                     if ($itemData['quantity'] > $availableQuantity) {
                         throw new \Exception("退货数量超过可处理数量，最多可处理{$availableQuantity}");
                     }
 
                     // 获取SKU信息
-                    $sku = ProductSku::findOrFail($returnItem->sku_id);
+                    $sku = ProductSku::findOrFail($ReturnOrderItem->sku_id);
 
                     // 计算金额（使用 bc 函数确保精度）
                     $itemTotal = bcmul((string)$itemData['quantity'], (string)$itemData['price'], 2);
@@ -225,16 +225,16 @@ class ReturnStockController extends BaseController
                     ReturnStockItem::create([
                         'return_stock_id' => $stock->id,
                         'return_item_id'  => $itemData['return_item_id'],
-                        'product_id'      => $returnItem->product_id,
-                        'sku_id'          => $returnItem->sku_id,
+                        'product_id'      => $ReturnOrderItem->product_id,
+                        'sku_id'          => $ReturnOrderItem->sku_id,
                         'quantity'        => $itemData['quantity'],
                         'price'           => $itemData['price'],
                         'total_amount'    => $itemTotal,
                     ]);
 
                     // 更新退货明细的已处理数量
-                    $returnItem->processed_quantity = bcadd((string)$returnItem->processed_quantity, (string)$itemData['quantity'], 0);
-                    $returnItem->save();
+                    $ReturnOrderItem->processed_quantity = bcadd((string)$ReturnOrderItem->processed_quantity, (string)$itemData['quantity'], 0);
+                    $ReturnOrderItem->save();
                 }
 
                 // 更新总金额
@@ -280,14 +280,14 @@ class ReturnStockController extends BaseController
                     // 先恢复退货明细的已处理数量
                     $oldItems = ReturnStockItem::where('return_stock_id', $stock->id)->select();
                     foreach ($oldItems as $oldItem) {
-                        $returnItem = ReturnItem::find($oldItem->return_item_id);
-                        if ($returnItem) {
-                            $returnItem->processed_quantity = bcsub(
-                                (string)$returnItem->processed_quantity,
+                        $ReturnOrderItem = ReturnOrderItem::find($oldItem->return_item_id);
+                        if ($ReturnOrderItem) {
+                            $ReturnOrderItem->processed_quantity = bcsub(
+                                (string)$ReturnOrderItem->processed_quantity,
                                 (string)$oldItem->quantity,
                                 0
                             );
-                            $returnItem->save();
+                            $ReturnOrderItem->save();
                         }
                         $oldItem->delete();
                     }
@@ -309,12 +309,12 @@ class ReturnStockController extends BaseController
                             throw new \Exception($errorMsg);
                         }
 
-                        $returnItem = ReturnItem::where([
+                        $ReturnOrderItem = ReturnOrderItem::where([
                             'id' => $itemData['return_item_id'],
                             'return_id' => $stock->return_id
                         ])->findOrFail();
 
-                        $availableQuantity = $returnItem->return_quantity - $returnItem->processed_quantity;
+                        $availableQuantity = $ReturnOrderItem->return_quantity - $ReturnOrderItem->processed_quantity;
                         if ($itemData['quantity'] > $availableQuantity) {
                             throw new \Exception("退货数量超过可处理数量，最多可处理{$availableQuantity}");
                         }
@@ -325,19 +325,19 @@ class ReturnStockController extends BaseController
                         ReturnStockItem::create([
                             'return_stock_id' => $stock->id,
                             'return_item_id'  => $itemData['return_item_id'],
-                            'product_id'      => $returnItem->product_id,
-                            'sku_id'          => $returnItem->sku_id,
+                            'product_id'      => $ReturnOrderItem->product_id,
+                            'sku_id'          => $ReturnOrderItem->sku_id,
                             'quantity'        => $itemData['quantity'],
                             'price'           => $itemData['price'],
                             'total_amount'    => $itemTotal,
                         ]);
 
-                        $returnItem->processed_quantity = bcadd(
-                            (string)$returnItem->processed_quantity,
+                        $ReturnOrderItem->processed_quantity = bcadd(
+                            (string)$ReturnOrderItem->processed_quantity,
                             (string)$itemData['quantity'],
                             0
                         );
-                        $returnItem->save();
+                        $ReturnOrderItem->save();
                     }
 
                     $stock->total_amount = $totalAmount;
@@ -367,14 +367,14 @@ class ReturnStockController extends BaseController
                 // 恢复退货明细的已处理数量
                 $items = ReturnStockItem::where('return_stock_id', $stock->id)->select();
                 foreach ($items as $item) {
-                    $returnItem = ReturnItem::find($item->return_item_id);
-                    if ($returnItem) {
-                        $returnItem->processed_quantity = bcsub(
-                            (string)$returnItem->processed_quantity,
+                    $ReturnOrderItem = ReturnOrderItem::find($item->return_item_id);
+                    if ($ReturnOrderItem) {
+                        $ReturnOrderItem->processed_quantity = bcsub(
+                            (string)$ReturnOrderItem->processed_quantity,
                             (string)$item->quantity,
                             0
                         );
-                        $returnItem->save();
+                        $ReturnOrderItem->save();
                     }
                     $item->delete();
                 }
@@ -402,7 +402,7 @@ class ReturnStockController extends BaseController
         try {
             return Db::transaction(function () use ($stock) {
                 // 获取退货单信息，判断是销售退货还是采购退货
-                $return = ReturnModel::findOrFail($stock->return_id);
+                $return = ReturnOrder::findOrFail($stock->return_id);
 
                 // 更新主表状态
                 $stock->save([
@@ -431,7 +431,7 @@ class ReturnStockController extends BaseController
                     }
 
                     // 根据退货类型更新库存（使用 bc 函数确保整数精度）
-                    if ($return->type == ReturnModel::TYPE_SALE) {
+                    if ($return->type == ReturnOrder::TYPE_SALE) {
                         // 销售退货：入库，增加库存
                         $stockRecord->quantity = bcadd(
                             (string)$stockRecord->quantity,
@@ -482,14 +482,14 @@ class ReturnStockController extends BaseController
                 // 恢复退货明细的已处理数量
                 $items = ReturnStockItem::where('return_stock_id', $stock->id)->select();
                 foreach ($items as $item) {
-                    $returnItem = ReturnItem::find($item->return_item_id);
-                    if ($returnItem) {
-                        $returnItem->processed_quantity = bcsub(
-                            (string)$returnItem->processed_quantity,
+                    $ReturnOrderItem = ReturnOrderItem::find($item->return_item_id);
+                    if ($ReturnOrderItem) {
+                        $ReturnOrderItem->processed_quantity = bcsub(
+                            (string)$ReturnOrderItem->processed_quantity,
                             (string)$item->quantity,
                             0
                         );
-                        $returnItem->save();
+                        $ReturnOrderItem->save();
                     }
                 }
 
@@ -516,7 +516,7 @@ class ReturnStockController extends BaseController
             'sku' => function ($q) {
                 $q->field('id, sku_code, spec, sale_price');
             },
-            'returnItem' => function ($q) {
+            'ReturnOrderItem' => function ($q) {
                 $q->field('id, return_quantity, processed_quantity');
             }
         ])->where('return_stock_id', $id)
@@ -563,7 +563,7 @@ class ReturnStockController extends BaseController
         try {
             return Db::transaction(function () use ($stock, $post) {
                 // 验证退货明细是否存在
-                $returnItem = ReturnItem::where([
+                $ReturnOrderItem = ReturnOrderItem::where([
                     'id' => $post['return_item_id'],
                     'return_id' => $stock->return_id
                 ])->findOrFail();
@@ -579,7 +579,7 @@ class ReturnStockController extends BaseController
                 }
 
                 // 检查数量是否超过可处理数量
-                $availableQuantity = $returnItem->return_quantity - $returnItem->processed_quantity;
+                $availableQuantity = $ReturnOrderItem->return_quantity - $ReturnOrderItem->processed_quantity;
                 if ($post['quantity'] > $availableQuantity) {
                     throw new \Exception("退货数量超过可处理数量，最多可处理{$availableQuantity}");
                 }
@@ -591,20 +591,20 @@ class ReturnStockController extends BaseController
                 ReturnStockItem::create([
                     'return_stock_id' => $stock->id,
                     'return_item_id'  => $post['return_item_id'],
-                    'product_id'      => $returnItem->product_id,
-                    'sku_id'          => $returnItem->sku_id,
+                    'product_id'      => $ReturnOrderItem->product_id,
+                    'sku_id'          => $ReturnOrderItem->sku_id,
                     'quantity'        => $post['quantity'],
                     'price'           => $post['price'],
                     'total_amount'    => $itemTotal,
                 ]);
 
                 // 更新退货明细的已处理数量
-                $returnItem->processed_quantity = bcadd(
-                    (string)$returnItem->processed_quantity,
+                $ReturnOrderItem->processed_quantity = bcadd(
+                    (string)$ReturnOrderItem->processed_quantity,
                     (string)$post['quantity'],
                     0
                 );
-                $returnItem->save();
+                $ReturnOrderItem->save();
 
                 // 更新总金额
                 $stock->total_amount = bcadd((string)$stock->total_amount, $itemTotal, 2);
@@ -638,14 +638,14 @@ class ReturnStockController extends BaseController
         try {
             Db::transaction(function () use ($stock, $item) {
                 // 恢复退货明细的已处理数量
-                $returnItem = ReturnItem::find($item->return_item_id);
-                if ($returnItem) {
-                    $returnItem->processed_quantity = bcsub(
-                        (string)$returnItem->processed_quantity,
+                $ReturnOrderItem = ReturnOrderItem::find($item->return_item_id);
+                if ($ReturnOrderItem) {
+                    $ReturnOrderItem->processed_quantity = bcsub(
+                        (string)$ReturnOrderItem->processed_quantity,
                         (string)$item->quantity,
                         0
                     );
-                    $returnItem->save();
+                    $ReturnOrderItem->save();
                 }
 
                 // 更新总金额

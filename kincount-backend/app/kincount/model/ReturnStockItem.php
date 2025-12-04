@@ -26,9 +26,9 @@ class ReturnStockItem extends BaseModel
     /**
      * 关联退货明细
      */
-    public function returnItem(): BelongsTo
+    public function ReturnOrderItem(): BelongsTo
     {
-        return $this->belongsTo(ReturnItem::class, 'return_item_id');
+        return $this->belongsTo(ReturnOrderItem::class, 'return_item_id');
     }
     
     /**
@@ -84,9 +84,9 @@ class ReturnStockItem extends BaseModel
             'return_type' => 0
         ];
         
-        if ($this->returnItem && $this->returnItem->return) {
-            $info['return_no'] = $this->returnItem->return->return_no;
-            $info['return_type'] = $this->returnItem->return->type;
+        if ($this->ReturnOrderItem && $this->ReturnOrderItem->return) {
+            $info['return_no'] = $this->ReturnOrderItem->return->return_no;
+            $info['return_type'] = $this->ReturnOrderItem->return->type;
         }
         
         return $info;
@@ -97,8 +97,8 @@ class ReturnStockItem extends BaseModel
      */
     public function getStockDirection(): string
     {
-        if ($this->returnItem && $this->returnItem->return) {
-            return $this->returnItem->return->type == ReturnModel::TYPE_SALE ? '入库' : '出库';
+        if ($this->ReturnOrderItem && $this->ReturnOrderItem->return) {
+            return $this->ReturnOrderItem->return->type == ReturnOrder::TYPE_SALE ? '入库' : '出库';
         }
         return '';
     }

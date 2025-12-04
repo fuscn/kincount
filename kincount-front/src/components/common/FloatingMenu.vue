@@ -132,9 +132,9 @@ const menuData = [
     icon: 'balance-o',
     items: [
       { id: 'so-create', name: '新增销售订单', icon: 'add-o', path: '/sale/order/create', perm: PERM.SALE_ADD },
-      { id: 'so-list', name: '销售订单', icon: 'orders-o', path: '/sale/order', perm: PERM.SALE_VIEW },
-      { id: 'so-stock', name: '销售出库', icon: 'logistics', path: '/sale/stock', perm: PERM.SALE_VIEW },
-      { id: 'so-return', name: '销售退货', icon: 'refund-o', path: '/sale/return', perm: PERM.SALE_VIEW }
+      { id: 'so-list', name: '销售订单列表', icon: 'orders-o', path: '/sale/order', perm: PERM.SALE_VIEW },
+      { id: 'so-stock', name: '销售出库列表', icon: 'logistics', path: '/sale/stock', perm: PERM.SALE_VIEW },
+      { id: 'so-return', name: '销售退货列表', icon: 'refund-o', path: '/sale/return', perm: PERM.SALE_VIEW }
     ]
   },
   /* ===== 库存管理 ===== */

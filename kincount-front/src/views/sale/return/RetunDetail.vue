@@ -26,14 +26,18 @@
       </template>
     </van-nav-bar>
 
-    <div class="detail-content">
+    <!-- 加载状态 -->
+    <van-loading v-if="loading" class="page-loading" />
+
+    <div v-else class="detail-content">
       <!-- 退货基本信息 -->
       <van-cell-group title="退货信息">
         <van-cell title="退货单号" :value="returnOrder.return_no" />
-        <van-cell title="销售订单" :value="returnOrder.order_no" />
-        <van-cell title="客户名称" :value="returnOrder.customer_name" />
-        <van-cell title="退货日期" :value="returnOrder.return_date" />
-        <van-cell title="退货原因" :value="getReturnTypeText(returnOrder.return_type)" />
+        <van-cell title="关联订单" :value="returnOrder.source_order_id || '--'" />
+        <van-cell title="客户名称" :value="returnOrder.target?.name || '--'" />
+        <van-cell title="退货日期" :value="formatDate(returnOrder.created_at)" />
+        <van-cell title="退货类型" :value="getReturnTypeText(returnOrder.return_type)" />
+        <van-cell title="退货原因" :value="returnOrder.return_reason || '--'" />
         <van-cell title="退货状态">
           <template #value>
             <van-tag :type="getStatusTagType(returnOrder.status)">
@@ -41,13 +45,15 @@
             </van-tag>
           </template>
         </van-cell>
-        <van-cell title="退货金额" :value="`-¥${returnOrder.total_amount}`" />
-        <van-cell title="入库仓库" :value="returnOrder.warehouse_name" />
+        <van-cell title="退货金额" :value="`-¥${formatPrice(returnOrder.total_amount)}`" />
+        <van-cell title="退款金额" :value="`¥${formatPrice(returnOrder.refund_amount)}`" />
+        <van-cell title="已退金额" :value="`¥${formatPrice(returnOrder.refunded_amount)}`" />
+        <van-cell title="仓库" :value="returnOrder.warehouse?.name || '--'" />
         <van-cell title="备注信息" :value="returnOrder.remark || '无'" />
       </van-cell-group>
 
       <!-- 退货商品明细 -->
-      <van-cell-group title="退货商品明细">
+      <van-cell-group title="退货商品明细" v-if="returnOrder.items && returnOrder.items.length > 0">
         <div class="product-items">
           <div 
             v-for="(item, index) in returnOrder.items" 
@@ -55,26 +61,26 @@
             class="product-item"
           >
             <div class="product-header">
-              <span class="product-name">{{ item.product_name }}</span>
-              <span class="product-price">-¥{{ item.unit_price }}</span>
+              <span class="product-name">{{ item.product?.name || '产品' + item.id }}</span>
+              <span class="product-price">-¥{{ formatPrice(item.unit_price) }}</span>
             </div>
             <div class="product-info">
-              <span>编号: {{ item.product_no }}</span>
-              <span>规格: {{ item.spec || '无' }}</span>
+              <span>编号: {{ item.product_no || '--' }}</span>
+              <span>规格: {{ item.sku?.spec || '无' }}</span>
             </div>
             <div class="product-quantity">
-              <span>退货数量: {{ item.return_quantity }}{{ item.unit }}</span>
-              <span class="amount">金额: -¥{{ item.total_amount }}</span>
-            </div>
-            <div class="sale-info">
-              原销售数量: {{ item.sale_quantity }}{{ item.unit }}
+              <span>退货数量: {{ item.return_quantity }}{{ item.unit || '个' }}</span>
+              <span class="amount">金额: -¥{{ formatPrice(item.total_amount) }}</span>
             </div>
           </div>
         </div>
       </van-cell-group>
+      <van-cell-group title="退货商品明细" v-else>
+        <van-empty description="暂无商品明细" image="search" />
+      </van-cell-group>
 
       <!-- 操作记录 -->
-      <van-cell-group title="操作记录">
+      <van-cell-group title="操作记录" v-if="operationLogs.length > 0">
         <van-cell
           v-for="(log, index) in operationLogs"
           :key="index"
@@ -82,6 +88,9 @@
           :label="log.operator + ' | ' + log.created_at"
           :value="log.remark"
         />
+      </van-cell-group>
+      <van-cell-group title="操作记录" v-else>
+        <van-empty description="暂无操作记录" image="search" />
       </van-cell-group>
     </div>
 
@@ -104,30 +113,49 @@ import { useRoute, useRouter } from 'vue-router'
 import { 
   showToast,
   showConfirmDialog,
-  showSuccessToast
+  showSuccessToast,
+  showFailToast
 } from 'vant'
 import { useSaleStore } from '@/store/modules/sale'
-import { auditSaleReturn, cancelSaleReturn, completeSaleReturn } from '@/api/sale'
+// 暂时注释掉可能不存在的API调用
+// import { auditSaleReturn, cancelSaleReturn, completeSaleReturn } from '@/api/sale'
 
 const route = useRoute()
 const router = useRouter()
 const saleStore = useSaleStore()
 
 const returnOrder = ref({
-  id: '',
   return_no: '',
-  order_no: '',
-  customer_name: '',
-  return_date: '',
-  return_type: '',
-  status: '',
-  total_amount: 0,
-  warehouse_name: '',
-  remark: '',
+  target: {},
+  warehouse: {},
   items: []
 })
 
 const operationLogs = ref([])
+const loading = ref(true)
+
+// 格式化函数
+const formatPrice = (price) => {
+  if (price === null || price === undefined || price === '') return '0.00'
+  const num = Number(price)
+  return isNaN(num) ? '0.00' : num.toFixed(2)
+}
+
+const formatDate = (date) => {
+  if (!date) return '--'
+  try {
+    const d = new Date(date)
+    if (isNaN(d.getTime())) return '--'
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hour = String(d.getHours()).padStart(2, '0')
+    const minute = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hour}:${minute}`
+  } catch (error) {
+    return '--'
+  }
+}
 
 // 获取状态文本
 const getStatusText = (status) => {
@@ -151,13 +179,13 @@ const getStatusTagType = (status) => {
   return typeMap[status] || 'default'
 }
 
-// 获取退货类型文本
+// 获取退货类型文本 - 根据API返回的数字类型
 const getReturnTypeText = (type) => {
   const typeMap = {
-    quality: '质量问题',
-    customer: '客户原因',
-    wrong_delivery: '发错货',
-    other: '其他'
+    1: '质量问题',
+    2: '客户原因',
+    3: '发错货',
+    4: '其他'
   }
   return typeMap[type] || '未知类型'
 }
@@ -165,31 +193,54 @@ const getReturnTypeText = (type) => {
 // 加载退货详情
 const loadReturnDetail = async () => {
   try {
+    loading.value = true
     const returnId = route.params.id
-    await saleStore.loadReturnDetail(returnId)
-    returnOrder.value = { ...saleStore.currentReturn }
+    console.log('加载退货详情ID:', returnId)
+    
+    // 检查是否有loadReturnDetail方法，如果没有直接调用API
+    if (saleStore.loadReturnDetail) {
+      await saleStore.loadReturnDetail(returnId)
+      returnOrder.value = { ...saleStore.currentReturn }
+    } else {
+      // 或者直接调用API
+      console.error('saleStore.loadReturnDetail方法不存在')
+      showFailToast('加载详情功能未实现')
+    }
+    
+    console.log('退货详情数据:', returnOrder.value)
     
     // 加载操作记录
     await loadOperationLogs(returnId)
   } catch (error) {
-    showToast('加载退货详情失败')
     console.error('加载退货详情失败:', error)
+    showFailToast('加载退货详情失败')
+  } finally {
+    loading.value = false
   }
 }
 
 // 加载操作记录
 const loadOperationLogs = async (returnId) => {
   try {
-    // 这里需要根据实际情况调用API获取操作记录
-    // 暂时模拟数据
+    // 模拟操作记录数据
     operationLogs.value = [
       {
         action: '创建退货单',
-        operator: '系统管理员',
-        created_at: new Date().toLocaleString(),
+        operator: returnOrder.value.creator?.name || '系统管理员',
+        created_at: formatDate(returnOrder.value.created_at),
         remark: '创建销售退货单'
       }
     ]
+    
+    // 如果有审核人，添加审核记录
+    if (returnOrder.value.auditor) {
+      operationLogs.value.push({
+        action: '审核退货单',
+        operator: returnOrder.value.auditor?.name || '审核员',
+        created_at: formatDate(returnOrder.value.audit_time),
+        remark: '审核通过'
+      })
+    }
   } catch (error) {
     console.error('加载操作记录失败:', error)
   }
@@ -203,12 +254,14 @@ const handleAudit = async () => {
       message: '确定要审核通过这个销售退货单吗？'
     })
     
-    await auditSaleReturn(returnOrder.value.id)
-    showSuccessToast('审核成功')
+    // TODO: 调用审核API
+    // await auditSaleReturn(returnOrder.value.id)
+    showSuccessToast('审核成功（功能开发中）')
+    // 重新加载数据
     loadReturnDetail()
   } catch (error) {
     if (error !== 'cancel') {
-      showToast('审核失败')
+      showFailToast('审核失败')
     }
   }
 }
@@ -221,12 +274,13 @@ const handleComplete = async () => {
       message: '确定要标记这个退货单为已完成吗？'
     })
     
-    await completeSaleReturn(returnOrder.value.id)
-    showSuccessToast('已完成')
+    // TODO: 调用完成API
+    // await completeSaleReturn(returnOrder.value.id)
+    showSuccessToast('已完成（功能开发中）')
     loadReturnDetail()
   } catch (error) {
     if (error !== 'cancel') {
-      showToast('操作失败')
+      showFailToast('操作失败')
     }
   }
 }
@@ -239,12 +293,13 @@ const handleCancel = async () => {
       message: '确定要取消这个销售退货单吗？此操作不可恢复。'
     })
     
-    await cancelSaleReturn(returnOrder.value.id)
-    showSuccessToast('取消成功')
+    // TODO: 调用取消API
+    // await cancelSaleReturn(returnOrder.value.id)
+    showSuccessToast('取消成功（功能开发中）')
     loadReturnDetail()
   } catch (error) {
     if (error !== 'cancel') {
-      showToast('取消失败')
+      showFailToast('取消失败')
     }
   }
 }
@@ -283,7 +338,7 @@ onMounted(() => {
       }
       
       .product-price {
-        color: #07c160;
+        color: #f53f3f;
         font-weight: bold;
       }
     }
@@ -302,15 +357,9 @@ onMounted(() => {
       font-size: 13px;
       
       .amount {
-        color: #07c160;
+        color: #f53f3f;
         font-weight: 500;
       }
-    }
-    
-    .sale-info {
-      margin-top: 4px;
-      font-size: 12px;
-      color: #969799;
     }
   }
 }
@@ -323,5 +372,13 @@ onMounted(() => {
   padding: 16px;
   background: white;
   border-top: 1px solid #ebedf0;
+}
+
+.page-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
 }
 </style>

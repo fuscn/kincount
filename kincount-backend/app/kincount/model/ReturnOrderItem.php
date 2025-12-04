@@ -5,9 +5,8 @@ namespace app\kincount\model;
 use think\model\relation\BelongsTo;
 use think\model\relation\HasMany;
 
-class ReturnItem extends BaseModel
+class ReturnOrderItem extends BaseModel
 {
-    protected $table = 'return_items';
     
     // 字段类型转换
     protected $type = [
@@ -22,7 +21,7 @@ class ReturnItem extends BaseModel
      */
     public function return(): BelongsTo
     {
-        return $this->belongsTo(ReturnModel::class, 'return_id');
+        return $this->belongsTo(ReturnOrder::class, 'return_id');
     }
     
     /**
@@ -46,7 +45,7 @@ class ReturnItem extends BaseModel
      */
     public function sourceOrderItem()
     {
-        if ($this->return && $this->return->type == ReturnModel::TYPE_SALE) {
+        if ($this->return && $this->return->type == ReturnOrder::TYPE_SALE) {
             return $this->belongsTo(SaleOrderItem::class, 'source_order_item_id');
         } else {
             return $this->belongsTo(PurchaseOrderItem::class, 'source_order_item_id');
@@ -58,7 +57,7 @@ class ReturnItem extends BaseModel
      */
     public function sourceStockItem()
     {
-        if ($this->return && $this->return->type == ReturnModel::TYPE_SALE) {
+        if ($this->return && $this->return->type == ReturnOrder::TYPE_SALE) {
             return $this->belongsTo(SaleStockItem::class, 'source_stock_item_id');
         } else {
             return $this->belongsTo(PurchaseStockItem::class, 'source_stock_item_id');

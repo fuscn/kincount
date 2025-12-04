@@ -270,9 +270,39 @@ export const useSaleStore = defineStore('sale', {
       }
     },
 
+    // store/modules/sale.js
     async addReturn(data) {
-      const result = await addSaleReturn(data)
-      return result
+      try {
+        console.log('=== Store addReturn 开始 ===')
+        console.log('Store接收到的数据:', JSON.stringify(data, null, 2))
+
+        // 验证数据完整性
+        if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+          throw new Error('退货商品不能为空')
+        }
+
+        console.log('调用addSaleReturn API函数...')
+        const response = await addSaleReturn(data)
+
+        console.log('Store接收到的API响应:', response)
+        console.log('=== Store addReturn 结束 ===')
+
+        if (response && response.code === 200) {
+          // Pinia 中不需要使用 commit，直接修改 state
+          // 将新创建的退货单添加到列表（如果后端返回了数据）
+          if (response.data && response.data.id) {
+            this.returnList = [response.data, ...this.returnList]
+            this.returnTotal += 1
+          }
+          return response
+        } else {
+          const errorMsg = response?.msg || response?.message || '创建失败'
+          throw new Error(errorMsg)
+        }
+      } catch (error) {
+        console.error('Store添加退货失败:', error)
+        throw error
+      }
     },
 
     // 注意：apisale.js 中没有 updateSaleReturn 和 deleteSaleReturn 函数
