@@ -79,8 +79,8 @@ class SaleStock extends BaseModel
      */
     public function returns(): HasMany
     {
-        return $this->hasMany(ReturnModel::class, 'source_stock_id')
-            ->where('type', ReturnModel::TYPE_SALE)
+        return $this->hasMany(ReturnOrder::class, 'source_stock_id')
+            ->where('type', ReturnOrder::TYPE_SALE)
             ->whereNull('deleted_at');
     }
     /**

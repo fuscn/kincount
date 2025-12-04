@@ -11,37 +11,54 @@ use think\facade\Db;
 
 class SaleStockController extends BaseController
 {
-    public function index()
-    {
-        $page  = (int)input('page', 1);
-        $limit = (int)input('limit', 15);
-        $kw    = input('keyword', '');
-        $cusId = (int)input('customer_id', 0);
-        $status = input('status', '');
-        $sDate = input('start_date', '');
-        $eDate = input('end_date', '');
+public function index()
+{
+    $page  = (int)input('page', 1);
+    $limit = (int)input('limit', 15);
+    $kw    = input('keyword', '');
+    $cusId = (int)input('customer_id', 0);
+    $status = input('status', '');
+    $sDate = input('start_date', '');
+    $eDate = input('end_date', '');
 
-        $query = SaleStock::with(['customer', 'warehouse', 'creator', 'saleOrder'])
-            ->where('deleted_at', null);
+    $query = SaleStock::with(['customer', 'warehouse', 'creator', 'saleOrder'])
+        ->where('deleted_at', null);
 
-        if ($kw) {
-            // 同时搜索出库单号和关联的销售订单号
-            $query->where(function ($q) use ($kw) {
-                $q->whereLike('stock_no', "%{$kw}%")
-                    ->orWhereHas('saleOrder', function ($subQuery) use ($kw) {
-                        $subQuery->whereLike('order_no', "%{$kw}%");
-                    });
-            });
-        }
-
-        if ($cusId) $query->where('customer_id', $cusId);
-        if ($status !== '') $query->where('status', $status);
-        if ($sDate) $query->where('created_at', '>=', $sDate);
-        if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
-
-        return $this->paginate($query->order('id', 'desc')
-            ->paginate(['list_rows' => $limit, 'page' => $page]));
+    if ($kw) {
+        // 同时搜索出库单号和关联的销售订单号
+        $query->where(function ($q) use ($kw) {
+            $q->whereLike('stock_no', "%{$kw}%")
+                ->orWhereHas('saleOrder', function ($subQuery) use ($kw) {
+                    $subQuery->whereLike('order_no', "%{$kw}%");
+                });
+        });
     }
+
+    if ($cusId) $query->where('customer_id', $cusId);
+    
+    // 修改：支持逗号分隔的多个状态
+    if ($status !== '') {
+        // 判断是否包含逗号（多个状态）
+        if (strpos($status, ',') !== false) {
+            // 分割成数组
+            $statusArray = explode(',', $status);
+            // 过滤空值并转为整数
+            $statusArray = array_filter(array_map('intval', $statusArray));
+            if (!empty($statusArray)) {
+                $query->whereIn('status', $statusArray);
+            }
+        } else {
+            // 单个状态
+            $query->where('status', intval($status));
+        }
+    }
+    
+    if ($sDate) $query->where('created_at', '>=', $sDate);
+    if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
+
+    return $this->paginate($query->order('id', 'desc')
+        ->paginate(['list_rows' => $limit, 'page' => $page]));
+}
     public function read($id)
     {
         $stock = SaleStock::with(['customer', 'warehouse', 'creator', 'auditor', 'saleOrder'])

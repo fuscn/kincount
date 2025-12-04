@@ -29,7 +29,17 @@ class SaleOrderController extends BaseController
 
         if ($kw) $query->whereLike('order_no', "%{$kw}%");
         if ($cusId) $query->where('customer_id', $cusId);
-        if ($status !== '') $query->where('status', $status);
+
+        // 修改：支持逗号分隔的多个状态
+        if ($status !== '') {
+            $statusArr = explode(',', $status);
+            if (count($statusArr) > 1) {
+                $query->whereIn('status', $statusArr);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
         if ($sDate) $query->where('created_at', '>=', $sDate);
         if ($eDate) $query->where('created_at', '<=', $eDate . ' 23:59:59');
 
