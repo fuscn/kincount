@@ -1,8 +1,8 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-04 22:40:13
--- 共 32 个表
+-- 导出时间: 2025-12-06 16:35:34
+-- 共 33 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
 
@@ -29,7 +29,29 @@ CREATE TABLE `account_records` (
   KEY `idx_related` (`related_type`,`related_id`),
   KEY `idx_status` (`status`),
   KEY `idx_account_records_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+
+
+-- ==================================================
+-- 表: account_settlements
+-- ==================================================
+CREATE TABLE `account_settlements` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `settlement_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '核销单号',
+  `account_type` tinyint(4) NOT NULL COMMENT '账款类型：1-应收 2-应付',
+  `account_id` bigint(20) unsigned NOT NULL COMMENT '账款ID',
+  `financial_id` bigint(20) unsigned NOT NULL COMMENT '财务收支ID',
+  `settlement_amount` decimal(10,2) NOT NULL COMMENT '核销金额',
+  `settlement_date` date NOT NULL COMMENT '核销日期',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '备注',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_account` (`account_type`,`account_id`),
+  KEY `idx_financial` (`financial_id`),
+  KEY `idx_settlement_no` (`settlement_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
 
 
 -- ==================================================
@@ -88,6 +110,8 @@ CREATE TABLE `customers` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
+  `credit_days` int(11) DEFAULT '30' COMMENT '信用天数',
+  `receivable_balance` decimal(10,2) DEFAULT '0.00' COMMENT '应收账款余额',
   PRIMARY KEY (`id`),
   KEY `idx_name` (`name`),
   KEY `idx_phone` (`phone`)
@@ -110,12 +134,20 @@ CREATE TABLE `financial_records` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
+  `account_id` bigint(20) unsigned DEFAULT NULL COMMENT '关联账款ID',
+  `customer_id` bigint(20) unsigned DEFAULT NULL COMMENT '客户ID',
+  `supplier_id` bigint(20) unsigned DEFAULT NULL COMMENT '供应商ID',
+  `order_id` bigint(20) unsigned DEFAULT NULL COMMENT '关联订单ID',
+  `order_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '订单类型',
   PRIMARY KEY (`id`),
   UNIQUE KEY `record_no` (`record_no`),
   KEY `idx_type` (`type`),
   KEY `idx_date` (`record_date`),
   KEY `idx_category` (`category`),
-  KEY `idx_financial_records_date` (`record_date`)
+  KEY `idx_financial_records_date` (`record_date`),
+  KEY `idx_account_id` (`account_id`),
+  KEY `idx_customer` (`customer_id`),
+  KEY `idx_supplier` (`supplier_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
 
 
@@ -315,7 +347,7 @@ CREATE TABLE `return_order_items` (
   KEY `idx_source_order_item` (`source_order_item_id`),
   KEY `idx_source_stock_item` (`source_stock_item_id`),
   KEY `idx_return_items_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
 
 
 -- ==================================================
@@ -353,7 +385,7 @@ CREATE TABLE `return_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_return_type` (`return_type`),
   KEY `idx_returns_type_status` (`type`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================
@@ -376,7 +408,7 @@ CREATE TABLE `return_stock_items` (
   KEY `idx_return_item` (`return_item_id`),
   KEY `idx_product` (`product_id`),
   KEY `idx_sku` (`sku_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
 
 
 -- ==================================================
@@ -403,7 +435,7 @@ CREATE TABLE `return_stocks` (
   KEY `idx_target` (`target_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
 
 
 -- ==================================================
@@ -655,6 +687,7 @@ CREATE TABLE `suppliers` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
+  `payable_balance` decimal(10,2) DEFAULT '0.00' COMMENT '应付账款余额',
   PRIMARY KEY (`id`),
   KEY `idx_name` (`name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='供应商表';

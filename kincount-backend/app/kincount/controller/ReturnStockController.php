@@ -80,68 +80,102 @@ class ReturnStockController extends BaseController
     /**
      * 退货出入库单详情（修复 SKU spec 字段和关联字段）
      */
-    public function read($id)
-    {
-        $stock = ReturnStock::with([
-            'return' => function ($q) {
-                $q->field('id, return_no, type, total_amount, target_id, status');
-            },
-            'target' => function ($q) {
-                $q->field('id, name, contact_person, phone');
-            },
-            'warehouse' => function ($q) {
-                $q->field('id, name, code, address');
-            },
-            'creator' => function ($q) {
-                $q->field('id, real_name, phone');
-            },
-            'auditor' => function ($q) {
-                $q->field('id, real_name');
-            }
-        ])->where('deleted_at', null)->findOrEmpty(); // TP8 助手函数：找不到返回空对象
+public function read($id)
+{
+    // 修复：添加 findOrEmpty 的参数
+    $stock = ReturnStock::with([
+        'return' => function ($q) {
+            $q->field('id, return_no, type, total_amount, target_id, status');
+        },
+        'target' => function ($q) {
+            $q->field('id, name, contact_person, phone');
+        },
+        'warehouse' => function ($q) {
+            $q->field('id, name, code, address');
+        },
+        'creator' => function ($q) {
+            $q->field('id, real_name, phone');
+        },
+        'auditor' => function ($q) {
+            $q->field('id, real_name');
+        }
+    ])->where('deleted_at', null)->findOrEmpty($id); // 修复：添加 $id 参数
 
-        if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
+    if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
 
-        // 加载明细，处理 SKU 的 spec 字段（JSON 转字符串）
-        $stock['items'] = ReturnStockItem::with([
-            'product' => function ($q) {
-                $q->field('id, name, product_no, category_id, brand_id, sale_price');
-            },
-            'sku' => function ($q) {
-                $q->field('id, sku_code, spec, barcode, cost_price, sale_price');
-            },
-            'ReturnOrderItem' => function ($q) {
-                $q->field('id, return_quantity, processed_quantity, price');
-            }
-        ])->where('return_stock_id', $id)
-            ->whereNull('deleted_at')
-            ->select()
-            ->each(function ($item) {
-                // 处理 SKU 的 spec 字段：JSON 数组转字符串描述
-                if (!empty($item->sku->spec)) {
-                    $specArr = json_decode($item->sku->spec, true);
-                    $item->sku->spec_text = is_array($specArr)
-                        ? implode('，', array_map(function ($k, $v) {
-                            return "{$k}:{$v}";
-                        }, array_keys($specArr), $specArr))
-                        : (string)$item->sku->spec;
+    // 加载明细，处理 SKU 的 spec 字段
+    $stock['items'] = ReturnStockItem::with([
+        'product' => function ($q) {
+            $q->field('id, name, product_no, category_id, brand_id, sale_price');
+        },
+        'sku' => function ($q) {
+            $q->field('id, sku_code, spec, barcode, cost_price, sale_price');
+        },
+        'ReturnOrderItem' => function ($q) {
+            $q->field('id, return_quantity, processed_quantity, price');
+        }
+    ])->where('return_stock_id', $id)
+        ->whereNull('deleted_at')
+        ->select()
+        ->each(function ($item) {
+            // 修复：处理 spec 字段的各种可能类型
+            if (!empty($item->sku) && isset($item->sku->spec)) {
+                $spec = $item->sku->spec;
+                
+                // 如果 spec 是字符串，尝试解析 JSON
+                if (is_string($spec)) {
+                    $specArr = json_decode($spec, true);
+                } 
+                // 如果 spec 是 stdClass 对象，转换为数组
+                elseif (is_object($spec)) {
+                    $specArr = (array)$spec;
+                }
+                // 如果 spec 已经是数组，直接使用
+                elseif (is_array($spec)) {
+                    $specArr = $spec;
+                }
+                // 其他情况设为空数组
+                else {
+                    $specArr = [];
+                }
+                
+                // 将规格数组转换为字符串描述
+                if (is_array($specArr) && !empty($specArr)) {
+                    $item->sku->spec_text = implode('，', array_map(function ($k, $v) {
+                        return "{$k}:{$v}";
+                    }, array_keys($specArr), $specArr));
                 } else {
+                    $item->sku->spec_text = is_string($spec) ? $spec : '';
+                }
+            } else {
+                // 确保 spec_text 属性存在
+                if (!empty($item->sku)) {
                     $item->sku->spec_text = '';
                 }
-                return $item;
-            });
+            }
+            return $item;
+        });
 
-        // 处理 target 字段，确保前端获取字符串类型
+    // 处理 target 字段，确保前端获取字符串类型
+    if (!empty($stock->target)) {
         $stock->target_info = [
             'id' => $stock->target->id ?? 0,
             'name' => $stock->target->name ?? '',
             'contact' => $stock->target->contact_person ?? '',
             'phone' => $stock->target->phone ?? ''
         ];
-        unset($stock->target);
-
-        return $this->success($stock);
+    } else {
+        $stock->target_info = [
+            'id' => 0,
+            'name' => '',
+            'contact' => '',
+            'phone' => ''
+        ];
     }
+    unset($stock->target);
+
+    return $this->success($stock);
+}
 
     /**
      * 创建退货出入库单（优化验证规则和数据类型）

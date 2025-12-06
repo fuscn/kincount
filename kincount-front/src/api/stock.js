@@ -257,3 +257,56 @@ export function deleteStockTransferItem(id, itemId) {
     method: 'delete'
   })
 }
+/**
+ * 获取退货出入库单列表
+ * @param {Object} params 查询参数
+ * @returns {Promise}
+ */
+export function getReturnStockList(params) {
+  return request({
+    url: '/return_stocks',
+    method: 'get',
+    params
+  })
+}
+
+// 创建退货入库单
+export function createReturnStock(data) {
+  return request({
+    url: 'return_stocks',
+    method: 'post',
+    data
+  })
+}
+
+// 获取退货入库单详情
+export function getReturnStockDetail(id) {
+  return request({
+    url: `return_stocks/${id}`,
+    method: 'get'
+  })
+}
+
+// 审核退货入库单
+export function auditReturnStock(id) {
+  return request({
+    url: `return_stocks/${id}/audit`,
+    method: 'post'
+  })
+}
+
+// 取消退货入库单
+export function cancelReturnStock(id) {
+  return request({
+    url: `return_stocks/${id}/cancel`,
+    method: 'post'
+  })
+}
+
+// 获取退货入库单明细
+export function getReturnStockItems(id) {
+  return request({
+    url: `return_stocks/${id}/items`,
+    method: 'get'
+  })
+}

@@ -51,6 +51,13 @@ export const PERM = {
   SALE_AUDIT: 'sale:audit',
   SALE_DELETE: 'sale:delete',
 
+  //退货出入库
+  RETURN_STOCK_VIEW: 'return_stock:view',
+  RETURN_STOCK_CREATE: 'return_stock:create',
+  RETURN_STOCK_AUDIT: 'return_stock:audit',
+  RETURN_STOCK_CANCEL: 'return_stock:cancel',
+  RETURN_VIEW: 'return:view',
+
   // 库存
   STOCK_VIEW: 'stock:view',
   STOCK_TAKE: 'stock:take',

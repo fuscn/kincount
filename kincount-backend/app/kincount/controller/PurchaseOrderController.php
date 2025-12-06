@@ -7,6 +7,7 @@ namespace app\kincount\controller;
 use app\kincount\model\PurchaseOrder;
 use app\kincount\model\PurchaseOrderItem;
 use app\kincount\model\Product;
+use app\kincount\model\AccountRecord;
 use app\kincount\model\Supplier;
 use app\kincount\model\Warehouse;
 use app\kincount\model\ProductSku;
@@ -381,12 +382,60 @@ class PurchaseOrderController extends BaseController
 
     public function audit($id)
     {
-        $order = PurchaseOrder::where('deleted_at', null)->find($id);
-        if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('当前状态无法审核');
+        // 启动事务
+        Db::startTrans();
+        try {
+            // 1. 查找订单
+            $order = PurchaseOrder::where('deleted_at', null)->find($id);
+            if (!$order) {
+                throw new \Exception('采购订单不存在');
+            }
+            if ($order->status != 1) {
+                throw new \Exception('当前状态无法审核');
+            }
 
-        $order->save(['status' => 2, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
-        return $this->success([], '审核成功');
+            // 2. 更新订单状态
+            $order->save([
+                'status' => 2,
+                'audit_by' => $this->getUserId(),
+                'audit_time' => date('Y-m-d H:i:s')
+            ]);
+
+            // 3. 生成应付账款记录
+            $accountRecord = AccountRecord::create([
+                'type' => 2, // 应付账款
+                'target_id' => $order->supplier_id,
+                'related_id' => $order->id,
+                'related_type' => 'purchase_order',
+                'amount' => $order->total_amount,
+                'paid_amount' => 0.00,
+                'balance_amount' => $order->total_amount,
+                'status' => 1, // 未结清
+                'due_date' => $order->expected_date ?: date('Y-m-d', strtotime('+30 days')), // 默认30天到期
+                'remark' => "采购订单 {$order->order_no}"
+            ]);
+
+            // 4. 更新供应商应付账款余额
+            $supplier = Supplier::find($order->supplier_id);
+            if ($supplier) {
+                $supplier->payable_balance += $order->total_amount;
+                $supplier->save();
+            }
+
+            // 5. 更新采购订单的应付账款ID（可选，方便关联）
+            $order->save([
+                'account_record_id' => $accountRecord->id
+            ]);
+
+            // 提交事务
+            Db::commit();
+
+            return $this->success([], '审核成功，已生成应付账款');
+        } catch (\Exception $e) {
+            // 回滚事务
+            Db::rollback();
+            return $this->error($e->getMessage());
+        }
     }
 
     public function cancel($id)

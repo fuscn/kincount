@@ -202,13 +202,7 @@ export default [
         component: () => import('@/views/purchase/stock/StockDetail.vue'),
         meta: { title: '采购入库详情', showTabbar: false }
       },
-      // {
-      //   path: 'purchase/stock',
-      //   name: 'PurchaseStock',
-      //   component: () => import('@/views/Placeholder.vue'),
-      //   meta: { title: '采购入库', showTabbar: false }
-      // },
-      // 销售管理
+
       {
         path: 'sale/order',
         name: 'SaleOrder',
@@ -236,7 +230,7 @@ export default [
       {
         path: 'sale/stock/create',
         name: 'SaleStockCreate',
-        component: () => import('@/views/sale/stock/StockCreate.vue'),
+        component: () => import('@/views/sale/stock/StockForm.vue'),
         meta: { title: '新增销售出库', showTabbar: false, showLayoutNavBar: false }
       },
       {
@@ -262,6 +256,30 @@ export default [
         name: 'SaleReturnDetail',
         component: () => import('@/views/sale/return/RetunDetail.vue'),
         meta: { title: '退货详情', showTabbar: false, showLayoutNavBar: false }
+      },
+      {
+        path: 'sale/return/storage',
+        name: 'SaleReturnStorage',
+        component: () => import('@/views/sale/return/StorageIndex.vue'),
+        meta: { title: '退货入库单', showTabbar: false }
+      },
+      {
+        path: 'sale/return/storage/create',
+        name: 'SaleReturnStorageCreate',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '新建退货入库单' }
+      },
+      {
+        path: 'sale/return/storage/detail/:id',
+        name: 'SaleReturnStorageDetail',
+        component: () => import('@/views/sale/return/StorageDetail.vue'),
+        meta: { title: '退货入库单详情', showTabbar: false, showLayoutNavBar: false }
+      },
+      {
+        path: 'sale/return/storage/edit/:id',
+        name: 'SaleReturnStorageEdit',
+        component: () => import('@/views/Placeholder.vue'),
+        meta: { title: '编辑退货入库单' }
       },
       // 库存管理
       {
@@ -349,18 +367,38 @@ export default [
         meta: { title: '资金流水', showTabbar: false }
       },
       // 账款管理
+
       {
         path: 'account/receivable',
         name: 'AccountReceivable',
-        component: () => import('@/views/Placeholder.vue'),
-        meta: { title: '应收账款', showTabbar: false }
+        component: () => import('@/views/account/AccountReceivable.vue'),
+        meta: { title: '应收账款' }
       },
       {
         path: 'account/payable',
         name: 'AccountPayable',
-        component: () => import('@/views/Placeholder.vue'),
-        meta: { title: '应付账款', showTabbar: false }
+        component: () => import('@/views/account/AccountPayable.vue'),
+        meta: { title: '应付账款' }
       },
+      {
+        path: 'account/settlement',
+        name: 'AccountSettlement',
+        component: () => import('@/views/account/SettlementIndex.vue'),
+        meta: { title: '账款核销' }
+      },
+      {
+        path: 'account/settlement/create',
+        name: 'AccountSettlementCreate',
+        component: () => import('@/views/account/SettlementForm.vue'),
+        meta: { title: '创建核销' }
+      },
+      {
+        path: 'account/settlement/:id',
+        name: 'AccountSettlementDetail',
+        component: () => import('@/views/account/SettlementDetail.vue'),
+        meta: { title: '核销详情' }
+      },
+
       // 财务概览
       {
         path: 'financial/dashboard',

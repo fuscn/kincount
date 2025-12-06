@@ -9,7 +9,7 @@ class ReturnOrder extends BaseModel
     // 退货单类型
     const TYPE_SALE = 1;      // 销售退货
     const TYPE_PURCHASE = 2;  // 采购退货
-    
+
     // 状态
     const STATUS_PENDING_AUDIT = 1;  // 待审核
     const STATUS_AUDITED = 2;        // 已审核
@@ -18,29 +18,29 @@ class ReturnOrder extends BaseModel
     const STATUS_REFUND_COMPLETE = 5; // 已退款/收款
     const STATUS_COMPLETED = 6;      // 已完成
     const STATUS_CANCELLED = 7;      // 已取消
-    
+
     // 退货原因类型
     const REASON_QUALITY = 1;        // 质量问题
     const REASON_QUANTITY = 2;       // 数量问题
     const REASON_CANCELLED = 3;      // 客户/供应商取消
     const REASON_OTHER = 4;          // 其他
-    
+
     // 出入库状态
     const STOCK_PENDING = 1;         // 待处理
     const STOCK_PART = 2;            // 部分处理
     const STOCK_COMPLETE = 3;        // 已完成
-    
+
     // 款项状态
     const REFUND_PENDING = 1;        // 待处理
     const REFUND_PART = 2;           // 部分处理
     const REFUND_COMPLETE = 3;       // 已完成
 
-    
+
     // 自动写入字段
     protected $auto = [];
     protected $insert = ['return_no'];
     protected $update = [];
-    
+
     // 字段类型转换
     protected $type = [
         'type' => 'integer',
@@ -52,7 +52,7 @@ class ReturnOrder extends BaseModel
         'stock_status' => 'integer',
         'refund_status' => 'integer'
     ];
-    
+
     /**
      * 自动生成退货单号
      */
@@ -61,7 +61,7 @@ class ReturnOrder extends BaseModel
         $prefix = $this->getNoPrefix();
         return $this->generateUniqueNo($prefix, 'return_no');
     }
-    
+
     /**
      * 根据类型获取单号前缀
      */
@@ -76,7 +76,7 @@ class ReturnOrder extends BaseModel
                 return 'RT';
         }
     }
-    
+
     /**
      * 关联退货明细
      */
@@ -85,7 +85,7 @@ class ReturnOrder extends BaseModel
         return $this->hasMany(ReturnOrderItem::class, 'return_id')
             ->whereNull('deleted_at');
     }
-    
+
     /**
      * 关联退货出入库单
      */
@@ -94,16 +94,15 @@ class ReturnOrder extends BaseModel
         return $this->hasMany(ReturnStock::class, 'return_id')
             ->whereNull('deleted_at');
     }
-    
+
     /**
      * 关联客户（销售退货）
      */
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'target_id');
-           
     }
-    
+
     /**
      * 关联供应商（采购退货）
      */
@@ -111,7 +110,7 @@ class ReturnOrder extends BaseModel
     {
         return $this->belongsTo(Supplier::class, 'target_id');
     }
-    
+
     /**
      * 关联仓库
      */
@@ -119,31 +118,31 @@ class ReturnOrder extends BaseModel
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
-    
-    /**
-     * 关联源订单（销售或采购）
-     */
-    public function sourceOrder()
+
+    public function saleSourceOrder()
     {
-        if ($this->type == self::TYPE_SALE) {
-            return $this->belongsTo(SaleOrder::class, 'source_order_id');
-        } else {
-            return $this->belongsTo(PurchaseOrder::class, 'source_order_id');
-        }
+        return $this->belongsTo(SaleOrder::class, 'source_order_id')
+            ->whereNull('deleted_at');
     }
-    
-    /**
-     * 关联源出入库单
-     */
-    public function sourceStock()
+
+    public function purchaseSourceOrder()
     {
-        if ($this->type == self::TYPE_SALE) {
-            return $this->belongsTo(SaleStock::class, 'source_stock_id');
-        } else {
-            return $this->belongsTo(PurchaseStock::class, 'source_stock_id');
-        }
+        return $this->belongsTo(PurchaseOrder::class, 'source_order_id')
+            ->whereNull('deleted_at');
     }
-    
+
+    public function saleSourceStock()
+    {
+        return $this->belongsTo(SaleStock::class, 'source_stock_id')
+            ->whereNull('deleted_at');
+    }
+
+    public function purchaseSourceStock()
+    {
+        return $this->belongsTo(PurchaseStock::class, 'source_stock_id')
+            ->whereNull('deleted_at');
+    }
+
     /**
      * 创建人
      */
@@ -151,7 +150,7 @@ class ReturnOrder extends BaseModel
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    
+
     /**
      * 审核人
      */
@@ -159,7 +158,7 @@ class ReturnOrder extends BaseModel
     {
         return $this->belongsTo(User::class, 'audit_by');
     }
-    
+
     /**
      * 获取类型选项
      */
@@ -170,7 +169,7 @@ class ReturnOrder extends BaseModel
             self::TYPE_PURCHASE => '采购退货'
         ];
     }
-    
+
     /**
      * 获取状态选项
      */
@@ -186,7 +185,7 @@ class ReturnOrder extends BaseModel
             self::STATUS_CANCELLED => '已取消'
         ];
     }
-    
+
     /**
      * 获取退货原因选项
      */
@@ -199,7 +198,7 @@ class ReturnOrder extends BaseModel
             self::REASON_OTHER => '其他'
         ];
     }
-    
+
     /**
      * 获取出入库状态选项
      */
@@ -211,7 +210,7 @@ class ReturnOrder extends BaseModel
             self::STOCK_COMPLETE => '已完成'
         ];
     }
-    
+
     /**
      * 获取退款状态选项
      */
@@ -223,7 +222,7 @@ class ReturnOrder extends BaseModel
             self::REFUND_COMPLETE => '已完成'
         ];
     }
-    
+
     /**
      * 获取类型文本
      */
@@ -232,7 +231,7 @@ class ReturnOrder extends BaseModel
         $options = $this->getTypeOptions();
         return $options[$data['type'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 获取状态文本
      */
@@ -241,7 +240,7 @@ class ReturnOrder extends BaseModel
         $options = $this->getStatusOptions();
         return $options[$data['status'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 获取退货原因文本
      */
@@ -250,7 +249,7 @@ class ReturnOrder extends BaseModel
         $options = $this->getReturnTypeOptions();
         return $options[$data['return_type'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 获取出入库状态文本
      */
@@ -259,7 +258,7 @@ class ReturnOrder extends BaseModel
         $options = $this->getStockStatusOptions();
         return $options[$data['stock_status'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 获取退款状态文本
      */
@@ -268,7 +267,7 @@ class ReturnOrder extends BaseModel
         $options = $this->getRefundStatusOptions();
         return $options[$data['refund_status'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 计算可退货金额
      */
@@ -276,7 +275,7 @@ class ReturnOrder extends BaseModel
     {
         return bcsub($this->refund_amount, $this->refunded_amount, 2);
     }
-    
+
     /**
      * 获取对方名称（客户/供应商）
      */
@@ -289,7 +288,7 @@ class ReturnOrder extends BaseModel
         }
         return '';
     }
-    
+
     /**
      * 获取源单号
      */

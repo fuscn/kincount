@@ -1,0 +1,49 @@
+// src/store/modules/settlement.js
+import { defineStore } from 'pinia'
+import * as settlementApi from '@/api/settlement'
+
+export const useSettlementStore = defineStore('settlement', {
+  state: () => ({
+    settlementList: [],
+    currentSettlement: null,
+    settableAccounts: [],
+    statistics: null,
+    loading: false
+  }),
+  
+  actions: {
+    // 获取核销列表
+    async fetchSettlementList(params) {
+      this.loading = true
+      try {
+        const { data } = await settlementApi.getSettlementList(params)
+        this.settlementList = data.list || []
+        return data
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // 创建核销
+    async createSettlement(data) {
+      return await settlementApi.createSettlement(data)
+    },
+    
+    // 批量核销
+    async batchCreateSettlement(data) {
+      return await settlementApi.batchCreateSettlement(data)
+    },
+    
+    // 获取可核销账款
+    async fetchSettableAccounts(params) {
+      const { data } = await settlementApi.getSettableAccounts(params)
+      this.settableAccounts = data.list || []
+      return data
+    },
+    
+    // 取消核销
+    async cancelSettlement(id) {
+      return await settlementApi.cancelSettlement(id)
+    }
+  }
+})

@@ -174,7 +174,7 @@ export function getSaleReturnDetail(id) {
 export function addSaleReturn(data) {
   console.log('=== API addSaleReturn 开始 ===')
   console.log('API接收到的原始数据:', JSON.stringify(data, null, 2))
-  
+
   // 检查items数组
   if (data.items && Array.isArray(data.items)) {
     console.log('Items数组详情:')
@@ -188,7 +188,7 @@ export function addSaleReturn(data) {
       })
     })
   }
-  
+
   // 构建请求数据 - 确保所有字段都存在
   const requestData = {
     type: data.type || 1,
@@ -200,7 +200,7 @@ export function addSaleReturn(data) {
     remark: data.remark || '',
     items: []
   }
-  
+
   // 设置源单字段
   if (data.source_order_id) {
     requestData.source_order_id = data.source_order_id
@@ -208,14 +208,14 @@ export function addSaleReturn(data) {
   if (data.source_stock_id) {
     requestData.source_stock_id = data.source_stock_id
   }
-  
+
   // 处理items - 确保包含所有必要字段
   requestData.items = data.items.map(item => {
     const newItem = {
       sku_id: Number(item.sku_id),
       price: Number(item.price)
     }
-    
+
     // 确保product_id存在
     if (item.product_id !== undefined && item.product_id !== null) {
       newItem.product_id = Number(item.product_id)
@@ -224,7 +224,7 @@ export function addSaleReturn(data) {
       // 如果没有product_id，可以尝试设置默认值或抛出错误
       newItem.product_id = 0 // 或根据业务逻辑处理
     }
-    
+
     // 确保return_quantity存在
     if (item.return_quantity !== undefined && item.return_quantity !== null) {
       newItem.return_quantity = Number(item.return_quantity)
@@ -232,18 +232,18 @@ export function addSaleReturn(data) {
       console.warn('警告: item缺少return_quantity', item)
       newItem.return_quantity = 1 // 默认值
     }
-    
+
     // 可选字段
     if (item.source_item_id) {
       newItem.source_item_id = Number(item.source_item_id)
     }
-    
+
     return newItem
   })
-  
+
   console.log('API构建的请求数据:', JSON.stringify(requestData, null, 2))
   console.log('=== API addSaleReturn 结束 ===')
-  
+
   return request({
     url: '/returns',
     method: 'post',

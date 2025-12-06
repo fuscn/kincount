@@ -12,6 +12,8 @@ use app\kincount\model\SaleStockItem;
 use app\kincount\model\SaleStock;
 use app\kincount\model\SaleOrderItem;
 use app\kincount\model\SaleOrder;
+use app\kincount\model\PurchaseOrder;
+use app\kincount\model\PurchaseStock;
 use app\kincount\model\Customer;
 use app\kincount\model\Supplier;
 use app\kincount\model\AccountRecord;
@@ -342,29 +344,55 @@ class ReturnOrderController extends BaseController
      */
     public function read($id)
     {
-        // 先获取退货单基本信息
         $return = ReturnOrder::where('deleted_at', null)
             ->with([
                 'items' => function ($q) {
-                    // 修复1: 改为数组形式
-                    $q->with(['product', 'sku', 'sourceOrderItem', 'sourceStockItem']);
+                    $q->with(['product', 'sku'])
+                        ->whereNull('deleted_at');
                 },
-                // 修复2: 移除不存在的关联或检查模型定义
-                // 'refunds', // 如果模型中不存在这个方法，需要注释掉或修复
-                'customer', // 确保模型中定义了 customer 关联
-                'supplier', // 确保模型中定义了 supplier 关联
-                'warehouse', // 确保模型中定义了 warehouse 关联
-                'sourceOrder', // 确保模型中定义了 sourceOrder 关联
-                'sourceStock', // 确保模型中定义了 sourceStock 关联
-                'creator', // 确保模型中定义了 creator 关联
-                'auditor' // 确保模型中定义了 auditor 关联
+                'customer',
+                'supplier',
+                'warehouse',
+                'creator' => function ($query) {
+                    $query->field('id, username, real_name');
+                },
+                'auditor' => function ($query) {
+                    $query->field('id, username, real_name');
+                }
             ])
-            // 修复3: 如果某些关联不存在，使用 select 指定需要的字段
-            ->field('*')
             ->find($id);
 
         if (!$return) {
             return $this->error('退货单不存在');
+        }
+
+        // 根据类型手动加载关联
+        if ($return->type == ReturnOrder::TYPE_SALE) {
+            if ($return->source_order_id) {
+                $return->sourceOrder = SaleOrder::where('id', $return->source_order_id)
+                    ->whereNull('deleted_at')
+                    ->field('id, order_no, status, total_amount, created_at')
+                    ->find();
+            }
+            if ($return->source_stock_id) {
+                $return->sourceStock = SaleStock::where('id', $return->source_stock_id)
+                    ->whereNull('deleted_at')
+                    ->field('id, stock_no, status, total_amount, created_at')
+                    ->find();
+            }
+        } else {
+            if ($return->source_order_id) {
+                $return->sourceOrder = PurchaseOrder::where('id', $return->source_order_id)
+                    ->whereNull('deleted_at')
+                    ->field('id, order_no, status, total_amount, created_at')
+                    ->find();
+            }
+            if ($return->source_stock_id) {
+                $return->sourceStock = PurchaseStock::where('id', $return->source_stock_id)
+                    ->whereNull('deleted_at')
+                    ->field('id, stock_no, status, total_amount, created_at')
+                    ->find();
+            }
         }
 
         return $this->success($return);
@@ -491,26 +519,54 @@ class ReturnOrderController extends BaseController
             $return->audit_time = date('Y-m-d H:i:s');
             $return->save();
 
-            // 创建账款记录
-            $accountType = $return->type == ReturnOrder::TYPE_SALE ? 1 : 2; // 1-应收(客户) 2-应付(供应商)
-            $balanceAmount = $return->type == ReturnOrder::TYPE_SALE
-                ? '-' . $return->refund_amount  // 销售退货减少应收
-                : '-' . $return->refund_amount; // 采购退货减少应付
+            // 确定账款类型和金额符号
+            if ($return->type == ReturnOrder::TYPE_SALE) {
+                // 销售退货：减少应收账款
+                $accountType = 1; // 应收
+                $amount = -$return->refund_amount; // 负数表示减少
+                $relatedType = 'sale_return';
+            } else {
+                // 采购退货：减少应付账款
+                $accountType = 2; // 应付
+                $amount = -$return->refund_amount; // 负数表示减少
+                $relatedType = 'purchase_return';
+            }
 
-            AccountRecord::create([
+            // 创建账款记录
+            $accountRecord = AccountRecord::create([
                 'type' => $accountType,
                 'target_id' => $return->target_id,
                 'related_id' => $return->id,
-                'related_type' => 'return',
-                'amount' => $return->refund_amount,
-                'paid_amount' => '0',
-                'balance_amount' => $balanceAmount,
+                'related_type' => $relatedType,
+                'amount' => $amount,
+                'paid_amount' => 0.00,
+                'balance_amount' => $amount, // 余额也为负
                 'status' => 1, // 未结清
-                'remark' => "退货单[{$return->return_no}]账款",
+                'due_date' => date('Y-m-d', strtotime('+7 days')), // 默认7天后到期
+                'remark' => $return->type == ReturnOrder::TYPE_SALE
+                    ? "销售退货单[{$return->return_no}]"
+                    : "采购退货单[{$return->return_no}]",
             ]);
+
+            // 更新客户或供应商的账款余额
+            if ($return->type == ReturnOrder::TYPE_SALE) {
+                // 销售退货：更新客户应收账款余额（减少）
+                $customer = Customer::find($return->target_id);
+                if ($customer) {
+                    $customer->receivable_balance -= $return->refund_amount;
+                    $customer->save();
+                }
+            } else {
+                // 采购退货：更新供应商应付账款余额（减少）
+                $supplier = Supplier::find($return->target_id);
+                if ($supplier) {
+                    $supplier->payable_balance -= $return->refund_amount;
+                    $supplier->save();
+                }
+            }
         });
 
-        return $this->success([], '审核成功');
+        return $this->success([], '退货单审核成功');
     }
 
     /**

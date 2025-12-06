@@ -16,12 +16,20 @@
           审核
         </van-button>
         <van-button 
-          v-if="returnOrder.status === 2" 
+          v-if="returnOrder.status === 2 && returnOrder.stock_status !== 3" 
           size="small" 
           type="success" 
-          @click="handleComplete"
+          @click="handleCreateStock"
         >
-          完成
+          创建入库单
+        </van-button>
+        <van-button 
+          v-if="returnOrder.status === 2 && returnOrder.stock_status === 3" 
+          size="small" 
+          type="default"
+          @click="viewStockOrder"
+        >
+          查看入库单
         </van-button>
       </template>
     </van-nav-bar>
@@ -33,8 +41,8 @@
       <!-- 退货基本信息 -->
       <van-cell-group title="退货信息">
         <van-cell title="退货单号" :value="returnOrder.return_no" />
-        <van-cell title="关联订单" :value="returnOrder.source_order_id || '--'" />
-        <van-cell title="客户名称" :value="returnOrder.target?.name || '--'" />
+        <van-cell title="关联出库单" :value="returnOrder.sourceStock?.stock_no || '--'" />
+        <van-cell title="客户名称" :value="returnOrder.customer?.name || '--'" />
         <van-cell title="退货日期" :value="formatDate(returnOrder.created_at)" />
         <van-cell title="退货类型" :value="getReturnTypeText(returnOrder.return_type)" />
         <van-cell title="退货原因" :value="returnOrder.return_reason || '--'" />
@@ -45,11 +53,30 @@
             </van-tag>
           </template>
         </van-cell>
+        <!-- 添加入库状态 -->
+        <van-cell title="入库状态">
+          <template #value>
+            <van-tag :type="getStockStatusTagType(returnOrder.stock_status)">
+              {{ getStockStatusText(returnOrder.stock_status) }}
+            </van-tag>
+          </template>
+        </van-cell>
         <van-cell title="退货金额" :value="`-¥${formatPrice(returnOrder.total_amount)}`" />
-        <van-cell title="退款金额" :value="`¥${formatPrice(returnOrder.refund_amount)}`" />
+        <van-cell title="应退金额" :value="`¥${formatPrice(returnOrder.refund_amount)}`" />
         <van-cell title="已退金额" :value="`¥${formatPrice(returnOrder.refunded_amount)}`" />
         <van-cell title="仓库" :value="returnOrder.warehouse?.name || '--'" />
         <van-cell title="备注信息" :value="returnOrder.remark || '无'" />
+        <van-cell title="创建人" :value="returnOrder.creator?.real_name || returnOrder.creator?.username || '--'" />
+        <van-cell v-if="returnOrder.auditor" title="审核人" :value="returnOrder.auditor?.real_name || returnOrder.auditor?.username || '--'" />
+        <van-cell v-if="returnOrder.audit_time" title="审核时间" :value="formatDate(returnOrder.audit_time)" />
+        <!-- 添加入库单信息 -->
+        <van-cell 
+          v-if="returnOrder.stock_id" 
+          title="入库单号" 
+          is-link
+          @click="viewStockOrder"
+          :value="returnStock?.stock_no || '点击查看'"
+        />
       </van-cell-group>
 
       <!-- 退货商品明细 -->
@@ -62,15 +89,20 @@
           >
             <div class="product-header">
               <span class="product-name">{{ item.product?.name || '产品' + item.id }}</span>
-              <span class="product-price">-¥{{ formatPrice(item.unit_price) }}</span>
+              <span class="product-price">-¥{{ formatPrice(item.price) }}</span>
             </div>
             <div class="product-info">
-              <span>编号: {{ item.product_no || '--' }}</span>
-              <span>规格: {{ item.sku?.spec || '无' }}</span>
+              <span>编号: {{ item.product?.product_no || '--' }}</span>
+              <span>规格: {{ formatSpec(item.sku?.spec) }}</span>
             </div>
             <div class="product-quantity">
-              <span>退货数量: {{ item.return_quantity }}{{ item.unit || '个' }}</span>
+              <span>退货数量: {{ item.return_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
               <span class="amount">金额: -¥{{ formatPrice(item.total_amount) }}</span>
+            </div>
+            <!-- 添加入库数量信息 -->
+            <div v-if="item.processed_quantity !== undefined" class="stock-info">
+              <span>已入库: {{ item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
+              <span>待入库: {{ item.return_quantity - item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
             </div>
           </div>
         </div>
@@ -108,17 +140,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
-  showToast,
   showConfirmDialog,
   showSuccessToast,
-  showFailToast
+  showFailToast,
+  showLoadingToast,
+  showNotify,
+  closeToast
 } from 'vant'
 import { useSaleStore } from '@/store/modules/sale'
-// 暂时注释掉可能不存在的API调用
-// import { auditSaleReturn, cancelSaleReturn, completeSaleReturn } from '@/api/sale'
+import { auditSaleReturn, cancelSaleReturn } from '@/api/sale'
+import { createReturnStock } from '@/api/stock'
 
 const route = useRoute()
 const router = useRouter()
@@ -126,13 +160,19 @@ const saleStore = useSaleStore()
 
 const returnOrder = ref({
   return_no: '',
-  target: {},
+  sourceStock: {},
+  customer: {},
   warehouse: {},
-  items: []
+  items: [],
+  creator: {},
+  auditor: null,
+  stock_status: 1
 })
 
+const returnStock = ref(null) // 退货入库单详情
 const operationLogs = ref([])
 const loading = ref(true)
+const isLoading = ref(false) // 加载锁，防止重复请求
 
 // 格式化函数
 const formatPrice = (price) => {
@@ -157,6 +197,18 @@ const formatDate = (date) => {
   }
 }
 
+// 添加格式化规格的函数
+const formatSpec = (spec) => {
+  if (!spec) return '无'
+  if (typeof spec === 'string') return spec
+  if (typeof spec === 'object') {
+    return Object.entries(spec)
+      .map(([key, value]) => `${key}:${value}`)
+      .join(' ')
+  }
+  return '无'
+}
+
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
@@ -179,7 +231,27 @@ const getStatusTagType = (status) => {
   return typeMap[status] || 'default'
 }
 
-// 获取退货类型文本 - 根据API返回的数字类型
+// 获取库存状态文本
+const getStockStatusText = (status) => {
+  const statusMap = {
+    1: '未入库',
+    2: '部分入库',
+    3: '已入库'
+  }
+  return statusMap[status] || '未知'
+}
+
+// 获取库存状态标签类型
+const getStockStatusTagType = (status) => {
+  const typeMap = {
+    1: 'danger',
+    2: 'warning',
+    3: 'success'
+  }
+  return typeMap[status] || 'default'
+}
+
+// 获取退货类型文本
 const getReturnTypeText = (type) => {
   const typeMap = {
     1: '质量问题',
@@ -192,22 +264,29 @@ const getReturnTypeText = (type) => {
 
 // 加载退货详情
 const loadReturnDetail = async () => {
+  if (isLoading.value) return // 如果正在加载，直接返回
+  
   try {
+    isLoading.value = true
     loading.value = true
     const returnId = route.params.id
-    console.log('加载退货详情ID:', returnId)
     
     // 检查是否有loadReturnDetail方法，如果没有直接调用API
     if (saleStore.loadReturnDetail) {
       await saleStore.loadReturnDetail(returnId)
       returnOrder.value = { ...saleStore.currentReturn }
     } else {
-      // 或者直接调用API
+      // 模拟数据用于测试
       console.error('saleStore.loadReturnDetail方法不存在')
       showFailToast('加载详情功能未实现')
     }
     
     console.log('退货详情数据:', returnOrder.value)
+    
+    // 如果已有入库单，加载入库单详情
+    if (returnOrder.value.stock_id) {
+      await loadReturnStockDetail(returnOrder.value.stock_id)
+    }
     
     // 加载操作记录
     await loadOperationLogs(returnId)
@@ -216,17 +295,33 @@ const loadReturnDetail = async () => {
     showFailToast('加载退货详情失败')
   } finally {
     loading.value = false
+    isLoading.value = false
+  }
+}
+
+// 加载退货入库单详情
+const loadReturnStockDetail = async (stockId) => {
+  try {
+    // 这里需要根据您的API实现来获取入库单详情
+    // 暂时用模拟数据
+    returnStock.value = {
+      id: stockId,
+      stock_no: `RS${new Date().getTime()}`,
+      status: 1,
+      created_at: new Date().toISOString()
+    }
+  } catch (error) {
+    console.error('加载入库单详情失败:', error)
   }
 }
 
 // 加载操作记录
 const loadOperationLogs = async (returnId) => {
   try {
-    // 模拟操作记录数据
     operationLogs.value = [
       {
         action: '创建退货单',
-        operator: returnOrder.value.creator?.name || '系统管理员',
+        operator: returnOrder.value.creator?.real_name || returnOrder.value.creator?.username || '系统管理员',
         created_at: formatDate(returnOrder.value.created_at),
         remark: '创建销售退货单'
       }
@@ -236,9 +331,29 @@ const loadOperationLogs = async (returnId) => {
     if (returnOrder.value.auditor) {
       operationLogs.value.push({
         action: '审核退货单',
-        operator: returnOrder.value.auditor?.name || '审核员',
+        operator: returnOrder.value.auditor?.real_name || returnOrder.value.auditor?.username || '审核员',
         created_at: formatDate(returnOrder.value.audit_time),
         remark: '审核通过'
+      })
+    }
+    
+    // 如果有入库记录，添加入库操作记录
+    if (returnOrder.value.stock_status === 3) {
+      operationLogs.value.push({
+        action: '商品入库',
+        operator: '仓库管理员',
+        created_at: formatDate(returnOrder.value.updated_at),
+        remark: '退货商品已入库'
+      })
+    }
+    
+    // 如果有完成时间，添加完成记录
+    if (returnOrder.value.status === 3) {
+      operationLogs.value.push({
+        action: '退货完成',
+        operator: '系统',
+        created_at: formatDate(returnOrder.value.updated_at),
+        remark: '退货单已完成'
       })
     }
   } catch (error) {
@@ -254,34 +369,190 @@ const handleAudit = async () => {
       message: '确定要审核通过这个销售退货单吗？'
     })
     
-    // TODO: 调用审核API
-    // await auditSaleReturn(returnOrder.value.id)
-    showSuccessToast('审核成功（功能开发中）')
-    // 重新加载数据
-    loadReturnDetail()
+    // 显示加载提示（使用Vant 4 API）
+    const loadingToast = showLoadingToast({
+      message: '审核中...',
+      forbidClick: true,
+    })
+    
+    try {
+      const response = await auditSaleReturn(returnOrder.value.id)
+      
+      // 关闭加载提示（使用Vant 4 API）
+      closeToast()
+      
+      if (response.code === 200) {
+        showSuccessToast('审核成功')
+        // 重新加载数据
+        loadReturnDetail()
+      } else {
+        showFailToast(response.msg || '审核失败')
+      }
+    } catch (error) {
+      closeToast()
+      console.error('审核失败:', error)
+    }
+    
   } catch (error) {
+    // 这是对话框取消的错误
     if (error !== 'cancel') {
-      showFailToast('审核失败')
+      console.error('对话框错误:', error)
     }
   }
 }
 
-// 完成退货
-const handleComplete = async () => {
+// 创建退货入库单
+// 创建退货入库单
+const handleCreateStock = async () => {
   try {
+    // 检查是否已有入库单
+    if (returnOrder.value.stock_id) {
+      showNotify({
+        type: 'warning',
+        message: '已存在入库单，请查看入库单详情',
+        duration: 3000
+      })
+      viewStockOrder()
+      return
+    }
+    
+    // 检查是否有需要入库的商品
+    if (!returnOrder.value.items || returnOrder.value.items.length === 0) {
+      showNotify({
+        type: 'warning',
+        message: '退货单没有商品明细，无法创建入库单',
+        duration: 3000
+      })
+      return
+    }
+    
+    // 计算总待入库数量
+    const totalRemainingQuantity = returnOrder.value.items.reduce((sum, item) => {
+      const processed = item.processed_quantity || 0
+      return sum + (item.return_quantity - processed)
+    }, 0)
+    
+    if (totalRemainingQuantity <= 0) {
+      showNotify({
+        type: 'warning',
+        message: '所有商品已入库，无需创建入库单',
+        duration: 3000
+      })
+      return
+    }
+    
     await showConfirmDialog({
-      title: '确认完成',
-      message: '确定要标记这个退货单为已完成吗？'
+      title: '创建入库单',
+      message: `确定要创建入库单吗？共${returnOrder.value.items.length}个商品，待入库数量：${totalRemainingQuantity}`
     })
     
-    // TODO: 调用完成API
-    // await completeSaleReturn(returnOrder.value.id)
-    showSuccessToast('已完成（功能开发中）')
-    loadReturnDetail()
-  } catch (error) {
-    if (error !== 'cancel') {
-      showFailToast('操作失败')
+    // 显示加载提示
+    const loadingToast = showLoadingToast({
+      message: '创建入库单中...',
+      forbidClick: true,
+    })
+    
+    try {
+      // 构建入库单数据，包含return_item_id字段
+      const stockData = {
+        return_id: returnOrder.value.id,
+        warehouse_id: returnOrder.value.warehouse_id || returnOrder.value.warehouse?.id,
+        remark: `退货单 ${returnOrder.value.return_no} 的入库单`,
+        items: returnOrder.value.items.map(item => {
+          const processed = item.processed_quantity || 0
+          const remaining = item.return_quantity - processed
+          
+          return {
+            return_item_id: item.id, // 退货明细ID，这个是必须的
+            product_id: item.product_id,
+            sku_id: item.sku_id,
+            quantity: remaining, // 本次入库数量
+            price: item.price, // 入库价格
+            unit: item.sku?.unit || item.product?.unit || '个',
+            product_no: item.product?.product_no,
+            product_name: item.product?.name,
+            spec: item.sku?.spec ? JSON.stringify(item.sku.spec) : null
+          }
+        }).filter(item => item.quantity > 0) // 只包含需要入库的商品
+      }
+      
+      console.log('创建入库单请求数据:', stockData)
+      
+      const response = await createReturnStock(stockData)
+      console.log('创建入库单响应:', response)
+      
+      // 关闭加载提示
+      closeToast()
+      
+      if (response.code === 200) {
+        showSuccessToast('入库单创建成功')
+        
+        // 询问是否跳转到入库单详情页面
+        await showConfirmDialog({
+          title: '入库单创建成功',
+          message: '是否立即查看并处理入库单？',
+          showCancelButton: true,
+          confirmButtonText: '查看入库单',
+          cancelButtonText: '稍后处理'
+        }).then(() => {
+          // 跳转到入库单详情页面
+          router.push(`/stock/return-stock/detail/${response.data.id}`)
+        }).catch(() => {
+          // 用户选择稍后处理，重新加载退货详情
+          loadReturnDetail()
+        })
+      } else {
+        showFailToast(response.msg || '创建入库单失败')
+      }
+    } catch (error) {
+      closeToast()
+      console.error('创建入库单失败:', error)
+      
+      // 显示详细的错误信息
+      let errorMsg = '创建入库单失败'
+      
+      if (error.response) {
+        // 服务器响应了错误
+        console.error('错误响应数据:', error.response.data)
+        
+        if (error.response.data && typeof error.response.data === 'object') {
+          if (error.response.data.msg) {
+            errorMsg = error.response.data.msg
+          } else if (error.response.data.message) {
+            errorMsg = error.response.data.message
+          }
+        } else if (error.response.status) {
+          errorMsg = `服务器错误 (${error.response.status})`
+        }
+      } else if (error.request) {
+        // 请求已发出但没有响应
+        errorMsg = '网络连接失败，请检查网络'
+      } else {
+        // 请求配置错误
+        errorMsg = error.message || '请求配置错误'
+      }
+      
+      showFailToast(errorMsg)
     }
+    
+  } catch (error) {
+    // 这是对话框取消的错误
+    if (error !== 'cancel') {
+      console.error('对话框错误:', error)
+    }
+  }
+}
+
+// 查看入库单
+const viewStockOrder = () => {
+  if (returnOrder.value.stock_id) {
+    router.push(`/stock/return-stock/detail/${returnOrder.value.stock_id}`)
+  } else {
+    showNotify({
+      type: 'warning',
+      message: '暂无入库单信息',
+      duration: 2000
+    })
   }
 }
 
@@ -293,13 +564,34 @@ const handleCancel = async () => {
       message: '确定要取消这个销售退货单吗？此操作不可恢复。'
     })
     
-    // TODO: 调用取消API
-    // await cancelSaleReturn(returnOrder.value.id)
-    showSuccessToast('取消成功（功能开发中）')
-    loadReturnDetail()
+    // 显示加载提示（使用Vant 4 API）
+    const loadingToast = showLoadingToast({
+      message: '取消中...',
+      forbidClick: true,
+    })
+    
+    try {
+      const response = await cancelSaleReturn(returnOrder.value.id)
+      
+      // 关闭加载提示（使用Vant 4 API）
+      closeToast()
+      
+      if (response.code === 200) {
+        showSuccessToast('取消成功')
+        // 重新加载数据
+        loadReturnDetail()
+      } else {
+        showFailToast(response.msg || '取消失败')
+      }
+    } catch (error) {
+      closeToast()
+      console.error('取消失败:', error)
+    }
+    
   } catch (error) {
+    // 这是对话框取消的错误
     if (error !== 'cancel') {
-      showFailToast('取消失败')
+      console.error('对话框错误:', error)
     }
   }
 }
@@ -307,6 +599,16 @@ const handleCancel = async () => {
 onMounted(() => {
   loadReturnDetail()
 })
+
+// 监听路由参数变化，避免重复加载
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      loadReturnDetail()
+    }
+  }
+)
 </script>
 
 <style scoped lang="scss">
@@ -360,6 +662,16 @@ onMounted(() => {
         color: #f53f3f;
         font-weight: 500;
       }
+    }
+    
+    .stock-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #1989fa;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed #ebedf0;
     }
   }
 }

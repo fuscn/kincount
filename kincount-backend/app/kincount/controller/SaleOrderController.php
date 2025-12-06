@@ -8,6 +8,7 @@ use app\kincount\model\SaleOrder;
 use app\kincount\model\SaleOrderItem;
 use app\kincount\model\Customer;
 use app\kincount\model\Product;
+use app\kincount\model\AccountRecord;
 use app\kincount\model\Stock;
 use app\kincount\model\Warehouse;
 use think\facade\Db;
@@ -271,14 +272,61 @@ class SaleOrderController extends BaseController
         return $this->success([], '销售订单删除成功');
     }
 
-    public function audit($id)
+ public function audit($id)
     {
-        $order = SaleOrder::where('deleted_at', null)->find($id);
-        if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('当前状态无法审核');
+        // 启动事务确保数据一致性
+        Db::startTrans();
+        try {
+            // 1. 查找订单
+            $order = SaleOrder::where('deleted_at', null)->find($id);
+            if (!$order) {
+                throw new \Exception('销售订单不存在');
+            }
+            if ($order->status != 1) {
+                throw new \Exception('当前状态无法审核');
+            }
 
-        $order->save(['status' => 2, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
-        return $this->success([], '审核成功');
+            // 2. 更新订单状态
+            $order->save([
+                'status' => 2, 
+                'audit_by' => $this->getUserId(), 
+                'audit_time' => date('Y-m-d H:i:s')
+            ]);
+
+            // 3. 生成应收账款记录
+            $accountRecord = AccountRecord::create([
+                'type' => 1, // 应收账款
+                'target_id' => $order->customer_id,
+                'related_id' => $order->id,
+                'related_type' => 'sale_order',
+                'amount' => $order->final_amount,
+                'paid_amount' => 0.00,
+                'balance_amount' => $order->final_amount,
+                'status' => 1, // 未结清
+                'due_date' => $order->expected_date ?: date('Y-m-d', strtotime('+30 days')),
+                'remark' => "销售订单 {$order->order_no}"
+            ]);
+
+            // 4. 更新客户应收账款余额
+            $customer = Customer::find($order->customer_id);
+            if ($customer) {
+                $customer->receivable_balance += $order->final_amount;
+                $customer->save();
+            }
+
+            // 5. 提交事务
+            Db::commit();
+            
+            // 6. 记录操作日志（可选）
+            // $this->logAudit($order, '审核销售订单');
+            
+            return $this->success(['account_record_id' => $accountRecord->id], '审核成功，已生成应收账款');
+            
+        } catch (\Exception $e) {
+            // 回滚事务
+            Db::rollback();
+            return $this->error($e->getMessage());
+        }
     }
 
     public function cancel($id)
