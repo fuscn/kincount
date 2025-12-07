@@ -238,9 +238,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::put('/:id/items/:item_id', 'ReturnOrderController/updateItem'); // 更新明细
         Route::delete('/:id/items/:item_id', 'ReturnOrderController/deleteItem'); // 删除明细
 
-        // 款项处理
-        Route::post('/:id/refund', 'ReturnOrderController/refund');         // 退款/收款操作
-        Route::get('/:id/refunds', 'ReturnOrderController/refunds');        // 款项记录
+
 
         // 出入库相关
         Route::get('/:id/stocks', 'ReturnOrderController/stocks');          // 关联出入库单列表

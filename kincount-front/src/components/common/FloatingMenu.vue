@@ -122,7 +122,9 @@ const menuData = [
     items: [
       { id: 'po-create', name: '新增采购订单', icon: 'add-o', path: '/purchase/order/create', perm: PERM.PURCHASE_ADD },
       { id: 'po-list', name: '采购订单', icon: 'orders-o', path: '/purchase/order', perm: PERM.PURCHASE_VIEW },
-      { id: 'pi-list', name: '采购入库', icon: 'logistics', path: '/purchase/stock', perm: PERM.PURCHASE_VIEW }
+      { id: 'pi-list', name: '采购入库', icon: 'logistics', path: '/purchase/stock', perm: PERM.PURCHASE_VIEW },
+      { id: 'po-return-list', name: '采购退货', icon: 'logistics', path: '/purchase/return', perm: PERM.PURCHASE_VIEW },
+      { id: 'po-return-storage', name: '退货出库单', icon: 'logistics', path: '/purchase/return/storage', perm: PERM.PURCHASE_VIEW }
     ]
   },
   /* ===== 销售管理 ===== */

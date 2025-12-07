@@ -12,6 +12,8 @@ use app\kincount\model\SaleStockItem;
 use app\kincount\model\SaleStock;
 use app\kincount\model\SaleOrderItem;
 use app\kincount\model\SaleOrder;
+use app\kincount\model\PurchaseStockItem;
+use app\kincount\model\PurchaseOrderItem;
 use app\kincount\model\PurchaseOrder;
 use app\kincount\model\PurchaseStock;
 use app\kincount\model\Customer;
@@ -150,58 +152,58 @@ class ReturnOrderController extends BaseController
 
             // 2. 验证目标对象存在性
             if ($post['type'] == \app\kincount\model\ReturnOrder::TYPE_SALE) {
-                $customer = Customer::find($post['target_id']);
+                $customer = \app\kincount\model\Customer::find($post['target_id']);
                 if (!$customer) {
                     return $this->error('客户不存在');
                 }
             } else {
-                $supplier = Supplier::find($post['target_id']);
+                $supplier = \app\kincount\model\Supplier::find($post['target_id']);
                 if (!$supplier) {
                     return $this->error('供应商不存在');
                 }
             }
 
             // 3. 验证仓库存在性
-            $warehouse = Warehouse::find($post['warehouse_id']);
+            $warehouse = \app\kincount\model\Warehouse::find($post['warehouse_id']);
             if (!$warehouse) {
                 return $this->error('仓库不存在');
             }
 
             // 4. 检查源单是否存在未审核的退货单（防止重复退货）
-            if (isset($post['source_order_id']) && $post['source_order_id']) {
-                $pendingReturns = \app\kincount\model\ReturnOrder::where('source_order_id', $post['source_order_id'])
-                    ->whereIn('status', [
-                        \app\kincount\model\ReturnOrder::STATUS_PENDING_AUDIT,
-                        \app\kincount\model\ReturnOrder::STATUS_AUDITED
-                    ])
-                    ->select();
+            $pendingReturnsQuery = \app\kincount\model\ReturnOrder::where('type', $post['type'])
+                ->whereIn('status', [
+                    \app\kincount\model\ReturnOrder::STATUS_PENDING_AUDIT,
+                    \app\kincount\model\ReturnOrder::STATUS_AUDITED
+                ]);
 
-                if ($pendingReturns->count() > 0) {
-                    $returnNos = $pendingReturns->column('return_no');
-                    return $this->error("该销售订单已有未审核/已审核的退货单：" . implode(', ', $returnNos) . "，请先处理后再创建新退货单");
-                }
+            if (isset($post['source_order_id']) && $post['source_order_id']) {
+                $pendingReturnsQuery->where('source_order_id', $post['source_order_id']);
             }
 
             if (isset($post['source_stock_id']) && $post['source_stock_id']) {
-                $pendingReturns = \app\kincount\model\ReturnOrder::where('source_stock_id', $post['source_stock_id'])
-                    ->whereIn('status', [
-                        \app\kincount\model\ReturnOrder::STATUS_PENDING_AUDIT,
-                        \app\kincount\model\ReturnOrder::STATUS_AUDITED
-                    ])
-                    ->select();
+                $pendingReturnsQuery->where('source_stock_id', $post['source_stock_id']);
+            }
 
-                if ($pendingReturns->count() > 0) {
-                    $returnNos = $pendingReturns->column('return_no');
-                    return $this->error("该销售出库单已有未审核/已审核的退货单：" . implode(', ', $returnNos) . "，请先处理后再创建新退货单");
-                }
+            if (isset($post['purchase_order_id']) && $post['purchase_order_id']) {
+                $pendingReturnsQuery->where('source_order_id', $post['purchase_order_id']);
+            }
+
+            if (isset($post['purchase_stock_id']) && $post['purchase_stock_id']) {
+                $pendingReturnsQuery->where('source_stock_id', $post['purchase_stock_id']);
+            }
+
+            $pendingReturns = $pendingReturnsQuery->select();
+
+            if ($pendingReturns->count() > 0) {
+                $returnNos = $pendingReturns->column('return_no');
+                return $this->error("该源单已有未审核/已审核的退货单：" . implode(', ', $returnNos) . "，请先处理后再创建新退货单");
             }
 
             // 5. 验证SKU和产品信息，并检查可退数量
             $itemErrors = [];
-            $sourceItems = []; // 用于存储源单明细信息
 
             foreach ($post['items'] as $index => $item) {
-                $sku = ProductSku::with('product')->find($item['sku_id']);
+                $sku = \app\kincount\model\ProductSku::with('product')->find($item['sku_id']);
                 if (!$sku) {
                     $itemErrors[] = "第" . ($index + 1) . "个商品的SKU不存在";
                     continue;
@@ -212,14 +214,25 @@ class ReturnOrderController extends BaseController
                     continue;
                 }
 
-                // 查找源单明细
+                // 查找源单明细 - 根据退货类型查找不同的源单明细
                 $sourceItem = null;
-                if (isset($item['source_item_id']) && $item['source_item_id']) {
-                    // 根据源单类型查找对应的明细
-                    if (isset($post['source_order_id']) && $post['source_order_id']) {
-                        $sourceItem = SaleOrderItem::find($item['source_item_id']);
-                    } elseif (isset($post['source_stock_id']) && $post['source_stock_id']) {
-                        $sourceItem = SaleStockItem::find($item['source_item_id']);
+                $sourceItemId = $item['source_item_id'] ?? 0;
+
+                if ($sourceItemId) {
+                    if ($post['type'] == \app\kincount\model\ReturnOrder::TYPE_SALE) {
+                        // 销售退货：查找销售订单明细或销售出库明细
+                        if (isset($post['source_order_id']) && $post['source_order_id']) {
+                            $sourceItem = \app\kincount\model\SaleOrderItem::find($sourceItemId);
+                        } elseif (isset($post['source_stock_id']) && $post['source_stock_id']) {
+                            $sourceItem = \app\kincount\model\SaleStockItem::find($sourceItemId);
+                        }
+                    } else {
+                        // 采购退货：查找采购订单明细或采购入库明细
+                        if (isset($post['purchase_order_id']) && $post['purchase_order_id']) {
+                            $sourceItem = \app\kincount\model\PurchaseOrderItem::find($sourceItemId);
+                        } elseif (isset($post['purchase_stock_id']) && $post['purchase_stock_id']) {
+                            $sourceItem = \app\kincount\model\PurchaseStockItem::find($sourceItemId);
+                        }
                     }
 
                     if (!$sourceItem) {
@@ -229,9 +242,12 @@ class ReturnOrderController extends BaseController
 
                     // 计算已退货数量（包括未审核的退货单）
                     $returnedQuantity = $this->getReturnedQuantity(
-                        $item['source_item_id'],
+                        $sourceItemId,
+                        $post['type'],
                         $post['source_order_id'] ?? 0,
-                        $post['source_stock_id'] ?? 0
+                        $post['source_stock_id'] ?? 0,
+                        $post['purchase_order_id'] ?? 0,
+                        $post['purchase_stock_id'] ?? 0
                     );
 
                     // 计算可退数量
@@ -242,7 +258,7 @@ class ReturnOrderController extends BaseController
                     }
                 }
 
-                // 将SKU信息和源单信息添加到item中
+                // 将SKU信息添加到item中（临时）
                 $post['items'][$index]['sku_info'] = $sku;
                 $post['items'][$index]['source_item'] = $sourceItem;
             }
@@ -254,7 +270,7 @@ class ReturnOrderController extends BaseController
             // 6. 执行数据库事务
             $returnId = 0; // 定义一个变量来存储退货单ID
 
-            Db::transaction(function () use ($post, &$returnId, $warehouse) {
+            \think\facade\Db::transaction(function () use ($post, &$returnId, $warehouse) {
                 // 计算总金额
                 $totalAmount = '0';
                 $totalQuantity = 0;
@@ -267,15 +283,25 @@ class ReturnOrderController extends BaseController
 
                     // 移除临时添加的sku_info字段
                     unset($item['sku_info']);
+                    unset($item['source_item']);
                 }
 
-                // 6. 创建退货单 - 不需要设置return_no，它会自动生成
+                // 创建退货单
                 $return = new \app\kincount\model\ReturnOrder();
                 $return->type = (int)$post['type'];
                 $return->target_id = (int)$post['target_id'];
                 $return->warehouse_id = (int)$post['warehouse_id'];
-                $return->source_order_id = $post['source_order_id'] ?? 0;
-                $return->source_stock_id = $post['source_stock_id'] ?? 0;
+
+                // 根据退货类型设置不同的源单字段
+                if ($post['type'] == \app\kincount\model\ReturnOrder::TYPE_SALE) {
+                    $return->source_order_id = $post['source_order_id'] ?? 0;
+                    $return->source_stock_id = $post['source_stock_id'] ?? 0;
+                } else {
+                    // 采购退货：使用相同的字段存储采购源单ID
+                    $return->source_order_id = $post['purchase_order_id'] ?? 0;
+                    $return->source_stock_id = $post['purchase_stock_id'] ?? 0;
+                }
+
                 $return->return_date = $post['return_date'] ?? date('Y-m-d');
                 $return->return_type = $post['return_type'] ?? 1;
                 $return->return_reason = $post['return_reason'] ?? '';
@@ -289,9 +315,7 @@ class ReturnOrderController extends BaseController
                 $return->refund_status = \app\kincount\model\ReturnOrder::REFUND_PENDING;
                 $return->created_by = $this->getUserId();
 
-                // 注意：不要设置 return_no，它会自动生成
-                // $return->return_no = '任何值'; // 错误！
-
+                // 保存退货单（return_no会自动生成）
                 $return->save();
 
                 // 存储退货单ID
@@ -303,12 +327,12 @@ class ReturnOrderController extends BaseController
                 // 7. 创建退货明细
                 $itemDetails = [];
                 foreach ($post['items'] as $item) {
+                    $sourceItemId = $item['source_item_id'] ?? 0;
+
                     $itemDetail = [
                         'return_id' => $return->id,
                         'product_id' => (int)$item['product_id'],
                         'sku_id' => (int)$item['sku_id'],
-                        'source_order_item_id' => $item['source_order_item_id'] ?? 0,
-                        'source_stock_item_id' => $item['source_stock_item_id'] ?? 0,
                         'return_quantity' => (int)$item['return_quantity'],
                         'processed_quantity' => 0, // 已处理数量初始为0
                         'price' => number_format($item['price'], 2, '.', ''),
@@ -316,17 +340,33 @@ class ReturnOrderController extends BaseController
                         'created_at' => date('Y-m-d H:i:s'),
                     ];
 
+                    // 根据退货类型设置不同的源单明细字段
+                    if ($post['type'] == \app\kincount\model\ReturnOrder::TYPE_SALE) {
+                        // 销售退货
+                        if (isset($post['source_order_id']) && $post['source_order_id']) {
+                            $itemDetail['source_order_item_id'] = $sourceItemId;
+                            $itemDetail['source_stock_item_id'] = 0;
+                        } else {
+                            $itemDetail['source_order_item_id'] = 0;
+                            $itemDetail['source_stock_item_id'] = $sourceItemId;
+                        }
+                    } else {
+                        // 采购退货
+                        if (isset($post['purchase_order_id']) && $post['purchase_order_id']) {
+                            $itemDetail['source_order_item_id'] = $sourceItemId;
+                            $itemDetail['source_stock_item_id'] = 0;
+                        } else {
+                            $itemDetail['source_order_item_id'] = 0;
+                            $itemDetail['source_stock_item_id'] = $sourceItemId;
+                        }
+                    }
+
                     $itemDetails[] = $itemDetail;
                 }
 
                 // 批量插入退货明细
                 $ReturnOrderItemModel = new \app\kincount\model\ReturnOrderItem();
                 $ReturnOrderItemModel->saveAll($itemDetails);
-
-                // 更新源单明细的已退货数量（如果是销售订单）
-                if (isset($post['source_order_id']) && $post['source_order_id']) {
-                    $this->updateOrderReturnedQuantity($return->id, $post['source_order_id']);
-                }
 
                 \think\facade\Log::info('退货明细创建成功，共' . count($itemDetails) . '条记录');
             });
@@ -973,27 +1013,53 @@ class ReturnOrderController extends BaseController
         $prefix = $type == 1 ? 'IN' : 'OUT';
         return $prefix . date('Ymd') . rand(1000, 9999);
     }
+
     /**
      * 获取已退货数量（包括未审核的退货单）
+     * @param int $sourceItemId 源单明细ID
+     * @param int $type 退货类型（1-销售退货，2-采购退货）
+     * @param int $sourceOrderId 销售订单ID
+     * @param int $sourceStockId 销售出库单ID
+     * @param int $purchaseOrderId 采购订单ID
+     * @param int $purchaseStockId 采购入库单ID
+     * @return int 已退货数量
      */
-    private function getReturnedQuantity($sourceItemId, $sourceOrderId, $sourceStockId)
+    private function getReturnedQuantity($sourceItemId, $type, $sourceOrderId = 0, $sourceStockId = 0, $purchaseOrderId = 0, $purchaseStockId = 0)
     {
-        // 使用正确的模型和表名
-        $query = \app\kincount\model\ReturnOrderItem::alias('ri')
-            ->join('return_orders ro', 'ro.id = ri.return_id')
-            ->where('ro.status', '<>', \app\kincount\model\ReturnOrder::STATUS_CANCELLED); // 排除已取消的退货单
+        // 使用模型查询，而不是直接使用Db类
+        $query = \app\kincount\model\ReturnOrderItem::alias('item')
+            ->join('return_orders r', 'item.return_id = r.id')
+            ->whereIn('r.status', [
+                \app\kincount\model\ReturnOrder::STATUS_PENDING_AUDIT,
+                \app\kincount\model\ReturnOrder::STATUS_AUDITED,
+                \app\kincount\model\ReturnOrder::STATUS_PART_STOCK,
+                \app\kincount\model\ReturnOrder::STATUS_STOCK_COMPLETE,
+                \app\kincount\model\ReturnOrder::STATUS_REFUND_COMPLETE,
+                \app\kincount\model\ReturnOrder::STATUS_COMPLETED
+            ])
+            ->where('r.type', $type) // 根据类型过滤
+            ->where('r.deleted_at', null);
 
-        if ($sourceOrderId) {
-            $query->where('ri.source_order_item_id', $sourceItemId)
-                ->where('ro.source_order_id', $sourceOrderId);
+        // 根据退货类型设置查询条件
+        if ($type == \app\kincount\model\ReturnOrder::TYPE_SALE) {
+            // 销售退货：查询销售订单明细或销售出库明细
+            if ($sourceOrderId > 0) {
+                $query->where('item.source_order_item_id', $sourceItemId);
+            } elseif ($sourceStockId > 0) {
+                $query->where('item.source_stock_item_id', $sourceItemId);
+            }
         } else {
-            $query->where('ri.source_stock_item_id', $sourceItemId)
-                ->where('ro.source_stock_id', $sourceStockId);
+            // 采购退货：查询采购订单明细或采购入库明细
+            if ($purchaseOrderId > 0) {
+                $query->where('item.source_order_item_id', $sourceItemId);
+            } elseif ($purchaseStockId > 0) {
+                $query->where('item.source_stock_item_id', $sourceItemId);
+            }
         }
 
-        $returned = $query->sum('ri.return_quantity');
+        $total = $query->sum('item.return_quantity');
 
-        return $returned ?: 0;
+        return intval($total);
     }
 
     /**
@@ -1002,7 +1068,7 @@ class ReturnOrderController extends BaseController
     private function updateOrderReturnedQuantity($returnId, $orderId)
     {
         // 获取退货单的所有明细
-        $returnItems = \app\kincount\model\ReturnOrderItem::where('return_id', $returnId)->select();
+        $returnItems = ReturnOrderItem::where('return_id', $returnId)->select();
 
         foreach ($returnItems as $returnItem) {
             if ($returnItem->source_order_item_id) {
@@ -1010,10 +1076,10 @@ class ReturnOrderController extends BaseController
                 $orderItem = SaleOrderItem::find($returnItem->source_order_item_id);
                 if ($orderItem) {
                     // 计算该订单明细的总退货数量（包括未审核的）
-                    $totalReturned = \app\kincount\model\ReturnOrderItem::alias('ri')
+                    $totalReturned = ReturnOrderItem::alias('ri')
                         ->join('return_orders ro', 'ro.id = ri.return_id')
                         ->where('ri.source_order_item_id', $orderItem->id)
-                        ->where('ro.status', '<>', \app\kincount\model\ReturnOrder::STATUS_CANCELLED)
+                        ->where('ro.status', '<>', ReturnOrder::STATUS_CANCELLED)
                         ->sum('ri.return_quantity');
 
                     $orderItem->returned_quantity = $totalReturned ?: 0;

@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-07 16:06:29
+-- 导出时间: 2025-12-07 22:27:31
 -- 共 33 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -30,7 +30,7 @@ CREATE TABLE `account_records` (
   KEY `idx_related` (`related_type`,`related_id`),
   KEY `idx_status` (`status`),
   KEY `idx_account_records_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
 
 
 -- ==================================================
@@ -348,7 +348,7 @@ CREATE TABLE `return_order_items` (
   KEY `idx_source_order_item` (`source_order_item_id`),
   KEY `idx_source_stock_item` (`source_stock_item_id`),
   KEY `idx_return_items_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
 
 
 -- ==================================================
@@ -386,7 +386,7 @@ CREATE TABLE `return_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_return_type` (`return_type`),
   KEY `idx_returns_type_status` (`type`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================
@@ -409,7 +409,7 @@ CREATE TABLE `return_stock_items` (
   KEY `idx_return_item` (`return_item_id`),
   KEY `idx_product` (`product_id`),
   KEY `idx_sku` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
 
 
 -- ==================================================
@@ -420,6 +420,7 @@ CREATE TABLE `return_stocks` (
   `stock_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '出入库单号',
   `return_id` bigint(20) unsigned NOT NULL COMMENT '退货单ID',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '对方ID(客户/供应商)',
+  `type` tinyint(4) unsigned NOT NULL COMMENT '1=销售退货,2=采购退货',
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '仓库ID',
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '出入库总金额',
   `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-已取消',
@@ -436,7 +437,7 @@ CREATE TABLE `return_stocks` (
   KEY `idx_target` (`target_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
 
 
 -- ==================================================

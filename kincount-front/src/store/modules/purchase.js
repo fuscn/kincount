@@ -16,7 +16,6 @@ import {
   deletePurchaseOrderItem,
   // 采购入库相关API
   getPurchaseStocksByOrderId,
-
   getPurchaseStockList,
   getPurchaseStockDetail,
   addPurchaseStock,
@@ -24,10 +23,26 @@ import {
   deletePurchaseStock,
   auditPurchaseStock,
   cancelPurchaseStock,
+  cancelAuditPurchaseStock,
   getPurchaseStockItems,
   addPurchaseStockItem,
   updatePurchaseStockItem,
-  deletePurchaseStockItem
+  deletePurchaseStockItem,
+  // 采购退货相关API（新增）
+  getPurchaseReturnList,
+  getPurchaseReturnDetail,
+  addPurchaseReturn,
+  updatePurchaseReturn,
+  deletePurchaseReturn,
+  auditPurchaseReturn,
+  cancelPurchaseReturn,
+  completePurchaseReturn,
+  getPurchaseReturnItems,
+  addPurchaseReturnItem,
+  updatePurchaseReturnItem,
+  deletePurchaseReturnItem,
+  getPurchaseReturnStocks,
+  createPurchaseReturnStock
 } from '@/api/purchase'
 import { showToast } from 'vant'
 
@@ -39,14 +54,23 @@ export const usePurchaseStore = defineStore('purchase', {
     orderTotal: 0, // 采购订单总数（分页用）
     currentOrder: null, // 当前选中的采购订单详情
     currentOrderItems: [], // 当前订单的SKU明细列表
+
     // 采购入库相关状态
     stockList: [], // 采购入库单列表
     stockTotal: 0, // 采购入库单总数（分页用）
     currentStock: null, // 当前选中的采购入库单详情
     currentStockItems: [], // 当前入库单的SKU明细列表
+
+    // 采购退货相关状态（新增）
+    returnList: [], // 采购退货单列表
+    returnTotal: 0, // 采购退货单总数（分页用）
+    currentReturn: null, // 当前选中的采购退货单详情
+    currentReturnItems: [], // 当前退货单的SKU明细列表
+
     // 加载状态
     orderLoading: false,
-    stockLoading: false
+    stockLoading: false,
+    returnLoading: false // 新增：退货加载状态
   }),
   actions: {
     /************************ 采购订单核心操作 ************************/
@@ -102,8 +126,6 @@ export const usePurchaseStore = defineStore('purchase', {
      * 获取采购订单详情
      * @param {Number|String} id - 订单ID
      */
-    // src/store/modules/purchase.js
-
     async loadOrderDetail(id) {
       this.orderLoading = true;
       try {
@@ -638,41 +660,362 @@ export const usePurchaseStore = defineStore('purchase', {
       }
     },
 
-    /************************ 重置状态 ************************/
+    /************************ 采购退货核心操作（新增） ************************/
     /**
-     * 重置采购订单相关状态
+     * 加载采购退货单列表
+     * @param {Object} params - 筛选参数（分页、状态、关键词等）
      */
-    resetOrderState() {
-      this.currentOrder = null
-      this.currentOrderItems = []
+    async loadReturnList(params = {}) {
+      this.returnLoading = true
+      try {
+        const res = await getPurchaseReturnList(params)
+        if (res.code === 200) {
+          // 根据实际API响应结构调整
+          let list = []
+          let total = 0
+
+          if (res.data && Array.isArray(res.data.data)) {
+            list = res.data.data
+            total = res.data.total || 0
+          } else if (res.data && Array.isArray(res.data)) {
+            list = res.data
+            total = list.length
+          } else {
+            list = res.data?.list || res.list || []
+            total = res.data?.total || res.total || 0
+          }
+
+          this.returnList = list
+          this.returnTotal = total
+          return res
+        } else {
+          throw new Error(res.msg || '加载采购退货单列表失败')
+        }
+      } catch (error) {
+        console.error('Store - loadReturnList error:', error)
+        showToast(error.message || '加载采购退货单列表失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
     },
 
     /**
-     * 重置采购入库相关状态
+     * 获取采购退货单详情
+     * @param {Number|String} id - 退货单ID
      */
-    resetStockState() {
-      this.currentStock = null
-      this.currentStockItems = []
+    async loadReturnDetail(id) {
+      this.returnLoading = true
+      try {
+        const res = await getPurchaseReturnDetail(id)
+        if (res.code === 200) {
+          const detail = res.data || res
+          this.currentReturn = detail
+          // 直接从详情响应中获取items
+          this.currentReturnItems = detail.items || []
+          return detail
+        } else {
+          throw new Error(res.msg || '加载采购退货单详情失败')
+        }
+      } catch (error) {
+        showToast(error.message || '加载采购退货单详情失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
     },
 
     /**
-     * 重置所有采购模块状态
+     * 新增采购退货单
+     * @param {Object} data - 退货单数据（含SKU明细）
      */
-    resetAllState() {
-      this.resetOrderState()
-      this.resetStockState()
-      this.orderList = []
-      this.orderTotal = 0
-      this.stockList = []
-      this.stockTotal = 0
+    async addReturn(data) {
+      this.returnLoading = true
+      try {
+        const res = await addPurchaseReturn(data)
+        if (res.code === 200 || res.status === 200) {
+          showToast(res.msg || '新增采购退货单成功')
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '新增采购退货单失败')
+        }
+      } catch (error) {
+        console.error('addReturn error:', error)
+        const errorMsg = error.message || '新增采购退货单失败'
+        showToast(errorMsg)
+        throw error
+      } finally {
+        this.returnLoading = false
+      }
     },
+
     /**
- * 根据采购订单ID获取关联的入库单
- * @param {Number|String} orderId - 采购订单ID
- */
+     * 编辑采购退货单
+     * @param {Number|String} id - 退货单ID
+     * @param {Object} data - 编辑后的退货单数据
+     */
+    async updateReturn(id, data) {
+      this.returnLoading = true
+      try {
+        const res = await updatePurchaseReturn(id, data)
+        if (res.code === 200) {
+          showToast('编辑采购退货单成功')
+          // 编辑后刷新当前退货单详情
+          await this.loadReturnDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑采购退货单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '编辑采购退货单失败')
+        throw error
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /**
+     * 删除采购退货单
+     * @param {Number|String} id - 退货单ID
+     */
+    async deleteReturn(id) {
+      this.returnLoading = true
+      try {
+        const res = await deletePurchaseReturn(id)
+        if (res.code === 200) {
+          showToast('删除采购退货单成功')
+          // 删除后刷新退货单列表
+          await this.loadReturnList()
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除采购退货单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '删除采购退货单失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /**
+     * 审核采购退货单
+     * @param {Number|String} id - 退货单ID
+     */
+    async auditReturn(id) {
+      this.returnLoading = true
+      try {
+        const res = await auditPurchaseReturn(id)
+        if (res.code === 200) {
+          showToast('审核采购退货单成功')
+          // 审核后刷新当前退货单详情
+          await this.loadReturnDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '审核采购退货单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '审核采购退货单失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /**
+     * 取消采购退货单
+     * @param {Number|String} id - 退货单ID
+     */
+    async cancelReturn(id) {
+      this.returnLoading = true
+      try {
+        const res = await cancelPurchaseReturn(id)
+        if (res.code === 200) {
+          showToast('取消采购退货单成功')
+          // 取消后刷新当前退货单详情
+          await this.loadReturnDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '取消采购退货单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '取消采购退货单失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /**
+     * 完成采购退货单
+     * @param {Number|String} id - 退货单ID
+     */
+    async completeReturn(id) {
+      this.returnLoading = true
+      try {
+        const res = await completePurchaseReturn(id)
+        if (res.code === 200) {
+          showToast('完成采购退货单成功')
+          // 完成后刷新当前退货单详情
+          await this.loadReturnDetail(id)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '完成采购退货单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '完成采购退货单失败')
+        return null
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /************************ 采购退货明细操作（新增） ************************/
+    /**
+     * 加载采购退货单的SKU明细
+     * @param {Number|String} id - 退货单ID
+     */
+    async loadReturnItems(id) {
+      try {
+        const res = await getPurchaseReturnItems(id)
+        if (res.code === 200) {
+          this.currentReturnItems = res.data || res || []
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '加载退货明细失败')
+        }
+      } catch (error) {
+        showToast(error.message || '加载退货明细失败')
+        return null
+      }
+    },
+
+    /**
+     * 新增退货SKU明细
+     * @param {Number|String} id - 退货单ID
+     * @param {Object} data - 明细数据（sku_id、return_quantity、price、reason等）
+     */
+    async addReturn(data) {
+      this.returnLoading = true
+      try {
+        const res = await addPurchaseReturn(data)
+        console.log('addPurchaseReturn原始响应:', res)
+
+        // 更灵活的响应处理
+        if (res.code === 200 || res.status === 200 || res.id) {
+          const successMsg = res.msg || '新增采购退货单成功'
+          showToast(successMsg)
+
+          // 返回完整响应，让调用方处理
+          return res
+        } else {
+          const errorMsg = res.msg || '新增采购退货单失败'
+          throw new Error(errorMsg)
+        }
+      } catch (error) {
+        console.error('addReturn error:', error)
+        showToast(error.message || '新增采购退货单失败')
+        throw error
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /**
+     * 编辑退货SKU明细
+     * @param {Number|String} returnId - 退货单ID
+     * @param {Number|String} itemId - 明细ID
+     * @param {Object} data - 编辑后的明细数据
+     */
+    async updateReturnItem(returnId, itemId, data) {
+      try {
+        const res = await updatePurchaseReturnItem(returnId, itemId, data)
+        if (res.code === 200) {
+          showToast('编辑退货明细成功')
+          // 编辑后刷新退货明细
+          await this.loadReturnItems(returnId)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '编辑退货明细失败')
+        }
+      } catch (error) {
+        showToast(error.message || '编辑退货明细失败')
+        return null
+      }
+    },
+
+    /**
+     * 删除退货SKU明细
+     * @param {Number|String} returnId - 退货单ID
+     * @param {Number|String} itemId - 明细ID
+     */
+    async deleteReturnItem(returnId, itemId) {
+      try {
+        const res = await deletePurchaseReturnItem(returnId, itemId)
+        if (res.code === 200) {
+          showToast('删除退货明细成功')
+          // 删除后刷新退货明细
+          await this.loadReturnItems(returnId)
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '删除退货明细失败')
+        }
+      } catch (error) {
+        showToast(error.message || '删除退货明细失败')
+        return null
+      }
+    },
+
+    /************************ 采购退货出入库操作（新增） ************************/
+    /**
+     * 获取采购退货关联的出入库单
+     * @param {Number|String} id - 退货单ID
+     */
+    async loadReturnStocks(id) {
+      try {
+        const res = await getPurchaseReturnStocks(id)
+        if (res.code === 200) {
+          return res.data || res || []
+        } else {
+          throw new Error(res.msg || '加载退货出入库单失败')
+        }
+      } catch (error) {
+        console.error('加载退货出入库单失败:', error)
+        showToast(error.message || '加载退货出入库单失败')
+        return []
+      }
+    },
+
+    /**
+     * 创建采购退货的出入库单
+     * @param {Number|String} id - 退货单ID
+     * @param {Object} data - 出入库单数据
+     */
+    async createReturnStock(id, data) {
+      this.returnLoading = true
+      try {
+        const res = await createPurchaseReturnStock(id, data)
+        if (res.code === 200) {
+          showToast('创建退货出入库单成功')
+          return res.data || res
+        } else {
+          throw new Error(res.msg || '创建退货出入库单失败')
+        }
+      } catch (error) {
+        showToast(error.message || '创建退货出入库单失败')
+        throw error
+      } finally {
+        this.returnLoading = false
+      }
+    },
+
+    /************************ 其他操作 ************************/
+    /**
+     * 根据采购订单ID获取关联的入库单
+     * @param {Number|String} orderId - 采购订单ID
+     */
     async loadStocksByOrderId(orderId) {
       try {
-        // 这里需要添加对应的API函数
         const res = await getPurchaseStocksByOrderId(orderId)
         if (res.code === 200) {
           return res.data || res || []
@@ -685,6 +1028,7 @@ export const usePurchaseStore = defineStore('purchase', {
         return []
       }
     },
+
     /**
      * 取消审核采购入库单
      * @param {Number|String} id - 入库单ID
@@ -692,7 +1036,6 @@ export const usePurchaseStore = defineStore('purchase', {
     async cancelAuditStock(id) {
       this.stockLoading = true
       try {
-        // 注意：这里需要添加对应的API函数 cancelAuditPurchaseStock
         const res = await cancelAuditPurchaseStock(id)
         if (res.code === 200) {
           showToast('取消审核成功')
@@ -709,6 +1052,7 @@ export const usePurchaseStore = defineStore('purchase', {
         this.stockLoading = false
       }
     },
+
     /**
      * 生成采购入库单
      * @param {Object} data - 入库单数据
@@ -729,6 +1073,46 @@ export const usePurchaseStore = defineStore('purchase', {
       } finally {
         this.stockLoading = false
       }
+    },
+
+    /************************ 重置状态 ************************/
+    /**
+     * 重置采购订单相关状态
+     */
+    resetOrderState() {
+      this.currentOrder = null
+      this.currentOrderItems = []
+    },
+
+    /**
+     * 重置采购入库相关状态
+     */
+    resetStockState() {
+      this.currentStock = null
+      this.currentStockItems = []
+    },
+
+    /**
+     * 重置采购退货相关状态（新增）
+     */
+    resetReturnState() {
+      this.currentReturn = null
+      this.currentReturnItems = []
+    },
+
+    /**
+     * 重置所有采购模块状态
+     */
+    resetAllState() {
+      this.resetOrderState()
+      this.resetStockState()
+      this.resetReturnState()
+      this.orderList = []
+      this.orderTotal = 0
+      this.stockList = []
+      this.stockTotal = 0
+      this.returnList = []
+      this.returnTotal = 0
     }
   }
 })
