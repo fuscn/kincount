@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-06 16:35:34
+-- 导出时间: 2025-12-07 16:06:29
 -- 共 33 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -13,8 +13,9 @@ CREATE TABLE `account_records` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `type` tinyint(4) NOT NULL COMMENT '类型：1-应收(客户) 2-应付(供应商)',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '目标ID(客户ID/供应商ID)',
+  `target_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'supplier' COMMENT '目标类型: customer, supplier',
   `related_id` bigint(20) unsigned NOT NULL COMMENT '关联业务ID',
-  `related_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '关联业务类型',
+  `related_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'sale_return=销售退货,purchase_return=采购退货,sale=销售,purchase=采购',
   `amount` decimal(10,2) NOT NULL COMMENT '金额',
   `paid_amount` decimal(10,2) DEFAULT '0.00' COMMENT '已收/已付金额',
   `balance_amount` decimal(10,2) NOT NULL COMMENT '余额',
@@ -51,7 +52,7 @@ CREATE TABLE `account_settlements` (
   KEY `idx_account` (`account_type`,`account_id`),
   KEY `idx_financial` (`financial_id`),
   KEY `idx_settlement_no` (`settlement_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
 
 
 -- ==================================================
@@ -61,7 +62,7 @@ CREATE TABLE `brands` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '品牌名称',
   `sort` int(11) NOT NULL DEFAULT '0' COMMENT '排序号，越小越靠前',
-  `code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '一般为英文名称',
   `logo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '品牌Logo',
   `description` text COLLATE utf8mb4_unicode_ci COMMENT '品牌描述',
   `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-禁用 1-启用',
@@ -105,7 +106,7 @@ CREATE TABLE `customers` (
   `level` tinyint(4) DEFAULT '1' COMMENT '客户等级：1-普通 2-银牌 3-金牌',
   `discount` decimal(3,2) DEFAULT '1.00' COMMENT '折扣率',
   `credit_amount` decimal(10,2) DEFAULT '0.00' COMMENT '信用额度',
-  `arrears_amount` decimal(10,2) DEFAULT '0.00' COMMENT '欠款金额',
+  `arrears_amount` decimal(10,2) DEFAULT '0.00' COMMENT '欠款金额,客户欠我们的金额',
   `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-禁用 1-启用',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -148,7 +149,7 @@ CREATE TABLE `financial_records` (
   KEY `idx_account_id` (`account_id`),
   KEY `idx_customer` (`customer_id`),
   KEY `idx_supplier` (`supplier_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
 
 
 -- ==================================================
@@ -682,7 +683,7 @@ CREATE TABLE `suppliers` (
   `address` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '地址',
   `bank_account` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '银行账户',
   `tax_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '税号',
-  `arrears_amount` decimal(10,2) DEFAULT '0.00' COMMENT '欠款金额',
+  `arrears_amount` decimal(10,2) DEFAULT '0.00' COMMENT '欠款金额,我们欠供应商的金额',
   `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-禁用 1-启用',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

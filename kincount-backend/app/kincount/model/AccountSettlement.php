@@ -159,7 +159,7 @@ class AccountSettlement extends BaseModel
     {
         return self::with([
                 'account' => function($q) {
-                    $q->field('id, type, target_id, related_id, related_type, amount, paid_amount, balance_amount, status, due_date, remark');
+                    $q->field('id, type, target_id,target_type, related_id, related_type, amount, paid_amount, balance_amount, status, due_date, remark');
                 },
                 'financial' => function($q) {
                     $q->field('id, record_no, type, category, amount, payment_method, remark, record_date, customer_id, supplier_id');

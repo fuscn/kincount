@@ -1,9 +1,10 @@
 <?php
+
 namespace app\kincount\model;
 
 class AccountRecord extends BaseModel
 {
-    
+
     protected $type = [
         'type'            => 'integer',
         'target_id'       => 'integer',

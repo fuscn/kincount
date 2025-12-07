@@ -336,15 +336,15 @@ Route::group(function () use ($jwtMiddleware) {
     });
     //账款核销
     Route::group('account/settlement', function () {
-        Route::get('', 'AccountSettlement/index'); // 核销记录列表
-        Route::get(':id', 'AccountSettlement/read'); // 核销记录详情
-        Route::post('', 'AccountSettlement/create'); // 创建核销记录
-        Route::post('batch', 'AccountSettlement/batchCreate'); // 批量核销
-        Route::get('account/:accountId', 'AccountSettlement/getByAccountId'); // 根据账款ID获取核销记录
-        Route::get('financial/:financialId', 'AccountSettlement/getByFinancialId'); // 根据财务收支ID获取核销记录
-        Route::get('settleable', 'AccountSettlement/getSettableAccounts'); // 获取可核销的账款列表
-        Route::get('statistics', 'AccountSettlement/getStatistics'); // 获取核销统计
-        Route::post('cancel/:id', 'AccountSettlement/cancel'); // 取消核销（需要特殊权限）
+        Route::get('', 'AccountSettlementController/index'); // 核销记录列表
+        Route::get(':id', 'AccountSettlementController/read'); // 核销记录详情
+        Route::post('', 'AccountSettlementController/create'); // 创建核销记录
+        Route::post('batch', 'AccountSettlementController/batchCreate'); // 批量核销
+        Route::get('account/:accountId', 'AccountSettlementController/getByAccountId'); // 根据账款ID获取核销记录
+        Route::get('financial/:financialId', 'AccountSettlementController/getByFinancialId'); // 根据财务收支ID获取核销记录
+        Route::get('settleable', 'AccountSettlementController/getSettableAccounts'); // 获取可核销的账款列表
+        Route::get('statistics', 'AccountSettlementController/getStatistics'); // 获取核销统计
+        Route::post('cancel/:id', 'AccountSettlementController/cancel'); // 取消核销（需要特殊权限）
     });
 
     // 财务报表

@@ -498,6 +498,7 @@ class ReturnOrderController extends BaseController
         return $this->success([], '退货单删除成功');
     }
 
+
     /**
      * 审核退货单
      */
@@ -519,51 +520,55 @@ class ReturnOrderController extends BaseController
             $return->audit_time = date('Y-m-d H:i:s');
             $return->save();
 
-            // 确定账款类型和金额符号
+            // 根据退货类型确定账款处理
             if ($return->type == ReturnOrder::TYPE_SALE) {
-                // 销售退货：减少应收账款
-                $accountType = 1; // 应收
-                $amount = -$return->refund_amount; // 负数表示减少
-                $relatedType = 'sale_return';
+                // 销售退货：客户退货给我们，我们要退钱给客户
+                // 创建应付账款记录（我们欠客户钱）
+                $accountData = [
+                    'type' => 2, // 应付
+                    'target_id' => $return->target_id,
+                    'target_type' => 'customer',
+                    'related_id' => $return->id,
+                    'related_type' => 'sale_return',
+                    'amount' => $return->refund_amount, // 使用正数
+                    'paid_amount' => 0.00,
+                    'balance_amount' => $return->refund_amount, // 余额为正数
+                    'status' => 1, // 未结清
+                    'due_date' => date('Y-m-d', strtotime('+7 days')),
+                    'remark' => "销售退货单[{$return->return_no}]应付金额",
+                ];
+
+                // 更新客户应付账款余额（增加）
+                Customer::where('id', $return->target_id)
+                    ->update([
+                        'arrears_amount' => Db::raw('arrears_amount + ' . $return->refund_amount)
+                    ]);
             } else {
-                // 采购退货：减少应付账款
-                $accountType = 2; // 应付
-                $amount = -$return->refund_amount; // 负数表示减少
-                $relatedType = 'purchase_return';
+                // 采购退货：我们退货给供应商，供应商要退钱给我们
+                // 创建应收账款记录（供应商欠我们钱）
+                $accountData = [
+                    'type' => 1, // 应收
+                    'target_id' => $return->target_id,
+                    'target_type' => 'supplier',
+                    'related_id' => $return->id,
+                    'related_type' => 'purchase_return',
+                    'amount' => $return->refund_amount, // 使用正数
+                    'paid_amount' => 0.00,
+                    'balance_amount' => $return->refund_amount, // 余额为正数
+                    'status' => 1, // 未结清
+                    'due_date' => date('Y-m-d', strtotime('+7 days')),
+                    'remark' => "采购退货单[{$return->return_no}]应收金额",
+                ];
+
+                // 更新供应商应收账款余额（增加）
+                Supplier::where('id', $return->target_id)
+                    ->update([
+                        'arrears_amount' => Db::raw('arrears_amount + ' . $return->refund_amount)
+                    ]);
             }
 
             // 创建账款记录
-            $accountRecord = AccountRecord::create([
-                'type' => $accountType,
-                'target_id' => $return->target_id,
-                'related_id' => $return->id,
-                'related_type' => $relatedType,
-                'amount' => $amount,
-                'paid_amount' => 0.00,
-                'balance_amount' => $amount, // 余额也为负
-                'status' => 1, // 未结清
-                'due_date' => date('Y-m-d', strtotime('+7 days')), // 默认7天后到期
-                'remark' => $return->type == ReturnOrder::TYPE_SALE
-                    ? "销售退货单[{$return->return_no}]"
-                    : "采购退货单[{$return->return_no}]",
-            ]);
-
-            // 更新客户或供应商的账款余额
-            if ($return->type == ReturnOrder::TYPE_SALE) {
-                // 销售退货：更新客户应收账款余额（减少）
-                $customer = Customer::find($return->target_id);
-                if ($customer) {
-                    $customer->receivable_balance -= $return->refund_amount;
-                    $customer->save();
-                }
-            } else {
-                // 采购退货：更新供应商应付账款余额（减少）
-                $supplier = Supplier::find($return->target_id);
-                if ($supplier) {
-                    $supplier->payable_balance -= $return->refund_amount;
-                    $supplier->save();
-                }
-            }
+            AccountRecord::create($accountData);
         });
 
         return $this->success([], '退货单审核成功');

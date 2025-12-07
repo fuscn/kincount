@@ -15,6 +15,7 @@ export default defineConfig({
 
   // 开发服务器
   server: {
+    host: '0.0.0.0',    // 监听所有网络接口
     port: 5173,
     open: true,
     // 跨域代理

@@ -71,9 +71,10 @@ export function getSettlementStatistics(params) {
 }
 
 // 取消核销（需要高级权限）
-export function cancelSettlement(id) {
+export function cancelSettlement(id, data = {}) {
   return request({
     url: `/account/settlement/cancel/${id}`,
-    method: 'post'
+    method: 'post',
+    data  // 传递参数到请求体
   })
 }
