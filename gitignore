@@ -9,6 +9,7 @@ Thumbs.db
 /.vscode
 /vendor
 /runtime
+/public/assets/
 /.settings
 /.buildpath
 /.project

@@ -99,7 +99,9 @@
           <div v-else class="items-list">
             <div v-for="(item, index) in orderData.items" :key="item.id || index" class="item-card">
               <div class="item-info">
-                <div class="item-name">{{ getProductName(item) }}&nbsp&nbsp&nbsp&nbsp#{{ item.product?.product_no || '无编码' }}</div>
+                <div class="item-name">{{ getProductName(item) }}&nbsp&nbsp&nbsp&nbsp#{{ item.product?.product_no ||
+                  '无编码' }}
+                </div>
                 <div class="item-specs" v-if="getSkuSpecs(item).length > 0">
                   <van-tag v-for="(spec, specIndex) in getSkuSpecs(item)" :key="specIndex" size="small" type="primary"
                     plain>
@@ -636,11 +638,15 @@ const handleGenerateStock = () => {
     return
   }
 
-  // 重置数量选择
+  // 重置数量选择 - 修改这里，将默认值从 0 改为可出库数量
   availableItems.value.forEach(item => {
-    item.stockQuantity = 0
+    // item.stockQuantity = 0 // 原来的代码
+    item.stockQuantity = getAvailableQuantity(item) // 修改后的代码
   })
   stockTotalAmount.value = 0
+
+  // 添加这行，更新总金额
+  updateStockTotal()
 
   showGenerateStockDialog.value = true
 }

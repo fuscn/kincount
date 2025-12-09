@@ -45,7 +45,7 @@
         <van-list v-model:loading="loading" :finished="finished" :finished-text="returnStockList.length > 0 ? '没有更多了' : ''"
           @load="onLoad">
           <!-- 空状态 -->
-          <div v-if="returnStockList.length === 0 && !loading" class="empty-state">
+          <div v-if="returnStockList.length === 0 && !loading && !refreshing" class="empty-state">
             <van-empty image="search" description="暂无退货入库单数据" />
           </div>
 
@@ -110,12 +110,6 @@
       <van-date-picker v-model="endDate" @confirm="onEndDateConfirm" @cancel="showEndDatePicker = false" />
     </van-popup>
 
-    <!-- 添加按钮 -->
-    <div class="add-button-wrapper" v-perm="PERM.RETURN_STOCK_CREATE">
-      <van-button round type="primary" size="large" @click="handleAddReturnStock">
-        创建退货入库单
-      </van-button>
-    </div>
   </div>
 </template>
 
@@ -144,6 +138,7 @@ const searchParams = ref({
   status: '',
   start_date: '',
   end_date: '',
+  type: 1, // 销售退货入库单固定为type=1
 })
 
 // 日期选择相关
@@ -176,6 +171,9 @@ const pagination = ref({
   page: 1,
   page_size: 20
 })
+
+// 防止重复请求的锁
+const isLoadingLocked = ref(false)
 
 // 格式化金额
 const formatPrice = (price) => {
@@ -276,7 +274,10 @@ const handleStatusChange = (name) => {
 const handleSearch = () => {
   pagination.value.page = 1
   finished.value = false
-  onLoad(true)
+  // 手动触发刷新加载
+  if (!isLoadingLocked.value) {
+    onLoad(true)
+  }
 }
 
 // 清除搜索
@@ -320,7 +321,9 @@ const onRefresh = () => {
 // 加载数据
 const onLoad = async (isRefresh = false) => {
   // 防止重复请求
-  if (loading.value && !isRefresh) return
+  if (isLoadingLocked.value) return
+
+  isLoadingLocked.value = true
 
   if (isRefresh) {
     refreshing.value = true
@@ -334,12 +337,15 @@ const onLoad = async (isRefresh = false) => {
       ...searchParams.value
     }
 
-    // 清理空参数
+    // 清理空参数（除了type，因为type是必须的）
     Object.keys(params).forEach(key => {
-      if (params[key] === '' || params[key] === null || params[key] === undefined) {
+      if (key !== 'type' && (params[key] === '' || params[key] === null || params[key] === undefined)) {
         delete params[key]
       }
     })
+
+    // 确保type=1（销售退货入库）
+    params.type = 1
 
     // 调用store方法获取退货出入库单列表
     await stockStore.loadReturnStockList(params)
@@ -367,6 +373,8 @@ const onLoad = async (isRefresh = false) => {
       loading.value = false
     }
     finished.value = true
+  } finally {
+    isLoadingLocked.value = false
   }
 }
 
@@ -391,7 +399,7 @@ const onEndDateConfirm = (value) => {
 // 加载客户选项
 const loadCustomerOptions = async () => {
   try {
-    const response = await customerStore.loadList({ page: 1, page_size: 1000 })
+    const response = await customerStore.loadList({ page: 1, page_size: 20 })
 
     let customerList = []
     if (response && response.list) {
@@ -430,13 +438,16 @@ const loadWarehouseOptions = async () => {
   }
 }
 
-// 初始化加载
+// 初始化加载 - 只加载选项，不加载数据
 onMounted(async () => {
   // 加载客户和仓库选项
   await Promise.all([
     loadCustomerOptions(),
     loadWarehouseOptions()
   ])
+  
+  // 注意：这里不再手动调用 onLoad，让 van-list 自动触发 @load 事件
+  // 这样页面初始化时只会触发一次请求
 })
 </script>
 

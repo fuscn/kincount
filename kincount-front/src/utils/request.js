@@ -3,9 +3,15 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/modules/auth'
 import router from '@/router'
 
+
+// 最简单的环境判断
+const baseURL = import.meta.env.MODE === 'development'
+  ? '/api'  // 开发环境
+  : '/index.php/kincount'  // 生产环境
+
 // 创建 axios 实例
 const service = axios.create({
-  baseURL: '/api',
+  baseURL: baseURL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 })

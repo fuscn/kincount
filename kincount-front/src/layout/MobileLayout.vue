@@ -20,11 +20,11 @@
     </main>
 
     <!-- 添加条件判断，某些页面不显示底部导航 -->
-    <van-tabbar v-if="showLayoutTabbar" v-model="activeTab" fixed placeholder safe-area-inset-bottom>
+    <!-- <van-tabbar v-if="showLayoutTabbar" v-model="activeTab" fixed placeholder safe-area-inset-bottom>
       <van-tabbar-item v-for="tab in tabs" :key="tab.name" :to="tab.path" :name="tab.name" :icon="tab.icon">
         {{ tab.title }}
       </van-tabbar-item>
-    </van-tabbar>
+    </van-tabbar> -->
 
     <van-action-sheet v-model:show="showUserPanel" :actions="userActions" @select="onUserAction" />
 

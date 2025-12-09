@@ -406,7 +406,7 @@ class PurchaseOrderController extends BaseController
                 'type' => 2, // 应付账款
                 'target_id' => $order->supplier_id,
                 'related_id' => $order->id,
-                'related_type' => 'purchase_order',
+                'related_type' => 'purchase',
                 'amount' => $order->total_amount,
                 'paid_amount' => 0.00,
                 'balance_amount' => $order->total_amount,

@@ -1,9 +1,9 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'  // 修改这里：createWebHistory → createWebHashHistory
 import routes from './routes'
 import { setupGuard } from './guard'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),  // 修改这里：createWebHistory → createWebHashHistory
   routes
 })
 

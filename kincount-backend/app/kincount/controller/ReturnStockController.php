@@ -22,10 +22,11 @@ class ReturnStockController extends BaseController
      */
     public function index()
     {
-        $page  = input('page/d', 1); // TP8 助手函数：d 表示强制转换为整数
+        $page  = input('page/d', 1);
         $limit = input('limit/d', 15);
-        $kw    = input('keyword/s', ''); // s 表示强制转换为字符串
+        $kw    = input('keyword/s', '');
         $status = input('status/s', '');
+        $type = input('type/d', '');
         $returnId = input('return_id/d', 0);
         $warehouseId = input('warehouse_id/d', 0);
         $sDate = input('start_date/s', '');
@@ -33,11 +34,7 @@ class ReturnStockController extends BaseController
 
         $query = ReturnStock::with([
             'return' => function ($q) {
-                $q->field('id, return_no, type, total_amount'); // 只返回需要的字段
-            },
-            'target' => function ($q) {
-                // 统一返回目标名称（客户/供应商），避免数组返回
-                $q->field('id, name');
+                $q->field('id, return_no, type, total_amount');
             },
             'warehouse' => function ($q) {
                 $q->field('id, name, code');
@@ -50,11 +47,37 @@ class ReturnStockController extends BaseController
             }
         ])->where('deleted_at', null);
 
+        // 搜索条件（支持按目标名称搜索）
         if ($kw) {
-            $query->whereLike('stock_no', "%{$kw}%")
-                ->orWhereHas('return', function ($subQuery) use ($kw) {
-                    $subQuery->whereLike('return_no', "%{$kw}%");
-                });
+            $query->where(function ($q) use ($kw) {
+                $q->whereLike('stock_no', "%{$kw}%")
+                    ->orWhereHas('return', function ($subQuery) use ($kw) {
+                        $subQuery->whereLike('return_no', "%{$kw}%");
+                    })
+                    ->orWhere(function ($q2) use ($kw) {
+                        // 搜索客户名称
+                        $q2->whereExists(function ($query) use ($kw) {
+                            $query->table('customer')
+                                ->whereRaw('customer.id = return_stock.target_id')
+                                ->where('return_stock.type', 1)
+                                ->whereLike('customer.name', "%{$kw}%");
+                        });
+                    })
+                    ->orWhere(function ($q2) use ($kw) {
+                        // 搜索供应商名称
+                        $q2->whereExists(function ($query) use ($kw) {
+                            $query->table('supplier')
+                                ->whereRaw('supplier.id = return_stock.target_id')
+                                ->where('return_stock.type', 2)
+                                ->whereLike('supplier.name', "%{$kw}%");
+                        });
+                    });
+            });
+        }
+
+        // 添加 type 条件过滤
+        if ($type !== '') {
+            $query->where('type', $type);
         }
 
         if ($status !== '') $query->where('status', $status);
@@ -66,11 +89,45 @@ class ReturnStockController extends BaseController
         $list = $query->order('id', 'desc')
             ->paginate(['list_rows' => $limit, 'page' => $page]);
 
-        // 处理返回数据，确保目标名称是字符串
-        $list->each(function ($item) {
-            // 将 target 数组转换为字符串名称
-            $item->target_name = $item->target ? $item->target->name : '';
-            unset($item->target); // 移除原始关联数据
+        // 批量查询目标名称（客户/供应商）
+        $customerIds = [];
+        $supplierIds = [];
+
+        foreach ($list as $item) {
+            if ($item->type == 1) {
+                $customerIds[] = $item->target_id;
+            } elseif ($item->type == 2) {
+                $supplierIds[] = $item->target_id;
+            }
+        }
+
+        // 批量查询客户
+        $customers = [];
+        if (!empty($customerIds)) {
+            $customers = Customer::whereIn('id', array_unique($customerIds))
+                ->field('id, name')
+                ->select()
+                ->column('name', 'id');
+        }
+
+        // 批量查询供应商
+        $suppliers = [];
+        if (!empty($supplierIds)) {
+            $suppliers = Supplier::whereIn('id', array_unique($supplierIds))
+                ->field('id, name')
+                ->select()
+                ->column('name', 'id');
+        }
+
+        // 处理返回数据
+        $list->each(function ($item) use ($customers, $suppliers) {
+            if ($item->type == 1) {
+                // 销售退货，从客户表获取
+                $item->target_name = $customers[$item->target_id] ?? '';
+            } elseif ($item->type == 2) {
+                // 采购退货，从供应商表获取
+                $item->target_name = $suppliers[$item->target_id] ?? '';
+            }
             return $item;
         });
 
@@ -80,102 +137,130 @@ class ReturnStockController extends BaseController
     /**
      * 退货出入库单详情（修复 SKU spec 字段和关联字段）
      */
-public function read($id)
-{
-    // 修复：添加 findOrEmpty 的参数
-    $stock = ReturnStock::with([
-        'return' => function ($q) {
-            $q->field('id, return_no, type, total_amount, target_id, status');
-        },
-        'target' => function ($q) {
-            $q->field('id, name, contact_person, phone');
-        },
-        'warehouse' => function ($q) {
-            $q->field('id, name, code, address');
-        },
-        'creator' => function ($q) {
-            $q->field('id, real_name, phone');
-        },
-        'auditor' => function ($q) {
-            $q->field('id, real_name');
-        }
-    ])->where('deleted_at', null)->findOrEmpty($id); // 修复：添加 $id 参数
-
-    if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
-
-    // 加载明细，处理 SKU 的 spec 字段
-    $stock['items'] = ReturnStockItem::with([
-        'product' => function ($q) {
-            $q->field('id, name, product_no, category_id, brand_id, sale_price');
-        },
-        'sku' => function ($q) {
-            $q->field('id, sku_code, spec, barcode, cost_price, sale_price');
-        },
-        'ReturnOrderItem' => function ($q) {
-            $q->field('id, return_quantity, processed_quantity, price');
-        }
-    ])->where('return_stock_id', $id)
-        ->whereNull('deleted_at')
-        ->select()
-        ->each(function ($item) {
-            // 修复：处理 spec 字段的各种可能类型
-            if (!empty($item->sku) && isset($item->sku->spec)) {
-                $spec = $item->sku->spec;
-                
-                // 如果 spec 是字符串，尝试解析 JSON
-                if (is_string($spec)) {
-                    $specArr = json_decode($spec, true);
-                } 
-                // 如果 spec 是 stdClass 对象，转换为数组
-                elseif (is_object($spec)) {
-                    $specArr = (array)$spec;
-                }
-                // 如果 spec 已经是数组，直接使用
-                elseif (is_array($spec)) {
-                    $specArr = $spec;
-                }
-                // 其他情况设为空数组
-                else {
-                    $specArr = [];
-                }
-                
-                // 将规格数组转换为字符串描述
-                if (is_array($specArr) && !empty($specArr)) {
-                    $item->sku->spec_text = implode('，', array_map(function ($k, $v) {
-                        return "{$k}:{$v}";
-                    }, array_keys($specArr), $specArr));
-                } else {
-                    $item->sku->spec_text = is_string($spec) ? $spec : '';
-                }
-            } else {
-                // 确保 spec_text 属性存在
-                if (!empty($item->sku)) {
-                    $item->sku->spec_text = '';
-                }
+    public function read($id)
+    {
+        // 查询退货出入库单
+        $stock = ReturnStock::with([
+            'return' => function ($q) {
+                $q->field('id, return_no, type, total_amount, target_id, status');
+            },
+            'warehouse' => function ($q) {
+                $q->field('id, name, code, address');
+            },
+            'creator' => function ($q) {
+                $q->field('id, real_name, phone');
+            },
+            'auditor' => function ($q) {
+                $q->field('id, real_name');
             }
-            return $item;
-        });
+        ])->where('deleted_at', null)->findOrEmpty($id);
 
-    // 处理 target 字段，确保前端获取字符串类型
-    if (!empty($stock->target)) {
-        $stock->target_info = [
-            'id' => $stock->target->id ?? 0,
-            'name' => $stock->target->name ?? '',
-            'contact' => $stock->target->contact_person ?? '',
-            'phone' => $stock->target->phone ?? ''
-        ];
-    } else {
-        $stock->target_info = [
-            'id' => 0,
-            'name' => '',
-            'contact' => '',
-            'phone' => ''
-        ];
+        if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
+
+        // 根据 type 动态查询目标信息
+        if ($stock->type == 1) {
+            // 销售退货，查询客户信息
+            $target = Customer::where('id', $stock->target_id)
+                ->field('id, name, contact_person, phone')
+                ->find();
+        } elseif ($stock->type == 2) {
+            // 采购退货，查询供应商信息
+            $target = Supplier::where('id', $stock->target_id)
+                ->field('id, name, contact_person, phone')
+                ->find();
+        } else {
+            $target = null;
+        }
+
+        // 格式化目标信息
+        if ($target) {
+            $stock->target_info = [
+                'id' => $target->id,
+                'name' => $target->name ?? '',
+                'contact' => $target->contact_person ?? '',
+                'phone' => $target->phone ?? ''
+            ];
+        } else {
+            $stock->target_info = [
+                'id' => 0,
+                'name' => '',
+                'contact' => '',
+                'phone' => ''
+            ];
+        }
+
+        // 加载明细，处理 SKU 的 spec 字段
+        $stock['items'] = ReturnStockItem::with([
+            'product' => function ($q) {
+                $q->field('id, name, product_no, category_id, brand_id, sale_price, unit');
+            },
+            'sku' => function ($q) {
+                $q->field('id, sku_code, spec, barcode, cost_price, sale_price, unit');
+            },
+            'ReturnOrderItem' => function ($q) {
+                $q->field('id, return_quantity, processed_quantity, price');
+            }
+        ])->where('return_stock_id', $id)
+            ->whereNull('deleted_at')
+            ->select()
+            ->each(function ($item) {
+                // 处理 spec 字段的各种可能类型
+                if (!empty($item->sku) && isset($item->sku->spec)) {
+                    $spec = $item->sku->spec;
+
+                    // 解析规格
+                    if (is_string($spec)) {
+                        $specArr = json_decode($spec, true);
+                        $specArr = $specArr ?: [];
+                    } elseif (is_object($spec)) {
+                        $specArr = (array)$spec;
+                    } elseif (is_array($spec)) {
+                        $specArr = $spec;
+                    } else {
+                        $specArr = [];
+                    }
+
+                    // 生成规格文本
+                    if (!empty($specArr)) {
+                        $specText = implode(' | ', array_map(
+                            function ($k, $v) {
+                                return "{$k}:{$v}";
+                            },
+                            array_keys($specArr),
+                            $specArr
+                        ));
+                        $item->sku->spec_text = $specText;
+                    } else {
+                        $item->sku->spec_text = is_string($spec) ? $spec : '';
+                    }
+                }
+
+                // 确保 unit 字段
+                if (!empty($item->sku)) {
+                    if (empty($item->sku->unit) && !empty($item->product) && !empty($item->product->unit)) {
+                        $item->sku->unit = $item->product->unit;
+                    } elseif (empty($item->sku->unit)) {
+                        $item->sku->unit = '个';
+                    }
+                } elseif (!empty($item->product) && !empty($item->product->unit)) {
+                    // 如果没有 sku 但有 product
+                    $item->sku = (object)[
+                        'unit' => $item->product->unit,
+                        'spec_text' => ''
+                    ];
+                } else {
+                    // 默认情况
+                    $item->sku = (object)[
+                        'unit' => '个',
+                        'spec_text' => ''
+                    ];
+                }
+
+                return $item;
+            });
+
+        return $this->success($stock);
     }
-    unset($stock->target);
-
-    return $this->success($stock);
-}
 
     /**
      * 创建退货出入库单（优化验证规则和数据类型）
@@ -205,16 +290,25 @@ public function read($id)
 
         try {
             return Db::transaction(function () use ($post) {
-                // 获取退货单信息（使用 findOrFail 抛出异常）
+                // 获取退货单信息
                 $return = ReturnOrder::findOrFail($post['return_id']);
 
-                // 创建主表记录（使用 TP8 的 create 方法，自动过滤非法字段）
+                // 获取退货单类型（1=销售退货,2=采购退货）
+                $returnType = $return->type;
+
+                // 验证类型
+                if (!in_array($returnType, [1, 2])) {
+                    throw new \Exception("退货单类型无效");
+                }
+
+                // 创建主表记录，添加 type 字段
                 $stock = ReturnStock::create([
                     'return_id'    => $post['return_id'],
                     'target_id'    => $return->target_id,
+                    'type'         => $returnType, // 添加 type 字段
                     'warehouse_id' => $post['warehouse_id'],
                     'status'       => ReturnStock::STATUS_PENDING_AUDIT,
-                    'remark'       => input('post.remark/s', ''), // 强制转换为字符串
+                    'remark'       => input('post.remark/s', ''),
                     'created_by'   => $this->getUserId(),
                 ]);
 
@@ -251,7 +345,7 @@ public function read($id)
                     // 获取SKU信息
                     $sku = ProductSku::findOrFail($ReturnOrderItem->sku_id);
 
-                    // 计算金额（使用 bc 函数确保精度）
+                    // 计算金额
                     $itemTotal = bcmul((string)$itemData['quantity'], (string)$itemData['price'], 2);
                     $totalAmount = bcadd((string)$totalAmount, $itemTotal, 2);
 
@@ -427,8 +521,11 @@ public function read($id)
      */
     public function audit($id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        // 修正：findOrEmpty() 需要传入 $id 参数
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
+
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
+
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以审核');
         }
@@ -439,11 +536,18 @@ public function read($id)
                 $return = ReturnOrder::findOrFail($stock->return_id);
 
                 // 更新主表状态
-                $stock->save([
-                    'status'     => ReturnStock::STATUS_AUDITED,
-                    'audit_by'   => $this->getUserId(),
-                    'audit_time' => date('Y-m-d H:i:s'),
-                ]);
+                $stock->status = ReturnStock::STATUS_AUDITED;
+                $stock->audit_by = $this->getUserId();
+                $stock->audit_time = date('Y-m-d H:i:s');
+                $stock->save();
+
+                // 获取明细项（确保加载 items 关联）
+                if (!$stock->items) {
+                    // 如果没有加载关联，则手动加载
+                    $stock->items = ReturnStockItem::where('return_stock_id', $stock->id)
+                        ->whereNull('deleted_at')
+                        ->select();
+                }
 
                 // 处理库存：销售退货入库，采购退货出库
                 foreach ($stock->items as $item) {
@@ -458,10 +562,10 @@ public function read($id)
 
                         $stockRecord = new Stock();
                         $stockRecord->sku_id = $item->sku_id;
-                        $stockRecord->product_id = $item->product_id;
                         $stockRecord->warehouse_id = $stock->warehouse_id;
                         $stockRecord->cost_price = $sku->cost_price;
                         $stockRecord->quantity = 0;
+                        $stockRecord->total_amount = 0;
                     }
 
                     // 根据退货类型更新库存（使用 bc 函数确保整数精度）
@@ -493,13 +597,61 @@ public function read($id)
                     $stockRecord->save();
                 }
 
+                // 重要：更新退货单的出库状态
+                $this->updateReturnOrderStockStatus($return);
+
                 return $this->success([], '审核成功');
             });
         } catch (\Exception $e) {
             return $this->error($e->getMessage());
         }
     }
+    /**
+     * 更新退货单的出库状态
+     * @param ReturnOrder $returnOrder 退货单对象
+     */
+    private function updateReturnOrderStockStatus(ReturnOrder $returnOrder)
+    {
+        // 获取退货单的所有明细
+        $items = ReturnOrderItem::where('return_id', $returnOrder->id)
+            ->whereNull('deleted_at')
+            ->select();
 
+        if ($items->isEmpty()) {
+            // 如果没有明细，状态设为待处理
+            $returnOrder->stock_status = 1;
+            $returnOrder->save();
+            return;
+        }
+
+        $totalItems = $items->count();
+        $completedItems = 0;
+        $processingItems = 0;
+
+        foreach ($items as $item) {
+            if ($item->processed_quantity >= $item->return_quantity) {
+                // 已处理完成
+                $completedItems++;
+            } elseif ($item->processed_quantity > 0) {
+                // 部分处理
+                $processingItems++;
+            }
+        }
+
+        // 判断出库状态
+        if ($completedItems === $totalItems) {
+            // 所有明细都已处理完成
+            $returnOrder->stock_status = 3; // 已完成
+        } elseif ($completedItems > 0 || $processingItems > 0) {
+            // 有部分处理或已完成的项目
+            $returnOrder->stock_status = 2; // 部分处理
+        } else {
+            // 没有任何处理
+            $returnOrder->stock_status = 1; // 待处理
+        }
+
+        $returnOrder->save();
+    }
     /**
      * 取消退货出入库单（优化数量计算）
      */

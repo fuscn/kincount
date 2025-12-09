@@ -5,8 +5,9 @@ use think\facade\Route;
 // JWT认证中间件
 $jwtMiddleware = \app\kincount\middleware\JwtAuth::class;
 
+
 // 测试路由 - 使用正确的控制器和方法名
-Route::get('a/test', 'TestController/index');
+Route::get('/', 'Index/index');
 
 // Route::get('stock/index', 'StockController/index');                         // 库存列表
 // Route::get('stock/debug', 'StockController/debug');                         // 库存列表

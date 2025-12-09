@@ -89,9 +89,7 @@
                   <van-button v-if="item.status === 1" size="mini" type="danger" @click.stop="handleCancel(item)">
                     取消
                   </van-button>
-                  <van-button size="mini" type="default" @click.stop="handleViewReturnDetail(item)">
-                    查看退货单
-                  </van-button>
+
                 </div>
               </div>
             </div>

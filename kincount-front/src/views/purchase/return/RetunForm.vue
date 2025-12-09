@@ -282,7 +282,7 @@ const sourceForm = reactive({
 })
 
 // 源单类型
-const sourceType = ref('order') // order:采购订单, stock:采购入库单
+const sourceType = ref('stock') // order:采购订单, stock:采购入库单
 
 // 选择器状态
 const showSourcePicker = ref(false)

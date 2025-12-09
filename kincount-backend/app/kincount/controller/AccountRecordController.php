@@ -426,6 +426,7 @@ class AccountRecordController extends BaseController
         ]);
     }
 
+
     /** 应收账款列表 */
     public function receivable()
     {
@@ -433,23 +434,34 @@ class AccountRecordController extends BaseController
         $limit = (int)input('limit', 15);
         $kw    = input('keyword', '');
         $status = input('status', '');
-        $customerId = input('customer_id', '');
+        $targetId = input('target_id', '');
+        $targetType = input('target_type', '');
         $startTime = input('start_time', '');
         $endTime = input('end_time', '');
         $minAmount = input('min_amount', '');
         $maxAmount = input('max_amount', '');
 
-        // 使用JOIN查询获取客户信息，避免多态关联问题
+        // 使用CASE WHEN和LEFT JOIN分别关联客户和供应商表
         $query = AccountRecord::alias('ar')
             ->with(['creator'])
-            ->leftJoin('customers c', 'ar.target_id = c.id')
-            ->field('ar.*, c.name as customer_name')
-            ->where('ar.type', 1) // type=1 表示应收账款，关联客户
+            // 左联客户表（当target_type为customer时）
+            ->leftJoin('customers c', "ar.target_type = 'customer' AND ar.target_id = c.id")
+            // 左联供应商表（当target_type为supplier时）
+            ->leftJoin('suppliers s', "ar.target_type = 'supplier' AND ar.target_id = s.id")
+            // 使用COALESCE或CASE获取对应的名称
+            ->field('ar.*, 
+                CASE 
+                    WHEN ar.target_type = "customer" THEN c.name
+                    WHEN ar.target_type = "supplier" THEN s.name
+                    ELSE "未知"
+                END as target_name,
+                ar.target_type')
+            ->where('ar.type', 1) // type=1 表示应收账款
             ->where('ar.deleted_at', null);
 
         // 关键词搜索
         if ($kw) {
-            $query->whereLike('ar.record_no|ar.description|c.name', "%{$kw}%");
+            $query->whereLike('ar.remark|c.name|s.name', "%{$kw}%");
         }
 
         // 状态筛选
@@ -457,9 +469,14 @@ class AccountRecordController extends BaseController
             $query->where('ar.status', $status);
         }
 
-        // 客户筛选
-        if ($customerId !== '') {
-            $query->where('ar.target_id', $customerId);
+        // 目标筛选
+        if ($targetId !== '') {
+            $query->where('ar.target_id', $targetId);
+        }
+
+        // 目标类型筛选
+        if ($targetType !== '') {
+            $query->where('ar.target_type', $targetType);
         }
 
         // 时间范围筛选
@@ -482,121 +499,80 @@ class AccountRecordController extends BaseController
         return $this->paginate($query->order('ar.created_at', 'desc')
             ->paginate(['list_rows' => $limit, 'page' => $page]));
     }
-    /**
-     * 应付账款列表
-     * type=2 表示应付账款，关联供应商
-     */
+
+
+    /** 应付账款列表 */
     public function payable()
     {
         $page  = (int)input('page', 1);
         $limit = (int)input('limit', 15);
         $kw    = input('keyword', '');
         $status = input('status', '');
-        $relatedType = input('related_type', '');
+        $targetId = input('target_id', '');
+        $targetType = input('target_type', '');
+        $startTime = input('start_time', '');
+        $endTime = input('end_time', '');
+        $minAmount = input('min_amount', '');
+        $maxAmount = input('max_amount', '');
 
-        // 如果没有传递 related_type，默认查询所有类型
-        if ($relatedType === '') {
-            $relatedType = 'all';
+        // 使用CASE WHEN和LEFT JOIN分别关联客户和供应商表
+        $query = AccountRecord::alias('ar')
+            ->with(['creator'])
+            // 左联客户表（当target_type为customer时）
+            ->leftJoin('customers c', "ar.target_type = 'customer' AND ar.target_id = c.id")
+            // 左联供应商表（当target_type为supplier时）
+            ->leftJoin('suppliers s', "ar.target_type = 'supplier' AND ar.target_id = s.id")
+            // 使用COALESCE或CASE获取对应的名称
+            ->field('ar.*, 
+                CASE 
+                    WHEN ar.target_type = "customer" THEN c.name
+                    WHEN ar.target_type = "supplier" THEN s.name
+                    ELSE "未知"
+                END as target_name,
+                ar.target_type')
+            ->where('ar.type', 2) // type=2 表示应付账款
+            ->where('ar.deleted_at', null);
+
+        // 关键词搜索
+        if ($kw) {
+            $query->whereLike('ar.remark|c.name|s.name', "%{$kw}%");
         }
 
-        // 如果查询所有类型
-        if ($relatedType === 'all') {
-            // 分别查询采购应付和销售退货应付
-            $purchaseList = AccountRecord::alias('ar')
-                ->with(['creator'])
-                ->leftJoin('suppliers s', 'ar.target_id = s.id')
-                ->field('ar.*, s.name as target_name, s.contact_person, s.phone, 
-                     ar.target_type, ar.related_type')
-                ->where('ar.type', 2)
-                ->where('ar.related_type', 'purchase')
-                ->where('ar.deleted_at', null)
-                ->order('ar.due_date', 'asc')
-                ->select()
-                ->toArray();
-
-            $saleReturnList = AccountRecord::alias('ar')
-                ->with(['creator'])
-                ->leftJoin('customers c', 'ar.target_id = c.id')
-                ->field('ar.*, c.name as target_name, c.contact_person, c.phone, 
-                     ar.target_type, ar.related_type')
-                ->where('ar.type', 2)
-                ->where('ar.related_type', 'sale_return')
-                ->where('ar.deleted_at', null)
-                ->order('ar.due_date', 'asc')
-                ->select()
-                ->toArray();
-
-            // 合并列表
-            $allList = array_merge($purchaseList, $saleReturnList);
-
-            // 手动分页
-            $total = count($allList);
-            $startIndex = ($page - 1) * $limit;
-            $currentPageList = array_slice($allList, $startIndex, $limit);
-
-            // 处理标签
-            foreach ($currentPageList as &$item) {
-                if ($item['related_type'] === 'sale_return') {
-                    $item['related_type_label'] = '销售退货应付';
-                } else {
-                    $item['related_type_label'] = '采购应付';
-                }
-            }
-
-            $result = [
-                'total' => $total,
-                'per_page' => $limit,
-                'current_page' => $page,
-                'last_page' => ceil($total / $limit),
-                'data' => $currentPageList
-            ];
-
-            return $this->success('获取成功', $result);
-        } else {
-            // 查询指定类型
-            $query = AccountRecord::alias('ar')
-                ->with(['creator'])
-                ->where('ar.type', 2)
-                ->where('ar.deleted_at', null);
-
-            if ($relatedType === 'sale_return') {
-                $query->where('ar.related_type', 'sale_return')
-                    ->leftJoin('customers c', 'ar.target_id = c.id')
-                    ->field('ar.*, c.name as target_name, c.contact_person, c.phone, 
-                           ar.target_type, ar.related_type');
-
-                if ($kw) {
-                    $query->whereLike('ar.record_no|ar.description|c.name|c.contact_person', "%{$kw}%");
-                }
-            } elseif ($relatedType === 'purchase') {
-                $query->where('ar.related_type', 'purchase')
-                    ->leftJoin('suppliers s', 'ar.target_id = s.id')
-                    ->field('ar.*, s.name as target_name, s.contact_person, s.phone, 
-                           ar.target_type, ar.related_type');
-
-                if ($kw) {
-                    $query->whereLike('ar.record_no|ar.description|s.name|s.contact_person', "%{$kw}%");
-                }
-            }
-
-            // 其他筛选条件...
-
-            $result = $query->order('ar.due_date', 'asc')
-                ->paginate(['list_rows' => $limit, 'page' => $page])->toArray();
-
-            // 处理标签
-            foreach ($result['data'] as &$item) {
-                if ($item['related_type'] === 'sale_return') {
-                    $item['related_type_label'] = '销售退货应付';
-                } else {
-                    $item['related_type_label'] = '采购应付';
-                }
-            }
-
-            return $this->success('获取成功', $result);
+        // 状态筛选
+        if ($status !== '') {
+            $query->where('ar.status', $status);
         }
+
+        // 目标筛选
+        if ($targetId !== '') {
+            $query->where('ar.target_id', $targetId);
+        }
+
+        // 目标类型筛选
+        if ($targetType !== '') {
+            $query->where('ar.target_type', $targetType);
+        }
+
+        // 时间范围筛选
+        if ($startTime) {
+            $query->where('ar.created_at', '>=', $startTime);
+        }
+        if ($endTime) {
+            $query->where('ar.created_at', '<=', $endTime);
+        }
+
+        // 金额范围筛选
+        if ($minAmount !== '') {
+            $query->where('ar.amount', '>=', $minAmount);
+        }
+        if ($maxAmount !== '') {
+            $query->where('ar.amount', '<=', $maxAmount);
+        }
+
+        // 排序
+        return $this->paginate($query->order('ar.created_at', 'desc')
+            ->paginate(['list_rows' => $limit, 'page' => $page]));
     }
-
 
 
 

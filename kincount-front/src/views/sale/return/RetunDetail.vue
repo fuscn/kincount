@@ -402,7 +402,6 @@ const handleAudit = async () => {
 }
 
 // 创建退货入库单
-// 创建退货入库单
 const handleCreateStock = async () => {
   try {
     // 检查是否已有入库单
@@ -496,7 +495,7 @@ const handleCreateStock = async () => {
           cancelButtonText: '稍后处理'
         }).then(() => {
           // 跳转到入库单详情页面
-          router.push(`/stock/return-stock/detail/${response.data.id}`)
+          router.push(`/stock/storage/detail/${response.data.id}`)
         }).catch(() => {
           // 用户选择稍后处理，重新加载退货详情
           loadReturnDetail()

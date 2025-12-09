@@ -297,8 +297,9 @@ class SaleOrderController extends BaseController
             $accountRecord = AccountRecord::create([
                 'type' => 1, // 应收账款
                 'target_id' => $order->customer_id,
+                'target_type' => 'customer',
                 'related_id' => $order->id,
-                'related_type' => 'sale_order',
+                'related_type' => 'sale',
                 'amount' => $order->final_amount,
                 'paid_amount' => 0.00,
                 'balance_amount' => $order->final_amount,

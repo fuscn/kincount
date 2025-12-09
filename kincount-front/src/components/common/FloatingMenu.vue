@@ -158,9 +158,9 @@ const menuData = [
     name: '账款管理',
     icon: 'balance-o',
     items: [
-      { id: 'ar-create', name: '新增应收', icon: 'add-o', path: '/account/receivable/create', perm: PERM.FINANCE_ADD },
+      // { id: 'ar-create', name: '新增应收', icon: 'add-o', path: '/account/receivable/create', perm: PERM.FINANCE_ADD },
       { id: 'ar-list', name: '应收款项', icon: 'cash-back', path: '/account/receivable', perm: PERM.FINANCE_VIEW },
-      { id: 'ap-create', name: '新增应付', icon: 'add-o', path: '/account/payable/create', perm: PERM.FINANCE_ADD },
+      // { id: 'ap-create', name: '新增应付', icon: 'add-o', path: '/account/payable/create', perm: PERM.FINANCE_ADD },
       { id: 'ap-list', name: '应付款项', icon: 'cash-on-deliver', path: '/account/payable', perm: PERM.FINANCE_VIEW },
       { id: 'settlement-list', name: '核销记录', icon: 'checked', path: '/account/settlement', perm: PERM.FINANCE_VIEW }
     ]

@@ -11,20 +11,20 @@ class ReturnStock extends BaseModel
     const STATUS_PENDING_AUDIT = 1;  // 待审核
     const STATUS_AUDITED = 2;        // 已审核
     const STATUS_CANCELLED = 3;      // 已取消
-    
+
     protected $table = 'return_stocks';
-    
+
     // 自动写入字段
     protected $auto = [];
     protected $insert = ['stock_no'];
     protected $update = [];
-    
+
     // 字段类型转换
     protected $type = [
         'total_amount' => 'float',
         'status' => 'integer'
     ];
-    
+
     /**
      * 自动生成出入库单号
      */
@@ -33,7 +33,7 @@ class ReturnStock extends BaseModel
         $prefix = 'RTS'; // Return Stock
         return $this->generateUniqueNo($prefix, 'stock_no');
     }
-    
+
     /**
      * 关联退货单
      */
@@ -41,7 +41,7 @@ class ReturnStock extends BaseModel
     {
         return $this->belongsTo(ReturnOrder::class, 'return_id');
     }
-    
+
     /**
      * 关联出入库明细
      */
@@ -50,19 +50,35 @@ class ReturnStock extends BaseModel
         return $this->hasMany(ReturnStockItem::class, 'return_stock_id')
             ->whereNull('deleted_at');
     }
-    
+
+
     /**
      * 关联客户/供应商
      */
     public function target()
     {
-        if ($this->return && $this->return->type == ReturnOrder::TYPE_SALE) {
-            return $this->belongsTo(Customer::class, 'target_id');
-        } else {
-            return $this->belongsTo(Supplier::class, 'target_id');
-        }
+        // 使用闭包来动态决定关联类型
+        return $this->belongsTo('', 'target_id')
+            ->bind(['target_name' => 'name', 'target_contact' => 'contact_person', 'target_phone' => 'phone'])
+            ->query(function ($query) {
+                // 根据当前模型的 type 字段决定查询哪个表
+                if ($this->type == 1) {
+                    $query->table('customer');
+                } elseif ($this->type == 2) {
+                    $query->table('supplier');
+                }
+            });
     }
-    
+    /**
+     * 获取目标类型字段
+     */
+    protected function getTargetTypeAttr($value, $data)
+    {
+        if (isset($data['type'])) {
+            return $data['type'] == 1 ? 'customer' : 'supplier';
+        }
+        return 'customer';
+    }
     /**
      * 关联仓库
      */
@@ -70,7 +86,7 @@ class ReturnStock extends BaseModel
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
-    
+
     /**
      * 创建人
      */
@@ -78,7 +94,7 @@ class ReturnStock extends BaseModel
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    
+
     /**
      * 审核人
      */
@@ -86,7 +102,7 @@ class ReturnStock extends BaseModel
     {
         return $this->belongsTo(User::class, 'audit_by');
     }
-    
+
     /**
      * 获取状态选项
      */
@@ -98,7 +114,7 @@ class ReturnStock extends BaseModel
             self::STATUS_CANCELLED => '已取消'
         ];
     }
-    
+
     /**
      * 获取状态文本
      */
@@ -107,7 +123,7 @@ class ReturnStock extends BaseModel
         $options = $this->getStatusOptions();
         return $options[$data['status'] ?? 1] ?? '未知';
     }
-    
+
     /**
      * 获取操作类型
      */
@@ -118,7 +134,7 @@ class ReturnStock extends BaseModel
         }
         return '退货出入库';
     }
-    
+
     /**
      * 获取对方名称
      */
@@ -129,7 +145,7 @@ class ReturnStock extends BaseModel
         }
         return '';
     }
-    
+
     /**
      * 计算明细数量总和
      */
@@ -137,7 +153,7 @@ class ReturnStock extends BaseModel
     {
         return $this->items()->sum('quantity') ?? 0;
     }
-    
+
     /**
      * 获取出入库方向
      */
