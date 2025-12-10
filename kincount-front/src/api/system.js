@@ -72,7 +72,14 @@ export function getRoleOptions() {
 export function getRolePermissions() {
   return request.get('/roles/permissions')
 }
+// 在 system.js 中添加或确认有这些函数
+export function setRoleStatus(id, status) {
+  return request.post(`/roles/${id}/status`, { status })
+}
 
+export function updateRolePermission(id, data) {
+  return request.put(`/roles/${id}/permissions`, data)
+}
 /* ===== 系统配置 ===== */
 // 配置列表
 export function getSystemConfigs() {

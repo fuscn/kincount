@@ -142,7 +142,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, showLoadingToast, closeToast } from 'vant'
 import {
@@ -156,11 +156,11 @@ const router = useRouter()
 
 // 表单状态
 const submitting = ref(false)
-const isNewSkuMode = ref(false) // 新增SKU模式
+const isNewSkuMode = ref(false)
 const showBatchDialog = ref(false)
 const showColorPicker = ref(false)
 const productId = ref('')
-const currentColorDimension = ref(null) // 当前正在编辑的颜色维度
+const currentColorDimension = ref(null)
 
 // 预定义颜色列表
 const predefinedColors = [
@@ -181,6 +181,13 @@ const specDimensions = ref(defaultSpecDimensions())
 
 // SKU列表
 const skuList = ref([])
+
+// SKU数据存储，用于维度变化时保留数据
+const skuDataStore = ref({
+  original: [], // 原始SKU数据（从API加载）
+  modified: {}, // 用户修改的数据，按combinationKey存储
+  dimensions: [] // 维度配置
+})
 
 // 批量设置数据
 const batchData = reactive({
@@ -214,6 +221,33 @@ const existingSkuCount = computed(() => {
 const newSkuCount = computed(() => {
   return skuList.value.filter(sku => !sku.id).length
 })
+
+// 添加watch监听skuList的变化
+watch(skuList, (newVal) => {
+  console.log('🔄 SKU列表变化:', newVal)
+  if (newVal && newVal.length > 0) {
+    console.log('第一个SKU的价格详情:', {
+      cost_price: newVal[0].cost_price,
+      sale_price: newVal[0].sale_price,
+      typeof_cost: typeof newVal[0].cost_price,
+      typeof_sale: typeof newVal[0].sale_price
+    })
+  }
+}, { deep: true })
+
+// 监听规格维度的变化
+watch(specDimensions, (newDimensions, oldDimensions) => {
+  if (oldDimensions.length > 0) {
+    // 检查是否是维度数量变化
+    if (newDimensions.length !== oldDimensions.length) {
+      console.log('📐 规格维度数量变化:', oldDimensions.length, '->', newDimensions.length)
+      // 维度变化，需要重新生成组合
+      if (canGenerateCombinations.value) {
+        generateSkuCombinations()
+      }
+    }
+  }
+}, { deep: true })
 
 // 获取颜色对应的CSS类名
 const getColorClass = (color) => {
@@ -250,15 +284,116 @@ const addDimension = () => {
   specDimensions.value.push({ name: '', values: '' })
 }
 
-// 删除规格维度
-const removeDimension = (index) => {
+// 价格解析的辅助函数
+const parsePrice = (price) => {
+  if (price === null || price === undefined || price === '') {
+    return 0
+  }
+  // 如果是字符串，尝试解析
+  if (typeof price === 'string') {
+    // 移除可能的货币符号和逗号
+    const cleanedPrice = price.replace(/[^\d.-]/g, '')
+    const parsed = parseFloat(cleanedPrice)
+    return isNaN(parsed) ? 0 : parsed
+  }
+  // 如果是数字，直接返回
+  if (typeof price === 'number') {
+    return price
+  }
+  // 其他情况返回0
+  return 0
+}
+
+// 根据维度名称获取当前组合键的前缀（用于维度变化时匹配）
+const getCombinationKeyPrefix = (spec, dimensionNames) => {
+  const values = dimensionNames
+    .map(dimName => spec[dimName] || '')
+    .filter(val => val !== '')
+  return values.join('_')
+}
+
+// 保存SKU数据到存储中
+const saveSkuToStore = (sku) => {
+  if (!sku.combinationKey) return
+  
+  // 只保存已有SKU的数据或用户已修改的数据
+  if (sku.id || sku.cost_price > 0 || sku.sale_price > 0 || sku.barcode || sku.unit !== '个') {
+    skuDataStore.value.modified[sku.combinationKey] = {
+      cost_price: sku.cost_price,
+      sale_price: sku.sale_price,
+      barcode: sku.barcode,
+      unit: sku.unit,
+      status: sku.status,
+      id: sku.id,
+      sku_code: sku.sku_code
+    }
+  }
+}
+
+// 从存储中获取SKU数据
+const getSkuFromStore = (combinationKey) => {
+  return skuDataStore.value.modified[combinationKey] || null
+}
+
+// 保存所有当前SKU数据到存储
+const saveAllSkuToStore = () => {
+  skuList.value.forEach(sku => {
+    saveSkuToStore(sku)
+  })
+  console.log('💾 保存SKU数据到存储:', Object.keys(skuDataStore.value.modified).length, '个')
+}
+
+// 删除规格维度 - 改进版本
+const removeDimension = async (index) => {
   // 防止删除颜色维度
   if (specDimensions.value[index].name === '颜色') {
     showToast('颜色维度不能删除')
     return
   }
-  specDimensions.value.splice(index, 1)
-  generateSkuCombinations()
+  
+  // 检查是否已有SKU数据
+  const hasExistingSku = skuList.value.some(sku => sku.id || sku.cost_price > 0 || sku.sale_price > 0)
+  
+  if (hasExistingSku) {
+    try {
+      await showConfirmDialog({
+        title: '确认删除',
+        message: '删除规格维度将导致SKU数据可能丢失，是否继续？'
+      })
+      
+      // 在删除前保存当前数据到存储
+      saveAllSkuToStore()
+      
+      // 用户确认，删除维度
+      const removedDimension = specDimensions.value[index]
+      specDimensions.value.splice(index, 1)
+      
+      console.log('🗑️ 删除维度:', removedDimension.name, '剩余维度:', specDimensions.value.map(d => d.name))
+      
+      // 重新生成组合
+      if (canGenerateCombinations.value) {
+        generateSkuCombinations()
+      } else {
+        skuList.value = []
+      }
+      
+      showToast('规格维度已删除')
+    } catch (dialogError) {
+      // 用户取消删除，不做任何操作
+      console.log('用户取消删除规格维度')
+    }
+  } else {
+    // 没有已有SKU，直接删除
+    specDimensions.value.splice(index, 1)
+    
+    if (canGenerateCombinations.value) {
+      generateSkuCombinations()
+    } else {
+      skuList.value = []
+    }
+    
+    showToast('规格维度已删除')
+  }
 }
 
 // 切换颜色选择
@@ -297,17 +432,26 @@ const confirmColorSelection = () => {
   showToast(`已选择 ${selectedColors.value.length} 个颜色`)
 }
 
-// 生成SKU组合
+// 改进的SKU组合生成函数
 const generateSkuCombinations = () => {
-  if (!canGenerateCombinations.value) return
+  if (!canGenerateCombinations.value) {
+    console.log('⚠️ 无法生成组合，条件不满足')
+    return
+  }
 
   const dimensions = specDimensions.value.map(dim => ({
     name: dim.name,
     values: dim.values.split(',').map(v => v.trim()).filter(v => v)
   }))
 
+  console.log('🔧 开始生成SKU组合，维度:', dimensions)
+
   // 生成所有可能的组合
   const combinations = generateCombinations(dimensions)
+  console.log('🔢 生成的组合数量:', combinations.length)
+
+  // 保存当前的维度名称列表，用于匹配
+  const currentDimensionNames = specDimensions.value.map(dim => dim.name)
 
   // 转换为SKU列表
   skuList.value = combinations.map(comb => {
@@ -320,23 +464,85 @@ const generateSkuCombinations = () => {
     })
 
     const combinationKey = specTextParts.join('_')
+    
+    console.log('🔍 处理组合:', {
+      combinationKey,
+      spec,
+      dimensionNames: currentDimensionNames
+    })
 
-    // 如果是已存在的SKU，保留原有数据
-    const existingSku = skuList.value.find(sku => sku.combinationKey === combinationKey)
+    // 尝试从多个来源获取已有数据
+    let existingData = null
+    
+    // 1. 首先从存储中查找
+    existingData = getSkuFromStore(combinationKey)
+    
+    // 2. 如果存储中没有，尝试从当前SKU列表中查找匹配的
+    if (!existingData) {
+      const matchingSku = skuList.value.find(sku => {
+        if (!sku.spec || typeof sku.spec !== 'object') return false
+        
+        // 检查所有当前维度是否匹配
+        return currentDimensionNames.every(dimName => {
+          return sku.spec[dimName] === spec[dimName]
+        })
+      })
+      
+      if (matchingSku) {
+        existingData = {
+          cost_price: matchingSku.cost_price,
+          sale_price: matchingSku.sale_price,
+          barcode: matchingSku.barcode,
+          unit: matchingSku.unit,
+          status: matchingSku.status,
+          id: matchingSku.id,
+          sku_code: matchingSku.sku_code
+        }
+      }
+    }
+    
+    // 3. 如果仍然没有，尝试使用组合键前缀匹配（用于维度变化的情况）
+    if (!existingData) {
+      const keyPrefix = getCombinationKeyPrefix(spec, currentDimensionNames)
+      
+      // 查找存储中是否有匹配前缀的数据
+      for (const [key, data] of Object.entries(skuDataStore.value.modified)) {
+        if (key.includes(keyPrefix) || keyPrefix.includes(key)) {
+          console.log('🔗 找到前缀匹配:', key, '->', keyPrefix)
+          existingData = data
+          break
+        }
+      }
+    }
+
+    console.log('📊 找到的已有数据:', existingData)
+
+    // 使用修复的价格转换函数
+    const costPrice = existingData ? parsePrice(existingData.cost_price) : 0
+    const salePrice = existingData ? parsePrice(existingData.sale_price) : 0
 
     return {
       combinationKey,
       spec,
       specText: specTextParts.join(' / '),
-      cost_price: existingSku?.cost_price || 0,
-      sale_price: existingSku?.sale_price || 0,
-      barcode: existingSku?.barcode || '',
-      unit: existingSku?.unit || '个',
-      status: existingSku?.status ?? 1,
-      id: existingSku?.id, // 保留id字段
-      sku_code: existingSku?.sku_code || '' // 保留sku_code字段
+      cost_price: costPrice,
+      sale_price: salePrice,
+      barcode: existingData?.barcode || '',
+      unit: existingData?.unit || '个',
+      status: existingData?.status ?? 1,
+      id: existingData?.id,
+      sku_code: existingData?.sku_code || ''
     }
   })
+
+  console.log('✅ 生成SKU组合完成，总数:', skuList.value.length)
+  console.log('📋 SKU列表详情:', skuList.value.map(sku => ({
+    specText: sku.specText,
+    cost_price: sku.cost_price,
+    sale_price: sku.sale_price,
+    barcode: sku.barcode,
+    id: sku.id
+  })))
 }
 
 // 生成组合的递归函数
@@ -383,12 +589,11 @@ const removeSku = async (index) => {
         closeToast()
         // 从列表中移除
         skuList.value.splice(index, 1)
+        // 从存储中移除
+        delete skuDataStore.value.modified[sku.combinationKey]
         showToast('删除成功')
       } catch (apiError) {
         closeToast()
-        // console.error('删除失败:', apiError)
-
-        // 从 apiError.message 中提取错误信息
         const errorMsg = apiError.message || '删除失败，请重试'
         showToast(errorMsg)
       }
@@ -420,10 +625,10 @@ const batchSetPrice = () => {
 const confirmBatchSet = () => {
   skuList.value.forEach(sku => {
     if (batchData.cost_price !== null) {
-      sku.cost_price = batchData.cost_price
+      sku.cost_price = parsePrice(batchData.cost_price)
     }
     if (batchData.sale_price !== null) {
-      sku.sale_price = batchData.sale_price
+      sku.sale_price = parsePrice(batchData.sale_price)
     }
     if (batchData.unit) {
       sku.unit = batchData.unit
@@ -437,78 +642,188 @@ const confirmBatchSet = () => {
   showToast('批量设置成功')
 }
 
+// 从spec对象生成组合键
+const generateCombinationKeyFromSpec = (spec) => {
+  if (!spec || typeof spec !== 'object') return ''
+  // 按照规格维度的顺序生成组合键
+  const values = specDimensions.value.map(dim => spec[dim.name] || '')
+  return values.join('_')
+}
+
+// 从spec对象生成显示文本
+const generateSpecTextFromSpec = (spec) => {
+  if (!spec || typeof spec !== 'object') return ''
+  return Object.values(spec).join(' / ')
+}
+
 // 加载商品SKU
 const loadProductSkus = async (id) => {
   try {
-    const data = await getProductSkus(id)
+    console.log('📡 开始加载商品SKU，商品ID:', id)
+    const response = await getProductSkus(id)
+    console.log('✅ API返回的完整响应:', response)
+    
+    // 根据您的API响应结构调整
+    let data = response
+    if (response && response.code === 200) {
+      data = response.data || []
+      console.log('📊 提取的数据:', data)
+    } else {
+      console.warn('⚠️ 响应code不是200:', response?.code)
+      data = []
+    }
 
     if (data && data.length > 0) {
+      console.log(`✅ 找到 ${data.length} 个SKU数据`)
+      
       // 有SKU数据，设置为编辑SKU模式
       isNewSkuMode.value = false
 
-      // 解析规格维度
-      const dimensions = extractDimensionsFromSkus(data)
-      if (dimensions.length > 0) {
-        specDimensions.value = dimensions
-      }
+      // 解析规格维度（从第一个SKU的spec中提取维度名称）
+      const firstSku = data[0]
+      if (firstSku.spec && typeof firstSku.spec === 'object') {
+        console.log('🔍 解析规格维度...')
+        const dimensions = Object.keys(firstSku.spec).map(key => {
+          // 收集所有SKU中该维度的值
+          const valuesSet = new Set()
+          data.forEach(sku => {
+            if (sku.spec && sku.spec[key]) {
+              valuesSet.add(sku.spec[key])
+            }
+          })
+          
+          // 检查是否是颜色维度
+          const isColorDimension = key.includes('颜色') || key.includes('color') || key.includes('Color')
+          const values = Array.from(valuesSet).join(',')
+          console.log(`维度: ${key}, 值: ${values}, 是颜色: ${isColorDimension}`)
+          
+          return {
+            name: key,
+            values: values,
+            isColor: isColorDimension
+          }
+        })
 
-      // 设置SKU列表
-      skuList.value = data.map(sku => ({
-        ...sku,
-        combinationKey: generateCombinationKey(sku.spec),
-        specText: Object.values(sku.spec).join(' / ')
-      }))
+        // 确保颜色维度在前
+        const colorDimension = dimensions.find(dim => dim.isColor)
+        const otherDimensions = dimensions.filter(dim => !dim.isColor)
+        
+        if (colorDimension) {
+          console.log('🎨 找到颜色维度:', colorDimension.name)
+          specDimensions.value = [
+            { name: colorDimension.name, values: colorDimension.values },
+            ...otherDimensions.map(dim => ({ name: dim.name, values: dim.values }))
+          ]
+        } else {
+          specDimensions.value = dimensions.map(dim => ({ name: dim.name, values: dim.values }))
+        }
+        
+        console.log('📋 最终规格维度:', specDimensions.value)
+        
+        // 初始化数据存储
+        skuDataStore.value = {
+          original: [],
+          modified: {},
+          dimensions: specDimensions.value.map(dim => dim.name)
+        }
+        
+        // 加载原始SKU数据到存储
+        data.forEach(sku => {
+          const combinationKey = generateCombinationKeyFromSpec(sku.spec)
+          const specText = generateSpecTextFromSpec(sku.spec)
+          
+          // 将字符串价格转换为数字
+          const costPrice = parsePrice(sku.cost_price)
+          const salePrice = parsePrice(sku.sale_price)
+          
+          console.log('📦 加载SKU到存储:', {
+            id: sku.id,
+            combinationKey,
+            specText,
+            cost_price: costPrice,
+            sale_price: salePrice
+          })
+          
+          // 保存到原始数据
+          skuDataStore.value.original.push({
+            ...sku,
+            combinationKey,
+            specText,
+            cost_price: costPrice,
+            sale_price: salePrice
+          })
+          
+          // 保存到修改数据
+          skuDataStore.value.modified[combinationKey] = {
+            cost_price: costPrice,
+            sale_price: salePrice,
+            barcode: sku.barcode,
+            unit: sku.unit,
+            status: sku.status,
+            id: sku.id,
+            sku_code: sku.sku_code
+          }
+        })
+        
+        console.log('💾 数据存储初始化完成:', {
+          originalCount: skuDataStore.value.original.length,
+          modifiedCount: Object.keys(skuDataStore.value.modified).length
+        })
+        
+        // 生成SKU组合
+        if (specDimensions.value.length > 0) {
+          generateSkuCombinations()
+        }
+      } else {
+        console.warn('⚠️ 第一个SKU没有spec字段或格式不正确')
+        // 设置默认维度
+        specDimensions.value = defaultSpecDimensions()
+        showToast('SKU数据格式不正确')
+      }
+      
+      showToast(`已加载 ${data.length} 个SKU`)
     } else {
+      console.log('📭 没有SKU数据或数据为空')
       // 没有SKU数据，设置为新增SKU模式
       isNewSkuMode.value = true
       // 使用默认规格维度（只有颜色）
       specDimensions.value = defaultSpecDimensions()
+      skuList.value = []
+      skuDataStore.value = {
+        original: [],
+        modified: {},
+        dimensions: []
+      }
+      showToast('暂无SKU数据，请添加')
     }
 
   } catch (error) {
-    console.error('加载商品SKU失败:', error)
+    console.error('❌ 加载商品SKU失败:', error)
+    console.error('错误详情:', error.response || error.message)
+    showToast('加载SKU失败')
     // 如果加载失败，默认设置为新增SKU模式
     isNewSkuMode.value = true
     specDimensions.value = defaultSpecDimensions()
+    skuList.value = []
+    skuDataStore.value = {
+      original: [],
+      modified: {},
+      dimensions: []
+    }
   }
 }
 
-// 从SKU列表中提取规格维度
-const extractDimensionsFromSkus = (skus) => {
-  if (!skus || skus.length === 0) return []
-
-  const dimensionMap = new Map()
-
-  skus.forEach(sku => {
-    if (sku.spec && typeof sku.spec === 'object') {
-      Object.entries(sku.spec).forEach(([dimName, dimValue]) => {
-        if (!dimensionMap.has(dimName)) {
-          dimensionMap.set(dimName, new Set())
-        }
-        dimensionMap.get(dimName).add(dimValue)
-      })
-    }
-  })
-
-  return Array.from(dimensionMap.entries()).map(([name, values]) => ({
-    name,
-    values: Array.from(values).join(',')
-  }))
-}
-
-// 生成组合键
-const generateCombinationKey = (spec) => {
-  if (!spec || typeof spec !== 'object') return ''
-  return Object.values(spec).join('_')
-}
-
-// 准备提交数据 - 确保传递已有SKU的ID
+// 准备提交数据 - 将数字价格转换为字符串格式
 const prepareSubmitData = () => {
+  // 在提交前保存所有数据到存储
+  saveAllSkuToStore()
+  
   const skus = skuList.value.map(sku => {
     const skuData = {
       spec: sku.spec,
-      cost_price: parseFloat(sku.cost_price) || 0,
-      sale_price: parseFloat(sku.sale_price) || 0,
+      // 将数字转换为字符串，保留两位小数
+      cost_price: typeof sku.cost_price === 'number' ? sku.cost_price.toFixed(2) : '0.00',
+      sale_price: typeof sku.sale_price === 'number' ? sku.sale_price.toFixed(2) : '0.00',
       unit: sku.unit,
       status: sku.status
     }
@@ -572,7 +887,7 @@ const submitAll = async () => {
 
   try {
     const submitData = prepareSubmitData()
-    // console.log('提交数据:', JSON.stringify(submitData, null, 2))
+    console.log('📤 提交数据:', JSON.stringify(submitData, null, 2))
 
     // 统一使用批量更新接口处理混合数据
     const response = await batchSku(submitData)
@@ -587,7 +902,7 @@ const submitAll = async () => {
 
   } catch (error) {
     closeToast()
-    console.error('操作失败:', error)
+    console.error('❌ 操作失败:', error)
 
     // 更详细的错误处理
     if (error.response && error.response.data) {
@@ -617,6 +932,7 @@ const handleBack = () => {
 // 初始化
 onMounted(async () => {
   const id = route.params.productId
+  console.log('🚀 页面初始化，路由参数productId:', id)
   if (id) {
     productId.value = id
     await loadProductSkus(id)
@@ -627,6 +943,447 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped lang="scss">
+.multi-sku-page {
+  background-color: #f7f8fa;
+  min-height: 100vh;
+}
+
+.form-container {
+  padding: 16px;
+}
+
+.section {
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #323233;
+  border-bottom: 1px solid #ebedf0;
+  margin-bottom: 12px;
+
+  .sku-count-info {
+    font-size: 12px;
+    color: #969799;
+    margin-left: 8px;
+  }
+}
+
+.dimension-item {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.dimension-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sku-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sku-item {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #ebedf0;
+
+  &.new-sku {
+    border-left: 4px solid #07c160;
+  }
+}
+
+.sku-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e1e2e3;
+}
+
+.sku-spec {
+  font-weight: 500;
+  color: #323233;
+}
+
+.sku-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sku-type-tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+
+  &.existing {
+    background: #e8f4fd;
+    color: #1989fa;
+  }
+
+  &.new {
+    background: #e8f8ef;
+    color: #07c160;
+  }
+}
+
+.sku-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.remove-sku-btn {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.form-actions {
+  padding: 16px 0;
+}
+
+.form-title {
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.color-picker {
+  padding: 16px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.color-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.color-actions {
+  padding: 16px 0;
+}
+
+:deep(.van-radio-group) {
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+}
+
+/* 导航栏右侧按钮样式 */
+:deep(.van-nav-bar__right) {
+  padding-right: 8px;
+}
+
+/* 颜色文本样式 */
+:deep(.color-red .van-checkbox__label) {
+  color: #ee0a24 !important;
+}
+
+:deep(.color-blue .van-checkbox__label) {
+  color: #1989fa !important;
+}
+
+:deep(.color-black .van-checkbox__label) {
+  color: #000000 !important;
+}
+
+:deep(.color-white .van-checkbox__label) {
+  color: #ffffff !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.color-pink .van-checkbox__label) {
+  color: #ff69b4 !important;
+}
+
+:deep(.color-yellow .van-checkbox__label) {
+  color: #ffd700 !important;
+}
+
+:deep(.color-green .van-checkbox__label) {
+  color: #07c160 !important;
+}
+
+:deep(.color-purple .van-checkbox__label) {
+  color: #8b00ff !important;
+}
+
+:deep(.color-orange .van-checkbox__label) {
+  color: #ffa500 !important;
+}
+
+:deep(.color-gray .van-checkbox__label) {
+  color: #808080 !important;
+}
+
+:deep(.color-no-color .van-checkbox__label) {
+  color: #969799 !important;
+}
+
+:deep(.color-default .van-checkbox__label) {
+  color: #323233 !important;
+}
+
+/* 价格输入框样式 */
+:deep(.van-field__control) {
+  text-align: right;
+}
+
+:deep(.van-field--disabled .van-field__control) {
+  color: #969799;
+}
+</style>
+
+<style scoped lang="scss">
+.multi-sku-page {
+  background-color: #f7f8fa;
+  min-height: 100vh;
+}
+
+.form-container {
+  padding: 16px;
+}
+
+.section {
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #323233;
+  border-bottom: 1px solid #ebedf0;
+  margin-bottom: 12px;
+
+  .sku-count-info {
+    font-size: 12px;
+    color: #969799;
+    margin-left: 8px;
+  }
+}
+
+.dimension-item {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.dimension-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sku-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sku-item {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #ebedf0;
+
+  &.new-sku {
+    border-left: 4px solid #07c160;
+  }
+}
+
+.sku-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e1e2e3;
+}
+
+.sku-spec {
+  font-weight: 500;
+  color: #323233;
+}
+
+.sku-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sku-type-tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+
+  &.existing {
+    background: #e8f4fd;
+    color: #1989fa;
+  }
+
+  &.new {
+    background: #e8f8ef;
+    color: #07c160;
+  }
+}
+
+.sku-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.remove-sku-btn {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.form-actions {
+  padding: 16px 0;
+}
+
+.form-title {
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.color-picker {
+  padding: 16px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.color-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.color-actions {
+  padding: 16px 0;
+}
+
+:deep(.van-radio-group) {
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+}
+
+/* 导航栏右侧按钮样式 */
+:deep(.van-nav-bar__right) {
+  padding-right: 8px;
+}
+
+/* 颜色文本样式 */
+:deep(.color-red .van-checkbox__label) {
+  color: #ee0a24 !important;
+}
+
+:deep(.color-blue .van-checkbox__label) {
+  color: #1989fa !important;
+}
+
+:deep(.color-black .van-checkbox__label) {
+  color: #000000 !important;
+}
+
+:deep(.color-white .van-checkbox__label) {
+  color: #ffffff !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.color-pink .van-checkbox__label) {
+  color: #ff69b4 !important;
+}
+
+:deep(.color-yellow .van-checkbox__label) {
+  color: #ffd700 !important;
+}
+
+:deep(.color-green .van-checkbox__label) {
+  color: #07c160 !important;
+}
+
+:deep(.color-purple .van-checkbox__label) {
+  color: #8b00ff !important;
+}
+
+:deep(.color-orange .van-checkbox__label) {
+  color: #ffa500 !important;
+}
+
+:deep(.color-gray .van-checkbox__label) {
+  color: #808080 !important;
+}
+
+:deep(.color-no-color .van-checkbox__label) {
+  color: #969799 !important;
+}
+
+:deep(.color-default .van-checkbox__label) {
+  color: #323233 !important;
+}
+</style>
 
 <style scoped lang="scss">
 .multi-sku-page {

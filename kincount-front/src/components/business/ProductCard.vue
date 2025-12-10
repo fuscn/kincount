@@ -1,107 +1,110 @@
-<!-- kincount\kincount-front\src\components\business\ProductCard.vue -->
 <template>
-  <Card class="product-card" @click="handleClick">
-    <template #thumb>
-      <div class="product-icon">
-        <div class="icon-placeholder">
-          <!-- 后期可替换为实际图标 -->
-          <div class="default-icon">📦</div>
-        </div>
-      </div>
-    </template>
-    <template #title>
-      <div class="title-line">
-        <div class="title">{{ name }}</div>
-        <div class="product-no">#{{ productNo }}</div>
-      </div>
-    </template>
-    <template #desc>
-      <!-- 第一行：分类品牌 + 库存 -->
-      <div class="first-line">
-        <div class="category-brand">
-          <span v-if="categoryName" class="category">{{ categoryName }}</span>
-          <span v-if="brandName" class="brand">{{ brandName }}</span>
-        </div>
-        <div class="stock-info">
-          <Tag :type="stockTagType" size="small">
-            库存 {{ stock }}{{ unit }}
-          </Tag>
-          <span v-if="showStockWarning" class="warning-text">需补货</span>
-        </div>
+  <div class="product-card" @click="handleClick">
+    <!-- 商品基本信息区域 -->
+    <div class="product-header">
+      <div class="product-title">
+        <span class="product-name">{{ name }}</span>
+        <span class="product-no">#{{ productNo }}</span>
       </div>
       
-      <!-- 第二行：价格信息 -->
-      <!-- <div class="second-line">
-        <div class="price-info">
-          <span class="cost">成本 ¥{{ formatPrice(costPrice) }}</span>
-          <span class="sale">售价 ¥{{ formatPrice(salePrice) }}</span>
+      <!-- 分类、品牌和库存信息在同一行 -->
+      <div class="product-meta">
+        <!-- 分类标签 -->
+        <span v-if="categoryName" class="meta-tag category">
+          {{ categoryName }}
+        </span>
+        
+        <!-- 品牌标签 -->
+        <span v-if="brandName" class="meta-tag brand">
+          {{ brandName }}
+        </span>
+        
+        <!-- 库存信息 -->
+        <div class="stock-info" :class="stockLevelClass">
+          <span class="stock-count">{{ totalStock !== undefined ? totalStock : 0 }}</span>
+          <span class="stock-unit">{{ unit }}</span>
+          <van-icon v-if="showStockWarning" name="warning" class="warning-icon" />
         </div>
-      </div> -->
-    </template>
-  </Card>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { Card, Tag } from 'vant'
-import { useProductStore } from '@/store/modules/product'
+import { computed, defineProps, defineEmits } from 'vue'
 
 const props = defineProps({
-  name:        { type: String, default: '' },
-  productNo:   { type: String, default: '' },
-  unit:        { type: String, default: '' },
-  costPrice:   { type: [String, Number], default: 0 },
-  salePrice:   { type: [String, Number], default: 0 },
-  minStock:    { type: Number, default: 0 },
-  images:      { 
-    type: [Array, Object, String], 
-    default: () => [] 
+  name: { 
+    type: String, 
+    required: true,
+    default: ''
   },
-  category:    { type: Object, default: () => ({}) },
-  brand:       { type: Object, default: () => ({}) },
-  productId:   { type: [String, Number], default: '' }
+  productNo: { 
+    type: String, 
+    default: '' 
+  },
+  unit: { 
+    type: String, 
+    default: '件' 
+  },
+  costPrice: { 
+    type: [Number, String], 
+    default: 0 
+  },
+  salePrice: { 
+    type: [Number, String], 
+    default: 0 
+  },
+  minStock: { 
+    type: [Number, String], 
+    default: 0 
+  },
+  category: { 
+    type: [Object, String], 
+    default: () => ({}) 
+  },
+  brand: { 
+    type: [Object, String], 
+    default: () => ({}) 
+  },
+  productId: { 
+    type: [Number, String], 
+    default: '' 
+  },
+  totalStock: { // 新增：从父组件传递的库存数据
+    type: [Number, String],
+    default: 0 // 改为默认0
+  }
 })
 
 const emit = defineEmits(['click'])
-const productStore = useProductStore()
-
-// 从状态管理获取商品总库存
-const stock = computed(() => {
-  return productStore.getProductStock(props.productId) || 0
-})
-
-// 库存标签类型
-const stockTagType = computed(() => {
-  const stockNum = Number(stock.value)
-  const minStockNum = Number(props.minStock) || 0
-  
-  if (stockNum <= minStockNum) return 'danger'
-  if (stockNum <= minStockNum * 1.5) return 'warning'
-  return 'primary'
-})
-
-// 库存预警显示
-const showStockWarning = computed(() => {
-  const stockNum = Number(stock.value)
-  const minStockNum = Number(props.minStock) || 0
-  return stockNum <= minStockNum
-})
 
 // 分类名称
 const categoryName = computed(() => {
-  return props.category?.name || ''
+  return typeof props.category === 'object' ? props.category?.name : props.category
 })
 
 // 品牌名称
 const brandName = computed(() => {
-  return props.brand?.name || ''
+  return typeof props.brand === 'object' ? props.brand?.name : props.brand
 })
 
-// 价格格式化
-const formatPrice = (price) => {
-  const num = Number(price)
-  return isNaN(num) ? '0.00' : num.toFixed(2)
-}
+// 库存水平分类
+const stockLevelClass = computed(() => {
+  const stockNum = Number(props.totalStock)
+  const minStockNum = Number(props.minStock) || 0
+  
+  if (stockNum <= 0) return 'stock-danger'
+  if (stockNum <= minStockNum) return 'stock-warning'
+  return 'stock-normal'
+})
+
+// 库存预警显示
+const showStockWarning = computed(() => {
+  const stockNum = Number(props.totalStock)
+  const minStockNum = Number(props.minStock) || 0
+  return stockNum <= minStockNum
+})
 
 // 卡片点击事件
 const handleClick = () => {
@@ -115,117 +118,158 @@ const handleClick = () => {
 
 <style scoped lang="scss">
 .product-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 16px;
   margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transition: all 0.2s ease;
   
   &:active {
-    transform: scale(0.98);
-    background: #f8f9fa;
+    transform: translateY(1px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    background: #fafafa;
   }
-  
-  // 商品图标区域
-  .product-icon {
-    width: 88px;
-    height: 88px;
+
+  // 商品头部信息
+  .product-header {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    
-    .icon-placeholder {
-      width: 64px;
-      height: 64px;
-      background: #f5f5f5;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      
-      .default-icon {
-        font-size: 28px;
-        opacity: 0.6;
-      }
-    }
+    flex-direction: column;
+    gap: 8px;
   }
-  
-  // 标题行（第一行）
-  .title-line {
+
+  // 商品标题行
+  .product-title {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 8px;
-    
-    .title {
-      font-weight: 700; /* 加粗商品名称 */
+    justify-content: space-between;
+    gap: 8px;
+
+    .product-name {
       font-size: 15px;
+      font-weight: 600;
+      color: #1a1a1a;
+      line-height: 1.4;
       flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      margin-right: 8px;
     }
-    
+
     .product-no {
-      font-size: 12px;
-      color: #969799;
+      font-size: 11px;
+      color: #8c8c8c;
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
       white-space: nowrap;
+      flex-shrink: 0;
+      align-self: flex-start;
+      line-height: 1.4;
     }
   }
-  
-  // 第一行：分类品牌 + 库存信息
-  .first-line {
+
+  // 元信息行：分类、品牌、库存
+  .product-meta {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
-    
-    .category-brand {
-      display: flex;
-      gap: 4px;
-      flex: 1;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-height: 24px;
+
+    // 分类和品牌标签
+    .meta-tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      line-height: 1.4;
       
-      .category, .brand {
-        font-size: 11px;
-        background: #f2f3f5;
-        padding: 2px 6px;
-        border-radius: 10px;
-        color: #646566;
-        white-space: nowrap;
-        max-width: 70px;
-        overflow: hidden;
-        text-overflow: ellipsis;
+      &.category {
+        background: #e6f7ff;
+        color: #1890ff;
+        border: 1px solid #91d5ff;
+      }
+      
+      &.brand {
+        background: #f6ffed;
+        color: #52c41a;
+        border: 1px solid #b7eb8f;
       }
     }
-    
+
+    // 库存信息
     .stock-info {
       display: flex;
       align-items: center;
       gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-left: auto; // 靠右对齐
+      white-space: nowrap;
       
-      .warning-text {
-        font-size: 11px;
-        color: #ee0a24;
-        font-weight: 500;
-        white-space: nowrap;
+      .stock-count {
+        font-weight: 600;
+      }
+      
+      .stock-unit {
+        opacity: 0.8;
+      }
+      
+      .warning-icon {
+        font-size: 10px;
+        margin-left: 2px;
+      }
+      
+      // 库存状态样式
+      &.stock-danger {
+        background: #fff2f0;
+        color: #f5222d;
+        border: 1px solid #ffccc7;
+        
+        .warning-icon {
+          color: #f5222d;
+        }
+      }
+      
+      &.stock-warning {
+        background: #fff7e6;
+        color: #fa8c16;
+        border: 1px solid #ffd591;
+        
+        .warning-icon {
+          color: #fa8c16;
+        }
+      }
+      
+      &.stock-normal {
+        background: #f6f6f6;
+        color: #595959;
+        border: 1px solid #d9d9d9;
       }
     }
   }
-  
-  // 第二行：价格信息
-  .second-line {
-    .price-info {
-      display: flex;
-      gap: 12px;
-      
-      .cost {
-        color: #ee0a24;
-        font-size: 13px;
-        font-weight: 500;
+}
+
+// 响应式设计
+@media (max-width: 375px) {
+  .product-card {
+    padding: 10px 12px;
+    
+    .product-title {
+      .product-name {
+        font-size: 14px;
       }
-      
-      .sale {
-        color: #323233;
-        font-size: 13px;
-        font-weight: 600;
+    }
+    
+    .product-meta {
+      .stock-info {
+        font-size: 10px;
+        padding: 2px 6px;
       }
     }
   }

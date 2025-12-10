@@ -23,7 +23,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:82',
         changeOrigin: true,
-        rewrite: path => path.replace(/^\/api/, '/index.php/kincount')
+        rewrite: path => path.replace(/^\/api/, '/index.php/k')
       }
     }
   },
@@ -39,7 +39,15 @@ export default defineConfig({
   build: {
     target: 'es2015',
     outDir: 'dist',
-    assetsDir: 'assets',
-    chunkSizeWarningLimit: 1024
+    assetsDir: 'kincount',
+    chunkSizeWarningLimit: 1024,
+    // 静态资源文件名格式
+    rollupOptions: {
+      output: {
+        assetFileNames: 'kincount/[ext]/[name]-[hash][extname]',
+        chunkFileNames: 'kincount/js/[name]-[hash].js',
+        entryFileNames: 'kincount/js/[name]-[hash].js',
+      }
+    }
   }
 })

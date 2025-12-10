@@ -6,34 +6,75 @@
   --van-primary-color: #1989fa;
   --van-font-size-md: 14px;
   --van-border-radius: 8px;
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --success-gradient: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+  --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --danger-gradient: linear-gradient(135deg, #f43b47 0%, #453a94 100%);
 }
 
 /* 移动端通用样式 */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 
-               'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 
-               '微软雅黑', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f7f8fa;
 }
 
 /* 通用工具类 - 移动端优化 */
-.flex { display: flex; }
-.flex-1 { flex: 1; }
-.flex-column { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.justify-between { justify-content: space-between; }
-.text-center { text-align: center; }
-.text-right { text-align: right; }
+.flex {
+  display: flex;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
 
 /* 间距工具类 */
-.mt-8 { margin-top: 8px; }
-.mt-16 { margin-top: 16px; }
-.mb-8 { margin-bottom: 8px; }
-.mb-16 { margin-bottom: 16px; }
-.p-16 { padding: 16px; }
+.mt-8 {
+  margin-top: 8px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mb-8 {
+  margin-bottom: 8px;
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.p-16 {
+  padding: 16px;
+}
 
 /* 安全区域适配 */
 .safe-area-top {
@@ -58,7 +99,7 @@ body {
 /* Vant 组件样式统一覆盖 */
 :deep(.van-nav-bar) {
   background: #fff;
-  
+
   .van-nav-bar__text,
   .van-icon {
     color: #1989fa;
@@ -75,18 +116,18 @@ body {
 
 :deep(.van-cell) {
   padding: 12px 16px;
-  
+
   .van-cell__title {
     flex: 2;
     color: #646566;
   }
-  
+
   .van-cell__value {
     flex: 3;
     text-align: right;
     color: #323233;
   }
-  
+
   .van-cell__label {
     font-size: 12px;
     color: #969799;
@@ -96,13 +137,13 @@ body {
 
 :deep(.van-button) {
   border-radius: 6px;
-  
+
   &.van-button--small {
     height: 32px;
     font-size: 14px;
     padding: 0 12px;
   }
-  
+
   &.van-button--normal {
     height: 44px;
     font-size: 16px;
@@ -144,6 +185,23 @@ body {
   font-size: 16px;
 }
 
+
+// 动画类
+.fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 导入 mobile.scss 中的样式 */
 @include mobile.styles;
-

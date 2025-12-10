@@ -36,7 +36,7 @@ import { useAuthStore } from '@/store/modules/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
-const form = ref({ username: 'admin', password: 'a123456' })
+const form = ref({ username: '', password: '' })
 const loading = ref(false)
 const debug = ref(true) // 开启调试信息
 

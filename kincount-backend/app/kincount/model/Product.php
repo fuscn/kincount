@@ -75,16 +75,35 @@ class Product extends BaseModel
         return $options[$this->status] ?? '未知';
     }
 
+   
     // 获取总库存
     public function getTotalStockAttr()
     {
-        // 如果已经预加载了 stocks 关联，直接计算
-        if (isset($this->stocks) && count($this->stocks) > 0) {
-            return array_sum(array_column($this->stocks->toArray(), 'quantity'));
+        // 如果已经预加载了 skus 和 skus.stocks 关联，直接计算
+        if (isset($this->skus) && count($this->skus) > 0) {
+            $total = 0;
+            foreach ($this->skus as $sku) {
+                if (isset($sku->stocks)) {
+                    foreach ($sku->stocks as $stock) {
+                        $total += $stock->quantity;
+                    }
+                }
+            }
+            return $total;
         }
 
-        // 否则查询数据库
-        return $this->stocks()->sum('quantity');
+        // 否则通过查询计算
+        $skuIds = ProductSku::where('product_id', $this->id)
+            ->where('deleted_at', null)
+            ->column('id');
+
+        if (empty($skuIds)) {
+            return 0;
+        }
+
+        return Stock::whereIn('sku_id', $skuIds)
+            ->where('deleted_at', null)
+            ->sum('quantity');
     }
 
     // 获取库存总价值
@@ -304,7 +323,7 @@ class Product extends BaseModel
     {
         return $this->updateStatus(0);
     }
-        /**
+    /**
      * 获取商品完整信息（包含分类和品牌）
      */
     public function getFullInfo(): array

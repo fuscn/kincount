@@ -15,6 +15,9 @@ thinkphp8能使用助手函数的就使用助手函数
 后端多条数据使用软删除delete()会报错,需要直接更新delete_at字段,不要使用whereDay方法
 
 常犯错误
+样式编写
+在旧版本中，我们可以使用:deep作为一个组合器（例如：:deep .child-class），但现在这种用法已经被弃用。新版本要求使用:deep(<inner-selector>)的形式（例如：:deep(.child-class)）。
+
 刷新页面重复加载错误分析：
 在进入页面时，onMounted 钩子中调用了 loadList(true)，同时 van-list 组件也会在初始化时触发 @load 事件（即调用 loadList(false)），因此会导致两次请求。
 

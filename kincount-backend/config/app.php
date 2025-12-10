@@ -6,7 +6,7 @@ return [
     'auto_multi_app'   => true,
     // 应用映射
     'app_map'         => [
-    
+        'k' => 'kincount',
     ],
     // 域名绑定
     'domain_bind'      => [],

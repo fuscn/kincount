@@ -496,10 +496,32 @@ export default [
       },
       {
         path: 'system/role',
-        name: 'SystemRole',
-        component: () => import('@/views/Placeholder.vue'),
-        meta: { title: '角色权限', showTabbar: false }
+        name: 'Role',
+        component: () => import('@//views/system/role/Index.vue'),
+        meta: { title: '角色权限', requireAuth: true, perm: 'role:view' }
       },
+      
+      {
+        path: '/system/role/create',
+        name: 'RoleCreate',
+        component: () => import('@/views/system/role/Form.vue'),
+        meta: {
+          title: '新增角色',
+          requireAuth: true,
+          perm: 'role:add'
+        }
+      },
+      {
+        path: '/system/role/edit/:id',
+        name: 'RoleEdit',
+        component: () => import('@/views/system/role/Form.vue'),
+        meta: {
+          title: '编辑角色',
+          requireAuth: true,
+          perm: 'role:edit'
+        }
+      },
+
       {
         path: 'system/config',
         name: 'SystemConfig',

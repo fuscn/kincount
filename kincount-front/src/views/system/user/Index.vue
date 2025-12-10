@@ -13,30 +13,17 @@
 
     <!-- 列表 -->
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <van-list
-        v-model:loading="listLoading"
-        :finished="finished"
-        :immediate-check="false"
-        finished-text="没有更多了"
-        @load="onLoad"
-      >
+      <van-list v-model:loading="listLoading" :finished="finished" :immediate-check="false" finished-text="没有更多了"
+        @load="onLoad">
         <van-swipe-cell v-for="item in list" :key="item.id">
-          <van-cell
-            :title="item.real_name || item.username"
-            :label="`账号：${item.username} | 手机：${item.phone} | 角色：${item.role?.name || '无'}`"
-            
-          >
+          <van-cell :title="item.real_name || item.username"
+            :label="`账号：${item.username} | 手机：${item.phone} | 角色：${item.role?.name || '无'}`">
             <template #value>
               <van-tag :type="item.status === 1 ? 'success' : 'danger'" class="status-tag">
                 {{ item.status === 1 ? '启用' : '禁用' }}
               </van-tag>
-              <van-switch
-                :model-value="item.status === 1"
-                size="20"
-                @click.stop
-                @update:model-value="toggleStatus(item)"
-                v-perm="PERM.USER_MANAGE"
-              />
+              <van-switch :model-value="item.status === 1" size="20" @click.stop
+                @update:model-value="toggleStatus(item)" v-perm="PERM.USER_MANAGE" />
             </template>
           </van-cell>
 
@@ -56,11 +43,11 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  showToast, 
-  showConfirmDialog, 
-  showSuccessToast, 
-  showFailToast 
+import {
+  showToast,
+  showConfirmDialog,
+  showSuccessToast,
+  showFailToast
 } from 'vant'
 import { useAuthStore } from '@/store/modules/auth'
 import { PERM } from '@/constants/permissions'
@@ -77,14 +64,14 @@ const listLoading = ref(false)
 const finished = ref(false)
 const isLoading = ref(false) // 加载锁，防止重复请求
 
-const pagination = reactive({ 
-  page: 1, 
-  pageSize: 15, 
-  total: 0 
+const pagination = reactive({
+  page: 1,
+  pageSize: 15,
+  total: 0
 })
 
-const filters = reactive({ 
-  keyword: '' 
+const filters = reactive({
+  keyword: ''
 })
 
 /* 数据加载方法 */
@@ -112,10 +99,11 @@ const loadList = async (isRefresh = false) => {
 
     const res = await getUserList(params)
     console.log('API响应数据:', res) // 调试用
-    
+
     // 根据你提供的后端数据结构解析数据
-    const data = res.list || []
-    const total = res.total || 0
+    const responseData = res.data || res  // 支持两种格式
+    const data = responseData.list || []
+    const total = responseData.total || 0
 
     if (isRefresh) {
       // 刷新时直接替换数据
@@ -129,11 +117,11 @@ const loadList = async (isRefresh = false) => {
 
     pagination.total = total
     finished.value = list.value.length >= pagination.total
-    
+
     if (!finished.value) {
       pagination.page++
     }
-    
+
     console.log('当前列表数据:', list.value) // 调试用
   } catch (error) {
     console.error('加载用户列表失败:', error)
@@ -197,7 +185,7 @@ const handleResetPwd = async (row) => {
       title: '重置密码',
       message: `将用户【${row.real_name || row.username}】密码重置为 "123456"，继续？`
     })
-    
+
     await resetUserPassword(row.id, { password: '123456' })
     showSuccessToast('密码已重置为 123456')
   } catch (error) {
@@ -210,14 +198,14 @@ const handleResetPwd = async (row) => {
 
 const handleDelete = async (row) => {
   try {
-    await showConfirmDialog({ 
-      title: '删除用户', 
-      message: `确定删除用户【${row.real_name || row.username}】？` 
+    await showConfirmDialog({
+      title: '删除用户',
+      message: `确定删除用户【${row.real_name || row.username}】？`
     })
-    
+
     await deleteUser(row.id)
     showSuccessToast('用户已删除')
-    
+
     // 删除后重新加载数据，重置页码
     pagination.page = 1
     loadList(true)
@@ -245,10 +233,10 @@ onMounted(() => {
 // 优化滑动单元格按钮样式
 .van-swipe-cell {
   margin-bottom: 8px;
-  
+
   :deep(.van-swipe-cell__right) {
     display: flex;
-    
+
     .van-button {
       height: 100%;
       border-radius: 0;

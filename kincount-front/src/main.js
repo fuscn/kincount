@@ -10,7 +10,7 @@ import 'vant/es/notify/style';
 
 import { Lazyload } from 'vant'
 import components from '@/components'
-import { permission } from '@/utils/permission'
+import { permission } from '@/directives/permission'
 import '@/styles/index.scss'  // 引入移动端样式
 
 

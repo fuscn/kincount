@@ -1,8 +1,8 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-09 20:05:16
--- 共 33 个表
+-- 导出时间: 2025-12-10 16:43:31
+-- 共 31 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
 
@@ -11,7 +11,7 @@
 -- ==================================================
 CREATE TABLE `account_records` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `type` tinyint(4) NOT NULL COMMENT '类型：1-应收(客户,采购退货) 2-应付(供应商,销售退货)',
+  `type` tinyint(4) NOT NULL COMMENT '类型：1-应收(客户销售,采购退货) 2-应付(供应商采购,销售退货)',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '目标ID(客户ID/供应商ID)',
   `target_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'supplier' COMMENT '目标类型: customer, supplier',
   `related_id` bigint(20) unsigned NOT NULL COMMENT '关联业务ID',
@@ -30,7 +30,7 @@ CREATE TABLE `account_records` (
   KEY `idx_related` (`related_type`,`related_id`),
   KEY `idx_status` (`status`),
   KEY `idx_account_records_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
 
 
 -- ==================================================
@@ -52,7 +52,7 @@ CREATE TABLE `account_settlements` (
   KEY `idx_account` (`account_type`,`account_id`),
   KEY `idx_financial` (`financial_id`),
   KEY `idx_settlement_no` (`settlement_no`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
 
 
 -- ==================================================
@@ -149,7 +149,7 @@ CREATE TABLE `financial_records` (
   KEY `idx_account_id` (`account_id`),
   KEY `idx_customer` (`customer_id`),
   KEY `idx_supplier` (`supplier_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
 
 
 -- ==================================================
@@ -348,7 +348,7 @@ CREATE TABLE `return_order_items` (
   KEY `idx_source_order_item` (`source_order_item_id`),
   KEY `idx_source_stock_item` (`source_stock_item_id`),
   KEY `idx_return_items_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
 
 
 -- ==================================================
@@ -386,7 +386,7 @@ CREATE TABLE `return_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_return_type` (`return_type`),
   KEY `idx_returns_type_status` (`type`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================
@@ -409,7 +409,7 @@ CREATE TABLE `return_stock_items` (
   KEY `idx_return_item` (`return_item_id`),
   KEY `idx_product` (`product_id`),
   KEY `idx_sku` (`sku_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
 
 
 -- ==================================================
@@ -437,7 +437,7 @@ CREATE TABLE `return_stocks` (
   KEY `idx_target` (`target_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
 
 
 -- ==================================================
@@ -531,7 +531,7 @@ CREATE TABLE `sale_stock_items` (
   KEY `idx_stock` (`sale_stock_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
 
 
 -- ==================================================
@@ -557,7 +557,7 @@ CREATE TABLE `sale_stocks` (
   KEY `idx_customer` (`customer_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
 
 
 -- ==================================================
@@ -739,18 +739,6 @@ CREATE TABLE `users` (
   KEY `idx_role` (`role_id`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
-
-
--- ==================================================
--- 表: v_financial_summary
--- ==================================================
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_financial_summary` AS select 'income' AS `type`,sum(`financial_records`.`amount`) AS `total_amount`,count(0) AS `record_count` from `financial_records` where ((`financial_records`.`type` = 1) and isnull(`financial_records`.`deleted_at`)) union all select 'expense' AS `type`,sum(`financial_records`.`amount`) AS `total_amount`,count(0) AS `record_count` from `financial_records` where ((`financial_records`.`type` = 2) and isnull(`financial_records`.`deleted_at`));
-
-
--- ==================================================
--- 表: v_stock_summary
--- ==================================================
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_stock_summary` AS select `p`.`id` AS `product_id`,`p`.`product_no` AS `product_no`,`p`.`name` AS `product_name`,`c`.`name` AS `category_name`,`b`.`name` AS `brand_name`,`p`.`unit` AS `unit`,`p`.`cost_price` AS `cost_price`,`p`.`sale_price` AS `sale_price`,coalesce(sum(`s`.`quantity`),0) AS `total_quantity`,coalesce(sum(`s`.`total_amount`),0) AS `total_amount` from (((`products` `p` left join `categories` `c` on((`p`.`category_id` = `c`.`id`))) left join `brands` `b` on((`p`.`brand_id` = `b`.`id`))) left join `stocks` `s` on((`p`.`id` = `s`.`product_id`))) where isnull(`p`.`deleted_at`) group by `p`.`id`;
 
 
 -- ==================================================
