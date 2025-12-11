@@ -34,15 +34,6 @@
       </div>
     </van-cell-group>
 
-    <!-- 快捷操作 -->
-    <van-cell-group title="快捷操作" class="quick-actions">
-      <van-grid :column-num="4" :border="false">
-        <van-grid-item icon="plus" text="新增商品" @click="$router.push('/product')" />
-        <van-grid-item icon="cart-o" text="采购入库" @click="$router.push('/purchase/stock')" />
-        <van-grid-item icon="balance-o" text="销售出库" @click="$router.push('/sale/stock')" />
-        <van-grid-item icon="bag-o" text="库存盘点" @click="$router.push('/stock/take')" />
-      </van-grid>
-    </van-cell-group>
 
     <!-- 库存预警 -->
     <StockWarning />

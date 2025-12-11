@@ -50,7 +50,7 @@ class UserController extends BaseController
             return $this->error('角色不存在');
         }
 
-        $post['password'] = password_hash($post['password'], PASSWORD_BCRYPT);
+        // $post['password'] = password_hash($post['password'], PASSWORD_BCRYPT);
         $id = User::create($post)->id;
         return $this->success(['id' => $id], '用户添加成功');
     }
@@ -101,8 +101,9 @@ class UserController extends BaseController
         $confirm = input('confirm_password', '123456');
         if ($newPwd !== $confirm) return $this->error('两次密码不一致');
         if (strlen($newPwd) < 6) return $this->error('密码长度不能少于6位');
-
-        $user->save(['password' => password_hash($newPwd, PASSWORD_BCRYPT)]);
+        $user->password = $newPwd;  // 直接赋值明文，触发修改器自动加密
+        $user->save(['password' => $newPwd]);
+        // $user->save(['password' => password_hash($newPwd, PASSWORD_BCRYPT)]);
         return $this->success([], '密码重置成功');
     }
 

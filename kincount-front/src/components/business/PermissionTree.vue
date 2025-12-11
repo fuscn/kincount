@@ -3,7 +3,11 @@
     <div class="tree-header">
       <slot name="header">
         <span class="title">权限选择</span>
-        <van-checkbox v-model="allChecked" @change="handleAllCheck">
+        <van-checkbox 
+          v-model="allChecked" 
+          :indeterminate="isIndeterminate"
+          @change="handleAllCheck"
+        >
           全选
         </van-checkbox>
       </slot>
@@ -51,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 
 const props = defineProps({
   modules: {
@@ -67,24 +71,53 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'change'])
 
-// 全选状态
+// 全选状态和半选状态
 const allChecked = ref(false)
+const isIndeterminate = ref(false)
 
-// 计算选中的权限
+// 获取所有权限
+const getAllPermissions = () => {
+  return props.modules.flatMap(module => module.permissions)
+}
+
+// 获取选中的权限数量
+const getCheckedCount = () => {
+  return getAllPermissions().filter(p => p.checked).length
+}
+
+// 获取总权限数量
+const getTotalCount = () => {
+  return getAllPermissions().length
+}
+
+// 计算选中的权限key
 const selectedPermissions = computed(() => {
-  return props.modules
-    .flatMap(module => module.permissions)
+  return getAllPermissions()
     .filter(permission => permission.checked)
     .map(permission => permission.key)
 })
 
-// 更新全选状态
-const updateAllChecked = () => {
-  const allPermissions = props.modules.flatMap(m => m.permissions)
-  const checkedCount = allPermissions.filter(p => p.checked).length
-  const totalCount = allPermissions.length
+// 更新全选和半选状态
+const updateAllCheckState = () => {
+  const checkedCount = getCheckedCount()
+  const totalCount = getTotalCount()
   
-  allChecked.value = checkedCount === totalCount && totalCount > 0
+  if (totalCount === 0) {
+    allChecked.value = false
+    isIndeterminate.value = false
+    return
+  }
+  
+  if (checkedCount === 0) {
+    allChecked.value = false
+    isIndeterminate.value = false
+  } else if (checkedCount === totalCount) {
+    allChecked.value = true
+    isIndeterminate.value = false
+  } else {
+    allChecked.value = false
+    isIndeterminate.value = true
+  }
 }
 
 // 更新模块状态
@@ -93,8 +126,22 @@ const updateModuleState = (module) => {
   const checkedCount = permissions.filter(p => p.checked).length
   const totalCount = permissions.length
   
-  module.checked = checkedCount === totalCount && totalCount > 0
-  module.indeterminate = checkedCount > 0 && checkedCount < totalCount
+  if (totalCount === 0) {
+    module.checked = false
+    module.indeterminate = false
+    return
+  }
+  
+  if (checkedCount === 0) {
+    module.checked = false
+    module.indeterminate = false
+  } else if (checkedCount === totalCount) {
+    module.checked = true
+    module.indeterminate = false
+  } else {
+    module.checked = false
+    module.indeterminate = true
+  }
 }
 
 // 事件处理
@@ -103,47 +150,87 @@ const toggleModule = (module) => {
 }
 
 const handleModuleCheck = (module) => {
+  // 阻止事件冒泡，避免重复触发
+  const isChecked = module.checked
+  
   module.permissions.forEach(permission => {
-    permission.checked = module.checked
+    permission.checked = isChecked
   })
-  updateAllChecked()
+  
+  // 更新全选状态
+  updateAllCheckState()
+  
+  // 发出选中事件
   emitSelection()
 }
 
 const handlePermissionCheck = (permission, module) => {
+  // 更新模块状态
   updateModuleState(module)
-  updateAllChecked()
+  
+  // 更新全选状态
+  updateAllCheckState()
+  
+  // 发出选中事件
   emitSelection()
 }
 
 const handleAllCheck = (checked) => {
+  // 更新所有模块和权限
   props.modules.forEach(module => {
     module.checked = checked
+    module.indeterminate = false
     module.permissions.forEach(permission => {
       permission.checked = checked
     })
   })
+  
+  // 更新全选状态
+  allChecked.value = checked
+  isIndeterminate.value = false
+  
+  // 发出选中事件
   emitSelection()
 }
 
 // 发出选中事件
 const emitSelection = () => {
-  emit('update:modelValue', selectedPermissions.value)
-  emit('change', selectedPermissions.value)
+  // 使用 nextTick 确保状态更新完成
+  nextTick(() => {
+    const selected = selectedPermissions.value
+    emit('update:modelValue', selected)
+    emit('change', selected)
+  })
+}
+
+// 初始化模块状态
+const initModuleState = () => {
+  props.modules.forEach(module => {
+    updateModuleState(module)
+  })
+  updateAllCheckState()
 }
 
 // 监听外部值变化
 watch(() => props.value, (newVal) => {
   if (!newVal || !Array.isArray(newVal)) return
   
+  // 设置每个权限的选中状态
   props.modules.forEach(module => {
     module.permissions.forEach(permission => {
       permission.checked = newVal.includes(permission.key)
     })
     updateModuleState(module)
   })
-  updateAllChecked()
+  
+  // 更新全选状态
+  updateAllCheckState()
 }, { immediate: true })
+
+// 监听模块数据变化
+watch(() => props.modules, () => {
+  initModuleState()
+}, { deep: true })
 </script>
 
 <style scoped lang="scss">

@@ -521,12 +521,17 @@ export default [
           perm: 'role:edit'
         }
       },
-
       {
         path: 'system/config',
         name: 'SystemConfig',
         component: () => import('@/views/Placeholder.vue'),
         meta: { title: '系统配置', showTabbar: false }
+      },
+      {
+        path: 'system/operationflowguide',
+        name: 'OperationFlowGuide',
+        component: () => import('@/views/system/config/OperationFlowGuide.vue'),
+        meta: { title: '操作指南', showTabbar: false }
       }
     ]
   },

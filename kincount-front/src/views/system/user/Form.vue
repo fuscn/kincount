@@ -1,73 +1,27 @@
 <template>
   <div class="system-user-form-page">
-    <van-nav-bar
-      :title="isEdit ? '编辑用户' : '新增用户'"
-      left-text="取消"
-      right-text="保存"
-      left-arrow
-      @click-left="handleCancel"
-      @click-right="handleSubmit"
-    />
+    <van-nav-bar :title="isEdit ? '编辑用户' : '新增用户'" left-text="取消" right-text="保存" left-arrow @click-left="handleCancel"
+      @click-right="handleSubmit" />
 
     <van-form ref="formRef" @submit="handleSubmit" class="form-container">
       <!-- 账号信息 -->
       <van-cell-group title="账号信息">
-        <van-field
-          v-model="form.username"
-          label="用户名"
-          placeholder="请输入用户名"
-          maxlength="20"
-          :readonly="isEdit"
-          required
-          :rules="[{ required: true, message: '请输入用户名' }]"
-        />
-        <van-field
-          v-if="!isEdit"
-          v-model="form.password"
-          type="password"
-          label="初始密码"
-          placeholder="留空默认为 123456"
-          maxlength="20"
-        />
-        <van-field
-          v-model="form.real_name"
-          label="真实姓名"
-          placeholder="请输入真实姓名"
-          maxlength="10"
-          required
-          :rules="[{ required: true, message: '请输入真实姓名' }]"
-        />
-        <van-field
-          v-model="form.phone"
-          label="手机号"
-          type="tel"
-          placeholder="请输入手机号"
-          maxlength="11"
-          required
-          :rules="phoneRules"
-        />
-        <van-field
-          v-model="form.email"
-          label="邮箱"
-          type="email"
-          placeholder="请输入邮箱（可选）"
-          maxlength="50"
-          :rules="emailRules"
-        />
+        <van-field v-model="form.username" label="用户名" placeholder="请输入用户名" maxlength="20" :readonly="isEdit" required
+          :rules="[{ required: true, message: '请输入用户名' }]" />
+        <van-field v-if="!isEdit" v-model="form.password" type="password" label="初始密码" placeholder="留空默认为 123456"
+          maxlength="20" />
+        <van-field v-model="form.real_name" label="真实姓名" placeholder="请输入真实姓名" maxlength="10" required
+          :rules="[{ required: true, message: '请输入真实姓名' }]" />
+        <van-field v-model="form.phone" label="手机号" type="tel" placeholder="请输入手机号" maxlength="11" required
+          :rules="phoneRules" />
+        <van-field v-model="form.email" label="邮箱" type="email" placeholder="请输入邮箱（可选）" maxlength="50"
+          :rules="emailRules" />
       </van-cell-group>
 
       <!-- 角色与状态 -->
       <van-cell-group title="角色权限">
-        <van-field
-          v-model="roleText"
-          label="角色"
-          placeholder="请选择角色"
-          is-link
-          readonly
-          required
-          :rules="[{ required: true, message: '请选择角色' }]"
-          @click="showRolePicker = true"
-        />
+        <van-field v-model="roleText" label="角色" placeholder="请选择角色" is-link readonly required
+          :rules="[{ required: true, message: '请选择角色' }]" @click="showRolePicker = true" />
       </van-cell-group>
 
       <van-cell-group title="状态">
@@ -80,16 +34,8 @@
 
       <!-- 备注 -->
       <van-cell-group title="备注">
-        <van-field
-          v-model="form.remark"
-          label="备注"
-          type="textarea"
-          placeholder="请输入备注（可选）"
-          rows="2"
-          autosize
-          maxlength="200"
-          show-word-limit
-        />
+        <van-field v-model="form.remark" label="备注" type="textarea" placeholder="请输入备注（可选）" rows="2" autosize
+          maxlength="200" show-word-limit />
       </van-cell-group>
 
       <!-- 时间信息（编辑） -->
@@ -101,11 +47,7 @@
 
     <!-- 角色选择器 -->
     <van-popup v-model:show="showRolePicker" position="bottom">
-      <van-picker
-        :columns="roleOptions"
-        @confirm="onRoleConfirm"
-        @cancel="showRolePicker = false"
-      />
+      <van-picker :columns="roleOptions" @confirm="onRoleConfirm" @cancel="showRolePicker = false" />
     </van-popup>
 
     <van-loading v-if="loading" class="page-loading" />
@@ -202,13 +144,25 @@ const loadDetail = async () => {
     loading.value = false
   }
 }
-
 const loadRoleOptions = async () => {
   try {
     const res = await getRoleOptions()
     console.log('角色选项数据:', res)
-    const list = res.list || res.data?.list || res || []
-    roleOptions.value = list.map((i) => ({ text: i.name, value: i.id }))
+
+    // 直接使用 res.data，因为 API 返回 { code: 200, msg: '操作成功', data: [...] }
+    const list = res.data || []
+
+    // 确保 list 是数组
+    if (!Array.isArray(list)) {
+      console.error('角色数据格式错误:', list)
+      throw new Error('角色数据格式错误')
+    }
+
+    roleOptions.value = list.map((i) => ({
+      text: i.name || i.text || i.label,
+      value: i.id || i.value
+    }))
+
     console.log('处理后的角色选项:', roleOptions.value)
   } catch (error) {
     console.error('加载角色列表失败:', error)
@@ -242,7 +196,7 @@ const handleSubmit = async () => {
   try {
     // 验证表单
     await formRef.value.validate()
-    
+
     if (loading.value) return
     loading.value = true
 
@@ -285,7 +239,7 @@ const handleSubmit = async () => {
       await addUser(payload)
       showSuccessToast('用户创建成功')
     }
-    
+
     // 成功后跳转
     router.replace('/system/user')
   } catch (error) {

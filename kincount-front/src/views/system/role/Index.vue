@@ -41,7 +41,7 @@
                   {{ item.status === 1 ? '启用' : '禁用' }}
                 </van-tag>
                 <span class="user-count">
-                  {{ item.user_count || 0 }}人
+                  {{ item.users_count || 0 }}人
                 </span>
               </div>
             </template>

@@ -1,22 +1,11 @@
 <!-- src/views/system/user/Profile.vue -->
 <template>
   <div class="profile-page">
-    <van-nav-bar
-      title="我的资料"
-      left-text="返回"
-      left-arrow
-      @click-left="$router.back()"
-    />
+    <van-nav-bar title="我的资料" left-text="返回" left-arrow @click-left="$router.back()" />
 
     <!-- 头像栏 -->
     <div class="avatar-bar">
-      <van-image
-        round
-        width="80"
-        height="80"
-        :src="user.avatar || defaultAvatar"
-        @click="changeAvatar"
-      />
+      <van-image round width="80" height="80" :src="user.avatar || defaultAvatar" @click="changeAvatar" />
       <div class="name">{{ user.real_name || user.username }}</div>
       <div class="sub-name">账号：{{ user.username }}</div>
     </div>
@@ -41,15 +30,14 @@
         </template>
       </van-cell>
     </van-cell-group>
-
+    <!-- 在「系统信息」van-cell-group 下方追加 -->
+    <van-cell-group title="账户操作">
+      <van-button type="danger" plain round block @click="onLogout">
+        退出登录
+      </van-button>
+    </van-cell-group>
     <!-- 头像上传input（隐藏） -->
-    <input
-      ref="avatarInput"
-      type="file"
-      accept="image/*"
-      style="display: none"
-      @change="onAvatarChange"
-    />
+    <input ref="avatarInput" type="file" accept="image/*" style="display: none" @change="onAvatarChange" />
   </div>
 </template>
 
@@ -96,7 +84,11 @@ async function onAvatarChange(e) {
     showToast('上传失败')
   }
 }
-
+/* 退出登录 */
+function onLogout() {
+  authStore.logout()          // 1. 清本地 token / user 信息
+  router.replace({ name: 'Login' }) // 2. 跳转到登录页
+}
 /* 跳转编辑页 */
 function edit(field) {
   router.push({
@@ -126,6 +118,7 @@ function edit(field) {
     font-size: 18px;
     font-weight: 600;
   }
+
   .sub-name {
     margin-top: 4px;
     font-size: 13px;
