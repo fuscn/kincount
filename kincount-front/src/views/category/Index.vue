@@ -11,155 +11,46 @@
     <!-- 搜索 -->
     <SearchBar placeholder="搜索分类名称" @search="handleSearch" @clear="handleClearSearch" />
 
-    <!-- 统计卡片 -->
-    <van-cell-group class="stat-card" v-if="stats.total">
-      <van-cell title="分类总数" :value="stats.total" />
-      <van-cell title="启用数" :value="stats.enable" value-class="success" />
-      <van-cell title="禁用数" :value="stats.disable" value-class="danger" />
-    </van-cell-group>
 
     <!-- 树形列表 -->
-    <van-pull-refresh v-model="refreshing" @refresh="loadTree(true)">
-      <van-list
-        v-model:loading="listLoading"
-        :finished="finished"
-        finished-text="没有更多了"
-        @load="loadTree"
-        :immediate-check="false"
-      >
-        <!-- 直接使用模板递归渲染 -->
-        <div v-for="node in treeData" :key="node.id">
-          <van-swipe-cell>
-            <van-cell
-              :style="{ paddingLeft: (node._level || 0) * 20 + 16 + 'px' }"
-              :title="node.name"
-              :label="`排序 ${node.sort} | ${node.description || '暂无描述'}`"
-              @click="handleEdit(node)"
-              :class="{ 'top-level': node._level === 0 }"
-            >
-              <template #title>
-                <span :class="{ 'bold-title': node._level === 0 }">{{ node.name }}</span>
-              </template>
-              <template #value>
-                <van-switch
-                  :model-value="node.status === 1"
-                  size="20"
-                  @click.stop
-                  @update:model-value="handleToggleStatus(node)"
-                />
-              </template>
-            </van-cell>
-            
-            <template #right>
-              <van-button
-                square
-                type="primary"
-                text="编辑"
-                @click="handleEdit(node)"
-                v-perm="PERM.CATEGORY_EDIT"
-              />
-              <van-button
-                square
-                type="danger"
-                text="删除"
-                @click="handleDelete(node)"
-                v-perm="PERM.CATEGORY_DELETE"
-              />
-            </template>
-          </van-swipe-cell>
+    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+      <div class="tree-container">
+        <!-- 使用递归组件渲染树 -->
+        <CategoryTreeItem
+          v-for="node in treeData"
+          :key="node.id"
+          :node="node"
+          @edit="handleEdit"
+          @delete="handleDelete"
+          @toggle-status="handleToggleStatus"
+        />
 
-          <!-- 递归渲染子节点 -->
-          <template v-if="node.children && node.children.length">
-            <div v-for="child in node.children" :key="child.id">
-              <van-swipe-cell>
-                <van-cell
-                  :style="{ paddingLeft: (child._level || 1) * 20 + 16 + 'px' }"
-                  :title="child.name"
-                  :label="`排序 ${child.sort} | ${child.description || '暂无描述'}`"
-                  @click="handleEdit(child)"
-                >
-                  <template #value>
-                    <van-switch
-                      :model-value="child.status === 1"
-                      size="20"
-                      @click.stop
-                      @update:model-value="handleToggleStatus(child)"
-                    />
-                  </template>
-                </van-cell>
-                
-                <template #right>
-                  <van-button
-                    square
-                    type="primary"
-                    text="编辑"
-                    @click="handleEdit(child)"
-                    v-perm="PERM.CATEGORY_EDIT"
-                  />
-                  <van-button
-                    square
-                    type="danger"
-                    text="删除"
-                    @click="handleDelete(child)"
-                    v-perm="PERM.CATEGORY_DELETE"
-                  />
-                </template>
-              </van-swipe-cell>
-
-              <!-- 第二级子节点 -->
-              <template v-if="child.children && child.children.length">
-                <div v-for="grandChild in child.children" :key="grandChild.id">
-                  <van-swipe-cell>
-                    <van-cell
-                      :style="{ paddingLeft: (grandChild._level || 2) * 20 + 16 + 'px' }"
-                      :title="grandChild.name"
-                      :label="`排序 ${grandChild.sort} | ${grandChild.description || '暂无描述'}`"
-                      @click="handleEdit(grandChild)"
-                    >
-                      <template #value>
-                        <van-switch
-                          :model-value="grandChild.status === 1"
-                          size="20"
-                          @click.stop
-                          @update:model-value="handleToggleStatus(grandChild)"
-                        />
-                      </template>
-                    </van-cell>
-                    
-                    <template #right>
-                      <van-button
-                        square
-                        type="primary"
-                        text="编辑"
-                        @click="handleEdit(grandChild)"
-                        v-perm="PERM.CATEGORY_EDIT"
-                      />
-                      <van-button
-                        square
-                        type="danger"
-                        text="删除"
-                        @click="handleDelete(grandChild)"
-                        v-perm="PERM.CATEGORY_DELETE"
-                      />
-                    </template>
-                  </van-swipe-cell>
-                </div>
-              </template>
-            </div>
-          </template>
-        </div>
-
-        <van-empty v-if="!listLoading && !refreshing && !treeData.length" description="暂无分类数据" />
-      </van-list>
+        <van-empty 
+          v-if="!isLoading && !refreshing && !treeData.length" 
+          description="暂无分类数据" 
+        />
+      </div>
     </van-pull-refresh>
+
+    <!-- 加载指示器 -->
+    <van-loading v-if="isLoading && !refreshing" class="page-loading" />
   </div>
 </template>
 
 <script setup>
 /* -------------------- 依赖 -------------------- */
-import { ref, reactive, onMounted, onActivated } from 'vue'
+import { ref, reactive, onMounted, computed, defineComponent, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
+import { 
+  showToast, 
+  showConfirmDialog, 
+  showSuccessToast,
+  SwipeCell,
+  Cell,
+  Switch,
+  Button,
+
+} from 'vant'
 import { useCategoryStore } from '@/store/modules/category'
 import { PERM } from '@/constants/permissions'
 import SearchBar from '@/components/common/SearchBar.vue'
@@ -170,92 +61,10 @@ const categoryStore = useCategoryStore()
 
 const treeData = ref([])
 const refreshing = ref(false)
-const listLoading = ref(false)
-const finished = ref(false)
-const pager = reactive({ page: 1, pageSize: 200 })
-const stats = reactive({ total: 0, enable: 0, disable: 0 })
-const isLoading = ref(false) // 防止重复请求
+const isLoading = ref(false)
 
-/* -------------------- 加载树数据 -------------------- */
-const loadTree = async (reload = false) => {
-  // 防止重复请求
-  if (isLoading.value) {
-    console.log('请求正在进行中，跳过重复请求')
-    return
-  }
-  
-  console.log('开始加载树数据...', '重载:', reload)
-  
-  if (reload) {
-    pager.page = 1
-    finished.value = false
-    refreshing.value = true
-    // 清空现有数据
-    treeData.value = []
-  } else {
-    // 如果不是重载且已经完成，则不再加载
-    if (finished.value) {
-      listLoading.value = false
-      return
-    }
-    listLoading.value = true
-  }
-
-  isLoading.value = true
-
-  try {
-    const res = await categoryStore.loadList({ page: pager.page, limit: pager.pageSize })
-    console.log('API返回数据:', res)
-    
-    // 处理返回数据
-    let roots = []
-    if (Array.isArray(res)) {
-      roots = res
-    } else if (res && res.data) {
-      roots = res.data
-    } else if (res && res.list) {
-      roots = res.list
-    }
-    
-    console.log('处理后的树数据:', roots)
-    
-    // 添加层级信息
-    const addLevel = (nodes, level = 0) => {
-      nodes.forEach(node => {
-        node._level = level
-        if (node.children && node.children.length) {
-          addLevel(node.children, level + 1)
-        }
-      })
-    }
-    
-    addLevel(roots)
-    
-    if (reload) {
-      treeData.value = roots
-    } else {
-      treeData.value.push(...roots)
-    }
-
-    pager.page += 1
-    finished.value = true
-
-    // 计算统计信息
-    calculateStats()
-    
-  } catch (error) {
-    console.error('加载失败:', error)
-    showToast('加载失败')
-    finished.value = true
-  } finally {
-    refreshing.value = false
-    listLoading.value = false
-    isLoading.value = false
-  }
-}
-
-/* -------------------- 计算统计信息 -------------------- */
-const calculateStats = () => {
+// 使用计算属性计算统计信息
+const stats = computed(() => {
   let enable = 0
   let total = 0
   
@@ -271,22 +80,146 @@ const calculateStats = () => {
   
   walk(treeData.value)
   
-  stats.total = total
-  stats.enable = enable
-  stats.disable = total - enable
+  return {
+    total,
+    enable,
+    disable: total - enable
+  }
+})
+
+// 值样式类
+const valueClass = (type) => {
+  return type === 'success' ? 'success-value' : 'danger-value'
+}
+
+/* -------------------- 内部递归组件定义 -------------------- */
+// 定义CategoryTreeItem组件，使用defineComponent创建
+const CategoryTreeItem = defineComponent({
+  name: 'CategoryTreeItem',
+  props: {
+    node: {
+      type: Object,
+      required: true
+    },
+    level: {
+      type: Number,
+      default: 0
+    }
+  },
+  emits: ['edit', 'delete', 'toggle-status'],
+  setup(props, { emit }) {
+    // 递归渲染子节点
+    const renderChildren = () => {
+      if (!props.node.children || props.node.children.length === 0) {
+        return []
+      }
+      
+      return props.node.children.map(child => 
+        h(CategoryTreeItem, {
+          key: child.id,
+          node: child,
+          level: props.level + 1,
+          onEdit: (node) => emit('edit', node),
+          onDelete: (node) => emit('delete', node),
+          onToggleStatus: (node) => emit('toggle-status', node)
+        })
+      )
+    }
+
+    return () => {
+      const children = renderChildren()
+      return h('div', [
+        // 主项
+        h(SwipeCell, {
+          class: 'van-swipe-cell-item'
+        }, {
+          default: () => h(Cell, {
+            style: { paddingLeft: props.level * 20 + 16 + 'px' },
+            title: props.node.name,
+            label: `排序 ${props.node.sort} | ${props.node.description || '暂无描述'}`,
+            onClick: () => emit('edit', props.node),
+            class: { 'top-level': props.level === 0 }
+          }, {
+            title: () => h('span', {
+              class: { 'bold-title': props.level === 0 }
+            }, props.node.name),
+            value: () => h(Switch, {
+              modelValue: props.node.status === 1,
+              size: "20",
+              onClick: (e) => e.stopPropagation(),
+              'onUpdate:modelValue': () => emit('toggle-status', props.node)
+            })
+          }),
+          right: () => [
+            h(Button, {
+              square: true,
+              type: "primary",
+              text: "编辑",
+              onClick: () => emit('edit', props.node),
+            }),
+            h(Button, {
+              square: true,
+              type: "danger",
+              text: "删除",
+              onClick: () => emit('delete', props.node)
+            })
+          ]
+        }),
+        
+        // 递归渲染子节点
+        ...children
+      ])
+    }
+  }
+})
+
+/* -------------------- 加载树数据 -------------------- */
+const loadTreeData = async (isRefresh = false) => {
+  if (isLoading.value) return
   
-  console.log('统计信息:', stats)
+  isLoading.value = true
+  if (!isRefresh) {
+    refreshing.value = false
+  }
+  
+  try {
+    // 使用 loadTree 方法获取树形数据
+    const data = await categoryStore.loadTree(categoryStore.keyword)
+    
+    // 确保数据有层级信息
+    const addLevelInfo = (nodes, level = 0) => {
+      return nodes.map(node => ({
+        ...node,
+        _level: level,
+        children: node.children ? addLevelInfo(node.children, level + 1) : []
+      }))
+    }
+    
+    treeData.value = addLevelInfo(data || [])
+    
+  } catch (error) {
+    console.error('加载失败:', error)
+    showToast('加载失败')
+  } finally {
+    isLoading.value = false
+    refreshing.value = false
+  }
+}
+
+/* -------------------- 刷新 -------------------- */
+const onRefresh = () => {
+  loadTreeData(true)
 }
 
 /* -------------------- 搜索 -------------------- */
 const handleSearch = (kw) => {
   categoryStore.keyword = kw
-  loadTree(true)
+  loadTreeData()
 }
 
 const handleClearSearch = () => {
   categoryStore.keyword = ''
-  loadTree(true)
+  loadTreeData()
 }
 
 /* -------------------- 增删改操作 -------------------- */
@@ -306,7 +239,6 @@ const handleToggleStatus = async (row) => {
     
     // 更新本地数据
     row.status = newStatus
-    calculateStats()
   } catch (error) {
     console.error('状态切换失败:', error)
     showToast('操作失败')
@@ -322,7 +254,7 @@ const handleDelete = async (row) => {
     
     await categoryStore.deleteRow(row.id)
     showSuccessToast('已删除')
-    loadTree(true)
+    loadTreeData()
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error)
@@ -333,17 +265,7 @@ const handleDelete = async (row) => {
 
 /* -------------------- 生命周期 -------------------- */
 onMounted(() => {
-  console.log('分类管理页面已挂载')
-  // 清空数据并重新加载
-  treeData.value = []
-  loadTree(true)
-})
-
-// 使用 onActivated 处理从编辑页面返回的情况
-onActivated(() => {
-  console.log('页面激活')
-  // 如果是从编辑页面返回，可能需要刷新数据
-  // 这里可以根据实际需求决定是否需要刷新
+  loadTreeData()
 })
 </script>
 
@@ -359,17 +281,27 @@ onActivated(() => {
   border-radius: 8px;
   overflow: hidden;
   
-  :deep(.van-cell__value) {
-    &.success { 
-      color: var(--van-success-color); 
-    }
-    &.danger { 
-      color: var(--van-danger-color); 
-    }
+  :deep(.success-value) { 
+    color: var(--van-success-color); 
+  }
+  
+  :deep(.danger-value) { 
+    color: var(--van-danger-color); 
   }
 }
 
-:deep(.van-swipe-cell) {
+.tree-container {
+  min-height: 200px;
+}
+
+.page-loading {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+// CategoryTreeItem组件的样式
+:deep(.van-swipe-cell-item) {
   border-bottom: 1px solid #f5f5f5;
   
   .van-cell {

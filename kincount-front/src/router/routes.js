@@ -495,7 +495,7 @@ export default [
         }
       },
       {
-        path: 'system/role',
+        path: '/system/role',
         name: 'Role',
         component: () => import('@//views/system/role/Index.vue'),
         meta: { title: '角色权限', requireAuth: true, perm: 'role:view' }
@@ -522,17 +522,23 @@ export default [
         }
       },
       {
-        path: 'system/config',
+        path: '/system/config',
         name: 'SystemConfig',
         component: () => import('@/views/Placeholder.vue'),
         meta: { title: '系统配置', showTabbar: false }
       },
       {
-        path: 'system/operationflowguide',
+        path: '/system/operationflowguide',
         name: 'OperationFlowGuide',
         component: () => import('@/views/system/config/OperationFlowGuide.vue'),
         meta: { title: '操作指南', showTabbar: false }
-      }
+      },
+      {
+        path: '/test',
+        name: 'Tset',
+        component: () => import('@/views/Test.vue'),
+        meta: { title: '测试页面', showTabbar: false }
+      },
     ]
   },
   {

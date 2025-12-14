@@ -1,5 +1,6 @@
 <?php
-declare (strict_types = 1);
+
+declare(strict_types=1);
 
 namespace app\kincount\controller;
 
@@ -62,16 +63,20 @@ class CategoryController extends BaseController
 
     public function tree()
     {
-        return $this->success(
-            Category::where('status', 1)->where('deleted_at', null)
-                   ->order('sort')->select()
-        );
+        $flat = Category::where('status', 1)
+            ->where('deleted_at', null)
+            ->order('sort')
+            ->order('id')
+            ->select()
+            ->toArray();
+
+        return $this->success($this->buildTree($flat));
     }
 
     public function options()
     {
         $flat = Category::where('status', 1)->where('deleted_at', null)
-                        ->field('id, name, parent_id')->order('sort')->select()->toArray();
+            ->field('id, name, parent_id')->order('sort')->select()->toArray();
         return $this->success($this->buildTreeOptions($flat));
     }
 

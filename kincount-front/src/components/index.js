@@ -11,6 +11,8 @@ import StockWarning from './business/StockWarning.vue'
 import ChartLine from './business/ChartLine.vue'
 import ChartPie from './business/ChartPie.vue'
 
+// import WarehouseSelect  from './business/WarehouseSelect.vue'
+
 import SkuSelect from './business/SkuSelect.vue'
 import SkuTable from './business/SkuTable.vue'
 import SkuStockList from './business/SkuStockList.vue'

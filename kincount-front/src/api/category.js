@@ -1,7 +1,7 @@
 // src/api/category.js
 import request from '@/utils/request'
 
-// 分类列表（树形）
+// 获取分类列表（扁平结构）
 export function getCategoryList(params) {
   return request.get('/categories', { params })
 }
@@ -29,7 +29,7 @@ export function deleteCategory(id) {
   return request.delete(`/categories/${id}`)
 }
 
-// 分类树（下拉,弃用)
+// 分类树
 export function getCategoryTree() {
   return request.get('/categories/tree')
 }

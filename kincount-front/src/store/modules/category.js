@@ -28,11 +28,33 @@ export const useCategoryStore = defineStore('category', {
             return { list: [], total: 0 }
         },
 
-        async loadTree() {
-            this.tree = await getCategoryTree()
+        async loadTree(keyword = '') {
+            this.keyword = keyword
+            const res = await getCategoryTree({ keyword })
+
+            // 处理返回数据
+            let treeData = []
+            if (Array.isArray(res)) {
+                treeData = res
+            } else if (res && res.data) {
+                treeData = res.data
+            } else if (res && res.list) {
+                treeData = res.list
+            }
+
+            // 添加层级信息，所有节点默认折叠
+            const addLevelInfo = (nodes, level = 0) => {
+                return nodes.map(node => ({
+                    ...node,
+                    _level: level,
+                    _expanded: false, // 所有节点默认折叠
+                    children: node.children ? addLevelInfo(node.children, level + 1) : []
+                }))
+            }
+
+            this.tree = addLevelInfo(treeData)
             return this.tree
         },
-
         async toggleStatus(id, status) {
             await updateCategoryStatus(id, status)
         },
@@ -40,5 +62,7 @@ export const useCategoryStore = defineStore('category', {
         async deleteRow(id) {
             await deleteCategory(id)
         }
+
+        // 注意：这里移除了 buildTree 方法，因为 API 已经返回树形结构
     }
 })

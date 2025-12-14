@@ -1,5 +1,7 @@
 注意事项
 
+
+项目配置了vant按需引入
 应收：别人欠我们 → 无论这个"别人"是客户还是供应商
 应付：我们欠别人 → 无论这个"别人"是供应商还是客户
 thinkphp8能使用助手函数的就使用助手函数
@@ -15,6 +17,17 @@ thinkphp8能使用助手函数的就使用助手函数
 后端多条数据使用软删除delete()会报错,需要直接更新delete_at字段,不要使用whereDay方法
 
 常犯错误
+<script setup>
+不需要导入的编译器宏有：
+defineProps()
+defineEmits()
+defineExpose()
+withDefaults()
+defineOptions()  // Vue 3.3+
+defineSlots()    // Vue 3.3+
+defineModel()    // Vue 3.4+
+</script>
+
 样式编写
 在旧版本中，我们可以使用:deep作为一个组合器（例如：:deep .child-class），但现在这种用法已经被弃用。新版本要求使用:deep(<inner-selector>)的形式（例如：:deep(.child-class)）。
 

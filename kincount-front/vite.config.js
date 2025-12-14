@@ -39,7 +39,7 @@ export default defineConfig({
   build: {
     target: 'es2015',
     outDir: 'dist',
-    assetsDir: 'kincount',
+    // assetsDir: 'kincount',
     chunkSizeWarningLimit: 1024,
     // 静态资源文件名格式
     rollupOptions: {
