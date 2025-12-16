@@ -30,24 +30,39 @@
 
       <!-- 分类品牌 -->
       <van-cell-group title="分类品牌">
-        <!-- 分类选择 -->
-        <CategorySelect
-          v-model="form.category_id"
+        <!-- 商品分类选择 - 使用 van-field 触发 -->
+        <van-field
+          readonly
+          clickable
           label="商品分类"
-          placeholder="请选择分类"
-          :required="true"
-          title="选择商品分类"
-          @confirm="onCategorySelect"
-          @change="onCategoryChange"
-        />
+          :placeholder="selectedCategory?.name || '请选择分类'"
+          :rules="[{ required: true, message: '请选择商品分类' }]"
+          :error-message="formErrors.category_id"
+          @click="openCategorySelect"
+        >
+          <template #input>
+            {{ selectedCategory?.name || '' }}
+          </template>
+          <template #right-icon>
+            <van-icon name="arrow" />
+          </template>
+        </van-field>
         
-        <!-- 品牌选择 - 使用 BrandSelect 组件 -->
-        <BrandSelect
-          v-model="form.brand_id"
+        <!-- 品牌选择 - 使用 van-field 触发 -->
+        <van-field
+          readonly
+          clickable
           label="品牌"
-          placeholder="请选择品牌"
-          @change="onBrandSelect"
-        />
+          :placeholder="selectedBrand?.name || '请选择品牌'"
+          @click="openBrandSelect"
+        >
+          <template #input>
+            {{ selectedBrand?.name || '' }}
+          </template>
+          <template #right-icon>
+            <van-icon name="arrow" />
+          </template>
+        </van-field>
       </van-cell-group>
 
       <!-- 商品图片 -->
@@ -68,11 +83,41 @@
         />
       </van-cell-group>
     </van-form>
+
+    <!-- 分类选择器组件 - 隐藏触发按钮 -->
+    <CategorySelect
+      ref="categorySelectRef"
+      v-model="form.category_id"
+      :allow-select-parent="false"
+      :title="'选择商品分类'"
+      :cancel-text="'取消'"
+      :confirm-text="'确定'"
+      :show-full-path="true"
+      :auto-close="true"
+      :hide-trigger="true"
+      @confirm="onCategorySelectConfirm"
+      @cancel="onCategorySelectCancel"
+      @change="onCategorySelectChange"
+    />
+
+    <!-- 品牌选择器组件 - 使用空的触发器插槽 -->
+    <BrandSelect
+      ref="brandSelectRef"
+      v-model="form.brand_id"
+      :popup-title="'选择品牌'"
+      :search-placeholder="'搜索品牌'"
+      :use-store-cache="true"
+      :return-object="true"
+      @change="onBrandSelectChange"
+    >
+      <!-- 空的触发器插槽，不显示任何内容 -->
+      <template #trigger="{ selected, open }"></template>
+    </BrandSelect>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
 import {
@@ -83,13 +128,24 @@ import {
 import CategorySelect from '@/components/business/CategorySelect.vue'
 import BrandSelect from '@/components/business/BrandSelect.vue'
 import Upload from '@/components/common/Upload.vue'
+import { useCategoryStore } from '@/store/modules/category'
+import { useBrandStore } from '@/store/modules/brand'
 
 /* ===== 基础数据 ===== */
 const route = useRoute()
 const router = useRouter()
 const formRef = ref()
+const categorySelectRef = ref()
+const brandSelectRef = ref()
+
+const categoryStore = useCategoryStore()
+const brandStore = useBrandStore()
+
 const isEdit = computed(() => !!route.params.id)
 const submitted = ref(false)
+const formErrors = reactive({
+  category_id: ''
+})
 
 const form = reactive({
   id: '',
@@ -101,37 +157,140 @@ const form = reactive({
   description: ''
 })
 
-/* ===== 加载商品数据 ===== */
+/* ===== 计算属性 ===== */
+// 获取选中的分类对象
+const selectedCategory = computed(() => {
+  if (!form.category_id) return null
+  return categorySelectRef.value?.getSelectedItem?.() || null
+})
+
+// 获取选中的品牌对象
+const selectedBrand = computed(() => {
+  if (!form.brand_id) return null
+  if (typeof form.brand_id === 'object') {
+    return form.brand_id
+  }
+  return brandSelectRef.value?.getSelectedBrand?.() || null
+})
+
+/* ===== 生命周期 ===== */
 onMounted(async () => {
   try {
     if (isEdit.value) {
       await loadAggregate()
     }
+    
+    // 预加载分类和品牌数据
+    setTimeout(() => {
+      categorySelectRef.value?.reload?.()
+      brandSelectRef.value?.refreshBrands?.()
+    }, 300)
   } catch (error) {
-    showToast('加载数据失败')
+    console.error('初始化错误:', error)
+    showToast('初始化失败')
   }
 })
 
+/* ===== 数据加载 ===== */
 async function loadAggregate() {
   try {
     const data = await getProductAggregate(route.params.id)
     Object.assign(form, data)
+    
+    // 等待DOM更新后刷新选择器显示
+    nextTick(() => {
+      if (form.category_id) {
+        categorySelectRef.value?.reload?.()
+      }
+      if (form.brand_id) {
+        brandSelectRef.value?.refreshBrands?.()
+      }
+    })
   } catch (error) {
+    console.error('加载商品详情失败:', error)
     showToast('加载商品详情失败')
   }
 }
 
 /* ===== 事件处理 ===== */
-const onCategorySelect = (id, item) => {
-  console.log('分类选择确认:', id, item)
+// 分类选择确认事件
+const onCategorySelectConfirm = (id, node) => {
+  console.log('分类选择确认:', id, node)
+  form.category_id = id
+  formErrors.category_id = ''
 }
 
-const onCategoryChange = (id) => {
+// 分类选择取消事件
+const onCategorySelectCancel = () => {
+  console.log('分类选择取消')
+  // 可以忽略这个事件，因为点击遮罩层关闭时也会触发
+}
+
+// 分类选择变化事件
+const onCategorySelectChange = (id) => {
   console.log('分类变化:', id)
+  formErrors.category_id = ''
+  
+  if (!id) {
+    console.log('已清空分类选择')
+  }
 }
 
-const onBrandSelect = (brand) => {
-  console.log('品牌选择:', brand)
+// 品牌选择变化事件
+const onBrandSelectChange = (brand) => {
+  console.log('品牌选择变化:', brand)
+  if (brand && typeof brand === 'object') {
+    form.brand_id = brand
+    console.log('选择的品牌:', brand.name, 'ID:', brand.id)
+  } else if (brand === null) {
+    form.brand_id = null
+    console.log('已清空品牌选择')
+  }
+}
+
+// 手动触发分类选择器打开
+const openCategorySelect = () => {
+  categorySelectRef.value?.open?.()
+}
+
+// 手动触发品牌选择器打开
+const openBrandSelect = () => {
+  brandSelectRef.value?.openPicker?.()
+}
+
+// 清空分类选择
+const clearCategory = () => {
+  form.category_id = ''
+  formErrors.category_id = ''
+  categorySelectRef.value?.clear?.()
+}
+
+// 清空品牌选择
+const clearBrand = () => {
+  form.brand_id = null
+  brandSelectRef.value?.clear?.()
+}
+
+/* ===== 表单验证 ===== */
+const validateForm = () => {
+  const errors = []
+  
+  if (!form.name.trim()) {
+    errors.push('请输入商品名称')
+  }
+  
+  if (!form.unit.trim()) {
+    errors.push('请输入单位')
+  }
+  
+  if (!form.category_id) {
+    errors.push('请选择商品分类')
+    formErrors.category_id = '请选择商品分类'
+  } else {
+    formErrors.category_id = ''
+  }
+  
+  return errors
 }
 
 /* ===== 表单提交 ===== */
@@ -139,90 +298,87 @@ const onSubmit = async () => {
   try {
     submitted.value = true
     
-    // 验证必填字段
-    if (!form.name.trim()) {
-      showToast('请输入商品名称')
-      return
-    }
-    
-    if (!form.unit.trim()) {
-      showToast('请输入单位')
-      return
-    }
-    
-    if (!form.category_id) {
-      showToast('请选择商品分类')
+    // 验证表单
+    const errors = validateForm()
+    if (errors.length > 0) {
+      showToast(errors[0])
       return
     }
     
     // 构建提交数据
     const payload = {
-      name: form.name,
-      unit: form.unit,
+      name: form.name.trim(),
+      unit: form.unit.trim(),
       category_id: form.category_id,
-      brand_id: form.brand_id || undefined,
+      brand_id: form.brand_id ? (typeof form.brand_id === 'object' ? form.brand_id.id : form.brand_id) : null,
       images: form.images || [],
-      description: form.description || ''
+      description: form.description?.trim() || ''
     }
-
-    // 过滤掉 undefined 和 null
-    Object.keys(payload).forEach(key => {
-      if (payload[key] === undefined || payload[key] === null) {
-        delete payload[key]
-      }
-    })
 
     // 调用 API
-    let responseData
+    let response
     if (isEdit.value) {
       payload.id = form.id
-      responseData = await updateProductAggregate(payload)
+      response = await updateProductAggregate(payload)
     } else {
-      responseData = await saveProductAggregate(payload)
+      response = await saveProductAggregate(payload)
     }
 
-    showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
+    // 调试：打印完整响应
+    console.log('API完整响应:', response)
     
-    // 处理跳转
-    if (responseData && responseData.id) {
-      const productId = String(responseData.id)
+    // 根据实际API响应结构处理
+    let responseData
+    let productId
+    
+    // 情况1：直接返回数据对象
+    if (response && response.id) {
+      responseData = response
+      productId = response.id
+    }
+    // 情况2：返回 {code, msg, data} 格式
+    else if (response && response.code === 200 && response.data) {
+      responseData = response.data
+      productId = response.data.id
+    }
+    // 情况3：返回其他格式
+    else if (response && typeof response === 'object') {
+      // 尝试从各种可能的字段获取id
+      productId = response.id || response.productId || response.product_id
+      responseData = response
+    }
+
+    // 检查是否成功获取到productId
+    if (productId) {
+      showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
+      
+      const idStr = String(productId)
+      console.log('获取到productId:', idStr, 'isEdit:', isEdit.value)
       
       if (!isEdit.value) {
         // 新增商品后跳转到SKU创建页面
-        router.replace(`/product/${productId}/skus/create`)
+        console.log('跳转到SKU创建页面:', `/product/${idStr}/skus`)
+        await router.replace(`/product/${idStr}/skus`)
       } else {
         // 编辑商品后跳转到SKU列表页面
-        router.replace(`/product/${productId}/skus`)
+        console.log('跳转到SKU列表页面:', `/product/${idStr}/skus`)
+        await router.replace(`/product/${idStr}/skus`)
       }
     } else {
-      // 如果API没有返回ID，跳转到商品列表
-      router.replace('/product/list')
+      // 如果没有productId，显示成功但跳转到商品列表
+      console.warn('未获取到productId，完整响应:', response)
+      showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
+      setTimeout(() => {
+        router.replace('/product')
+      }, 1500)
     }
     
   } catch (error) {
     console.error('表单提交错误:', error)
-    
-    // 特殊处理：如果错误消息包含成功信息
-    if (error.message && (error.message.includes('成功') || error.message === '创建成功' || error.message === '更新成功')) {
-      showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
-      
-      // 延迟跳转，确保用户看到成功提示
-      setTimeout(() => {
-        if (!isEdit.value) {
-          // 新增成功，跳转到商品列表
-          router.replace('/product/list')
-        } else {
-          // 编辑成功，返回上一页或商品列表
-          router.back()
-        }
-      }, 1500)
-      return
-    }
-    
     showToast(error?.message || '提交失败，请重试')
   }
 }
-
+/* ===== 取消操作 ===== */
 const onCancel = async () => {
   try {
     await showConfirmDialog({
@@ -234,6 +390,29 @@ const onCancel = async () => {
     // 用户点击取消，什么都不做
   }
 }
+
+/* ===== 重置表单 ===== */
+const resetForm = () => {
+  Object.assign(form, {
+    id: '',
+    name: '',
+    unit: '',
+    category_id: '',
+    brand_id: null,
+    images: [],
+    description: ''
+  })
+  Object.assign(formErrors, {
+    category_id: ''
+  })
+  submitted.value = false
+  
+  // 重置选择器
+  nextTick(() => {
+    categorySelectRef.value?.clear?.()
+    brandSelectRef.value?.clear?.()
+  })
+}
 </script>
 
 <style scoped lang="scss">
@@ -243,12 +422,8 @@ const onCancel = async () => {
   padding-bottom: 20px;
 }
 
-.form-wrap {
-  padding: 0 16px;
-}
-
-:deep(.van-cell-group__title) {
-  padding: 16px 16px 8px;
-  font-weight: 500;
+/* 如果需要完全隐藏品牌选择器的默认按钮，可以添加这个样式 */
+:deep(.default-trigger) {
+  display: none !important;
 }
 </style>

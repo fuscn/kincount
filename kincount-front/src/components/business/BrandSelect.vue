@@ -1,48 +1,56 @@
-<!-- src/components/business/BrandSelect.vue -->
 <template>
   <div class="brand-select">
-    <!-- 选择器触发按钮 -->
-    <van-field
-      v-model="selectedName"
-      :label="label"
-      :placeholder="placeholder"
-      :required="required"
-      :readonly="readonly"
-      :disabled="disabled"
-      :rules="rules"
-      is-link
-      readonly
-      @click="handleFieldClick"
-    />
-    
+    <!-- 插槽：自定义触发器 -->
+    <slot name="trigger" :selected="selectedBrand" :open="openPicker">
+      <!-- 默认触发器：简单按钮 -->
+      <div class="default-trigger" @click="openPicker">
+        <van-button
+          :type="triggerButtonType"
+          :size="triggerButtonSize"
+          :block="triggerButtonBlock"
+          :disabled="disabled"
+          :loading="loading"
+        >
+          <template v-if="selectedBrand">
+            {{ displayText }}
+          </template>
+          <template v-else>
+            {{ placeholder }}
+          </template>
+          <van-icon v-if="showTriggerIcon" :name="triggerIcon" />
+        </van-button>
+      </div>
+    </slot>
+
     <!-- 品牌选择弹窗 -->
     <van-popup
       v-model:show="showPicker"
       position="bottom"
       round
       :style="{ height: '80%' }"
+      :close-on-click-overlay="true"
     >
       <div class="brand-picker">
         <!-- 标题和关闭按钮 -->
         <div class="picker-header">
-          <div class="header-title">{{ label || '选择品牌' }}</div>
+          <div class="header-title">{{ popupTitle || '选择品牌' }}</div>
           <van-icon
             name="cross"
             class="close-icon"
             @click="showPicker = false"
           />
         </div>
-        
+
         <!-- 搜索框 -->
         <div class="search-box">
           <van-search
             v-model="searchKeyword"
             placeholder="搜索品牌"
-            @update:model-value="handleSearch"
+            @update:model-value="handleSearchInput"
             @clear="handleClear"
           />
         </div>
-        
+
         <!-- 品牌列表 -->
         <div class="brand-list-container">
           <div class="brand-list" v-if="!loading">
@@ -50,14 +58,17 @@
               v-for="brand in filteredBrands"
               :key="brand.id"
               class="brand-item"
-              :class="{ 'brand-item-disabled': brand.status === 0 }"
+              :class="{
+                'brand-item--selected': isSelected(brand),
+                'brand-item-disabled': brand.status === 0
+              }"
               @click="handleBrandSelect(brand)"
             >
               <div class="brand-info">
                 <div class="brand-name">{{ brand.name }}</div>
-                <!-- <div v-if="brand.code" class="brand-code">{{ brand.code }}</div> -->
+                <div v-if="brand.code" class="brand-code">{{ brand.code }}</div>
               </div>
-              
+
               <div class="brand-status">
                 <van-tag
                   v-if="brand.status === 0"
@@ -68,25 +79,37 @@
                   已禁用
                 </van-tag>
                 <van-icon
-                  v-if="isSelected(brand.id)"
+                  v-if="isSelected(brand)"
                   name="success"
                   color="#07c160"
                 />
               </div>
             </div>
           </div>
-          
+
           <!-- 加载中 -->
           <div class="loading" v-else>
             <van-loading type="spinner" size="24px" />
             <span class="loading-text">加载中...</span>
           </div>
-          
+
           <!-- 空状态 -->
           <van-empty
             v-if="!loading && filteredBrands.length === 0"
             :description="searchKeyword ? '未找到相关品牌' : '暂无品牌数据'"
           />
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div v-if="showActions" class="picker-actions">
+          <van-button type="default" @click="handleCancel">取消</van-button>
+          <van-button 
+            type="primary" 
+            @click="handleConfirm"
+            :disabled="!tempSelection"
+          >
+            确定
+          </van-button>
         </div>
       </div>
     </van-popup>
@@ -96,79 +119,144 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { showToast } from 'vant'
-import { getBrandOptions } from '@/api/brand'
+import { useBrandStore } from '@/store/modules/brand'
 
 const props = defineProps({
-  // 双向绑定的品牌ID
+  // 双向绑定的品牌ID或对象
   modelValue: {
-    type: [Number, String],
+    type: [Number, String, Object],
     default: null
   },
-  // 标签文本
-  label: {
-    type: String,
-    default: '品牌'
-  },
-  // 占位符
+  
+  // 触发按钮配置
   placeholder: {
     type: String,
-    default: '请选择品牌'
+    default: '选择品牌'
   },
-  // 是否必填
-  required: {
-    type: Boolean,
-    default: false
-  },
-  // 是否只读
-  readonly: {
-    type: Boolean,
-    default: false
-  },
-  // 是否禁用
   disabled: {
     type: Boolean,
     default: false
   },
-  // 验证规则
-  rules: {
-    type: Array,
-    default: () => []
+  triggerButtonType: {
+    type: String,
+    default: 'default',
+    validator: (value) => ['default', 'primary', 'success', 'warning', 'danger'].includes(value)
   },
-  // 是否只显示启用状态的品牌
+  triggerButtonSize: {
+    type: String,
+    default: 'normal',
+    validator: (value) => ['large', 'normal', 'small', 'mini'].includes(value)
+  },
+  triggerButtonBlock: {
+    type: Boolean,
+    default: true
+  },
+  showTriggerIcon: {
+    type: Boolean,
+    default: true
+  },
+  triggerIcon: {
+    type: String,
+    default: 'arrow-down'
+  },
+  
+  // 弹窗配置
+  popupTitle: {
+    type: String,
+    default: '选择品牌'
+  },
+  searchPlaceholder: {
+    type: String,
+    default: '搜索品牌'
+  },
+  closeOnClickOverlay: {
+    type: Boolean,
+    default: true
+  },
+  showActions: {
+    type: Boolean,
+    default: false
+  },
+  
+  // 数据配置
   onlyEnabled: {
     type: Boolean,
     default: true
   },
-  // 是否允许选择已禁用的品牌
   allowDisabled: {
     type: Boolean,
     default: false
+  },
+  returnObject: {
+    type: Boolean,
+    default: false
+  },
+  immediate: {
+    type: Boolean,
+    default: true
+  },
+  // 是否使用状态管理缓存
+  useStoreCache: {
+    type: Boolean,
+    default: true
+  },
+  // 是否启用搜索防抖
+  useSearchDebounce: {
+    type: Boolean,
+    default: true
+  },
+  // 防抖延迟时间（毫秒）
+  debounceDelay: {
+    type: Number,
+    default: 500
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'change'])
+const emit = defineEmits(['update:modelValue', 'change', 'select', 'confirm', 'cancel'])
+
+// 使用状态管理
+const brandStore = useBrandStore()
 
 // 状态
 const showPicker = ref(false)
 const searchKeyword = ref('')
 const loading = ref(false)
-const brandList = ref([])
+const tempSelection = ref(null)
+
+// 防抖定时器
+let searchTimer = null
 
 // 计算属性
-const selectedName = computed(() => {
-  if (!props.modelValue) return ''
+const brandList = computed(() => {
+  return brandStore.list || []
+})
+
+const selectedBrand = computed(() => {
+  if (!props.modelValue) return null
+  
+  // 如果返回的是对象
+  if (typeof props.modelValue === 'object' && props.modelValue !== null) {
+    return props.modelValue
+  }
+  
+  // 如果是ID，从状态管理中查找
   const brand = brandList.value.find(item => item.id == props.modelValue)
-  return brand ? brand.name : ''
+  return brand || null
+})
+
+const displayText = computed(() => {
+  if (!selectedBrand.value) return ''
+  return selectedBrand.value.name || ''
 })
 
 const filteredBrands = computed(() => {
   let brands = brandList.value
-  
+
   // 过滤状态
   if (props.onlyEnabled && !props.allowDisabled) {
     brands = brands.filter(brand => brand.status !== 0)
   }
-  
+
   // 搜索过滤
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase()
@@ -184,18 +272,32 @@ const filteredBrands = computed(() => {
       return false
     })
   }
-  
+
   return brands
 })
 
 // 检查是否选中
-const isSelected = (brandId) => {
-  return props.modelValue == brandId
+const isSelected = (brand) => {
+  if (props.showActions) {
+    // 显示操作按钮时，使用临时选择
+    if (props.returnObject) {
+      return tempSelection.value && tempSelection.value.id === brand.id
+    } else {
+      return tempSelection.value == brand.id
+    }
+  }
+  
+  // 不显示操作按钮时，直接使用modelValue
+  if (props.returnObject) {
+    return props.modelValue && props.modelValue.id === brand.id
+  } else {
+    return props.modelValue == brand.id
+  }
 }
 
-// 点击字段触发
-const handleFieldClick = () => {
-  if (props.disabled || props.readonly) return
+// 打开选择器
+const openPicker = () => {
+  if (props.disabled) return
   
   showPicker.value = true
 }
@@ -203,19 +305,13 @@ const handleFieldClick = () => {
 // 加载品牌数据
 const loadBrands = async () => {
   if (loading.value) return
-  
+
   loading.value = true
   try {
-    const res = await getBrandOptions()
-    if (res.code === 200) {
-      brandList.value = Array.isArray(res.data) ? res.data : []
-    } else {
-      brandList.value = []
-      showToast(res.msg || '加载品牌列表失败')
-    }
+    // 使用状态管理加载数据
+    await brandStore.loadList()
   } catch (error) {
     console.error('加载品牌列表失败:', error)
-    brandList.value = []
     showToast('加载品牌列表失败')
   } finally {
     loading.value = false
@@ -223,13 +319,30 @@ const loadBrands = async () => {
 }
 
 // 搜索处理
+const handleSearchInput = () => {
+  if (props.useSearchDebounce) {
+    // 使用防抖搜索
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => {
+      handleSearch()
+    }, props.debounceDelay)
+  } else {
+    // 立即搜索
+    handleSearch()
+  }
+}
+
 const handleSearch = () => {
   // 搜索逻辑已经在filteredBrands计算属性中处理
-  // 这里可以添加防抖处理，但当前简单实现
+  // 这里可以触发搜索事件
+  emit('search', searchKeyword.value)
 }
 
 const handleClear = () => {
   searchKeyword.value = ''
+  if (props.useSearchDebounce) {
+    handleSearch()
+  }
 }
 
 // 选择品牌
@@ -239,35 +352,82 @@ const handleBrandSelect = (brand) => {
     showToast('该品牌已禁用，无法选择')
     return
   }
-  
-  // 如果选择的是已选中的品牌，则不重复选择
-  if (brand.id === props.modelValue) {
-    showPicker.value = false
+
+  // 如果显示操作按钮，使用临时选择
+  if (props.showActions) {
+    if (props.returnObject) {
+      tempSelection.value = tempSelection.value?.id === brand.id ? null : brand
+    } else {
+      tempSelection.value = tempSelection.value === brand.id ? null : brand.id
+    }
     return
   }
   
-  // 更新选中值
-  emit('update:modelValue', brand.id)
-  emit('change', brand)
+  // 直接确认选择
+  const newValue = props.returnObject ? brand : brand.id
+  emit('update:modelValue', newValue)
+  emit('change', newValue)
+  emit('select', brand)
   
   // 关闭弹窗
   showPicker.value = false
   
-  // 清空搜索关键词（可选）
-  // searchKeyword.value = ''
+  // 清空搜索关键词
+  searchKeyword.value = ''
+}
+
+// 确认选择
+const handleConfirm = () => {
+  if (!tempSelection.value) return
+  
+  let newValue
+  if (props.returnObject) {
+    // 查找完整的品牌对象
+    const brand = brandList.value.find(item => item.id == tempSelection.value.id)
+    if (!brand) return
+    newValue = brand
+  } else {
+    newValue = tempSelection.value
+  }
+  
+  emit('update:modelValue', newValue)
+  emit('change', newValue)
+  emit('confirm', newValue)
+  
+  // 关闭弹窗
+  showPicker.value = false
+  searchKeyword.value = ''
+  tempSelection.value = null
+}
+
+// 取消选择
+const handleCancel = () => {
+  showPicker.value = false
+  searchKeyword.value = ''
+  tempSelection.value = null
+  emit('cancel')
 }
 
 // 监听弹窗显示/隐藏
 watch(showPicker, (newVal) => {
   if (newVal) {
-    // 弹窗显示时，清空搜索关键词
-    searchKeyword.value = ''
-    
-    // 如果品牌列表为空，则加载数据
-    if (brandList.value.length === 0) {
-      loadBrands()
+    // 初始化临时选择
+    if (props.showActions) {
+      if (props.returnObject) {
+        tempSelection.value = selectedBrand.value
+      } else {
+        tempSelection.value = props.modelValue || null
+      }
     }
     
+    // 弹窗显示时，清空搜索关键词
+    searchKeyword.value = ''
+
+    // 如果品牌列表为空，则加载数据
+    if (brandList.value.length === 0 || !props.useStoreCache) {
+      loadBrands()
+    }
+
     // 自动聚焦搜索框（需要等待弹窗渲染完成）
     nextTick(() => {
       const searchInput = document.querySelector('.brand-picker .van-search__field')
@@ -275,24 +435,55 @@ watch(showPicker, (newVal) => {
         searchInput.focus()
       }
     })
+  } else {
+    // 弹窗关闭时，重置临时选择和搜索关键词
+    tempSelection.value = null
+    searchKeyword.value = ''
   }
 })
 
 // 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
-  // 这里可以处理外部值变化时的逻辑
+  // 可以处理外部值变化时的逻辑
 }, { immediate: true })
 
-// 组件挂载时预加载品牌数据（可选）
+// 组件挂载时预加载品牌数据
 onMounted(() => {
-  // 可以在这里预加载，或者在弹窗打开时懒加载
-  // loadBrands()
+  if (props.immediate && props.useStoreCache) {
+    loadBrands()
+  }
+})
+
+// 导出方法给父组件
+defineExpose({
+  openPicker,
+  closePicker: () => { showPicker.value = false },
+  loadBrands,
+  clear: () => {
+    emit('update:modelValue', null)
+    searchKeyword.value = ''
+  },
+  getSelectedBrand: () => selectedBrand.value,
+  // 刷新品牌列表（强制重新加载）
+  refreshBrands: async () => {
+    await loadBrands()
+  }
 })
 </script>
 
 <style scoped>
 .brand-select {
+  display: inline-block;
   width: 100%;
+  
+  .default-trigger {
+    cursor: pointer;
+    
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
 }
 
 .brand-picker {
@@ -354,8 +545,18 @@ onMounted(() => {
     background-color: #ebedf0;
   }
   
+  &.brand-item--selected {
+    background-color: #f0f9ff;
+  }
+  
   &.brand-item-disabled {
     opacity: 0.6;
+    cursor: not-allowed;
+    
+    &:hover,
+    &:active {
+      background-color: transparent;
+    }
   }
 }
 
@@ -422,6 +623,37 @@ onMounted(() => {
   .van-search__content {
     border-radius: 16px;
     background-color: #fff;
+  }
+}
+
+/* 操作按钮 */
+.picker-actions {
+  display: flex;
+  padding: 12px 16px;
+  border-top: 1px solid #ebedf0;
+  gap: 12px;
+  
+  .van-button {
+    flex: 1;
+  }
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .picker-header {
+    padding: 14px;
+  }
+  
+  .search-box {
+    padding: 8px 14px;
+  }
+  
+  .brand-item {
+    padding: 10px 14px;
+  }
+  
+  .picker-actions {
+    padding: 10px 14px;
   }
 }
 </style>

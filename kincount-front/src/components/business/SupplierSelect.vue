@@ -1,8 +1,8 @@
 <template>
   <!-- 触发区域 -->
-  <div v-if="!hideTrigger" class="warehouse-select-trigger" @click="openPicker">
+  <div v-if="!hideTrigger" class="supplier-select-trigger" @click="openPicker">
     <!-- 插槽：允许完全自定义触发内容 -->
-    <slot name="trigger" :selected="selectedWarehouse" :open="openPicker">
+    <slot name="trigger" :selected="selectedSupplier" :open="openPicker">
       <!-- 默认触发按钮 -->
       <div class="default-trigger" :class="{ 'trigger-disabled': disabled }">
         <van-button
@@ -12,11 +12,11 @@
           :disabled="disabled"
           :loading="triggerLoading"
         >
-          <template v-if="selectedWarehouse">
+          <template v-if="selectedSupplier">
             {{ displayText }}
           </template>
           <template v-else>
-            {{ placeholder || '选择仓库' }}
+            {{ placeholder || '选择供应商' }}
           </template>
           <van-icon v-if="showTriggerIcon" :name="triggerIcon" />
         </van-button>
@@ -24,7 +24,7 @@
     </slot>
   </div>
 
-  <!-- 仓库选择弹窗 -->
+  <!-- 供应商选择弹窗 -->
   <van-popup
     v-model:show="showPicker"
     position="bottom"
@@ -32,10 +32,10 @@
     :style="{ height: '80%' }"
     :close-on-click-overlay="closeOnClickOverlay"
   >
-    <div class="warehouse-picker">
+    <div class="supplier-picker">
       <!-- 标题和关闭按钮 -->
       <div class="picker-header">
-        <div class="header-title">{{ popupTitle || '选择仓库' }}</div>
+        <div class="header-title">{{ popupTitle || '选择供应商' }}</div>
         <van-icon
           name="cross"
           class="close-icon"
@@ -47,26 +47,26 @@
       <div class="search-box">
         <van-search
           v-model="searchKeyword"
-          :placeholder="searchPlaceholder || '搜索仓库'"
+          :placeholder="searchPlaceholder || '搜索供应商'"
           @update:model-value="handleSearch"
           @clear="handleClearSearch"
         />
       </div>
       
-      <!-- 仓库列表 -->
-      <div class="warehouse-list-container">
-        <div class="warehouse-list" v-if="!loading">
+      <!-- 供应商列表 -->
+      <div class="supplier-list-container">
+        <div class="supplier-list" v-if="!loading">
           <!-- 全部选项 -->
           <div
             v-if="showAllOption"
-            class="warehouse-item"
-            :class="{ 'warehouse-item-selected': isSelected(0) }"
-            @click="handleWarehouseSelect({ id: 0, name: '全部仓库' })"
+            class="supplier-item"
+            :class="{ 'supplier-item-selected': isSelected(0) }"
+            @click="handleSupplierSelect({ id: 0, name: '全部供应商' })"
           >
-            <div class="warehouse-info">
-              <div class="warehouse-name">全部仓库</div>
+            <div class="supplier-info">
+              <div class="supplier-name">全部供应商</div>
             </div>
-            <div class="warehouse-status">
+            <div class="supplier-status">
               <van-icon
                 v-if="isSelected(0)"
                 name="success"
@@ -75,28 +75,29 @@
             </div>
           </div>
           
-          <!-- 仓库列表项 -->
+          <!-- 供应商列表项 -->
           <div
-            v-for="warehouse in filteredWarehouses"
-            :key="warehouse.id"
-            class="warehouse-item"
+            v-for="supplier in filteredSuppliers"
+            :key="supplier.id"
+            class="supplier-item"
             :class="{
-              'warehouse-item-selected': isSelected(warehouse.id),
-              'warehouse-item-disabled': warehouse.status === 0
+              'supplier-item-selected': isSelected(supplier.id),
+              'supplier-item-disabled': supplier.status === 0
             }"
-            @click="handleWarehouseSelect(warehouse)"
+            @click="handleSupplierSelect(supplier)"
           >
-            <div class="warehouse-info">
-              <div class="warehouse-name">{{ warehouse.name }}</div>
-              <div class="warehouse-details">
-                <span v-if="warehouse.code" class="warehouse-code">{{ warehouse.code }}</span>
-                <span v-if="warehouse.address" class="warehouse-address">{{ warehouse.address }}</span>
+            <div class="supplier-info">
+              <div class="supplier-name">{{ supplier.name }}</div>
+              <div class="supplier-details">
+                <span v-if="supplier.code" class="supplier-code">{{ supplier.code }}</span>
+                <span v-if="supplier.contactPerson" class="supplier-contact">{{ supplier.contactPerson }}</span>
+                <span v-if="supplier.phone" class="supplier-phone">{{ supplier.phone }}</span>
               </div>
             </div>
             
-            <div class="warehouse-status">
+            <div class="supplier-status">
               <van-tag
-                v-if="warehouse.status === 0"
+                v-if="supplier.status === 0"
                 size="small"
                 type="danger"
                 plain
@@ -104,7 +105,7 @@
                 已禁用
               </van-tag>
               <van-icon
-                v-if="isSelected(warehouse.id)"
+                v-if="isSelected(supplier.id)"
                 name="success"
                 color="#07c160"
               />
@@ -120,8 +121,8 @@
         
         <!-- 空状态 -->
         <van-empty
-          v-if="!loading && filteredWarehouses.length === 0 && (!showAllOption || searchKeyword)"
-          :description="searchKeyword ? '未找到相关仓库' : '暂无仓库数据'"
+          v-if="!loading && filteredSuppliers.length === 0 && (!showAllOption || searchKeyword)"
+          :description="searchKeyword ? '未找到相关供应商' : '暂无供应商数据'"
         />
       </div>
       
@@ -143,10 +144,10 @@
 <script>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { showToast } from 'vant'
-import { useWarehouseStore } from '@/store/modules/warehouse'
+import { useSupplierStore } from '@/store/modules/supplier'
 
 export default {
-  name: 'WarehouseSelect',
+  name: 'SupplierSelect',
   
   props: {
     // 值绑定
@@ -162,7 +163,7 @@ export default {
     },
     placeholder: {
       type: String,
-      default: '请选择仓库'
+      default: '请选择供应商'
     },
     disabled: {
       type: Boolean,
@@ -198,11 +199,11 @@ export default {
     // 弹窗配置
     popupTitle: {
       type: String,
-      default: '选择仓库'
+      default: '选择供应商'
     },
     searchPlaceholder: {
       type: String,
-      default: '搜索仓库'
+      default: '搜索供应商'
     },
     closeOnClickOverlay: {
       type: Boolean,
@@ -238,13 +239,22 @@ export default {
     immediateSelect: {
       type: Boolean,
       default: true
+    },
+    // 显示字段配置
+    showContactPerson: {
+      type: Boolean,
+      default: true
+    },
+    showPhone: {
+      type: Boolean,
+      default: true
     }
   },
   
   emits: ['update:modelValue', 'change', 'select', 'confirm', 'cancel'],
   
   setup(props, { emit }) {
-    const warehouseStore = useWarehouseStore()
+    const supplierStore = useSupplierStore()
     
     // 状态
     const showPicker = ref(false)
@@ -253,77 +263,81 @@ export default {
     const tempSelection = ref(null)
     
     // 计算属性
-    const selectedWarehouse = computed(() => {
+    const selectedSupplier = computed(() => {
       if (props.modelValue === null || props.modelValue === undefined || props.modelValue === '') {
         return null
       }
       
       // 如果选了"全部"
       if (props.modelValue === 0 && props.showAllOption) {
-        return { id: 0, name: '全部仓库' }
+        return { id: 0, name: '全部供应商' }
       }
       
-      return warehouseStore.list.find(
+      return supplierStore.list.find(
         item => item.id == props.modelValue
       ) || null
     })
     
     const displayText = computed(() => {
-      if (!selectedWarehouse.value) return ''
-      return selectedWarehouse.value.name
+      if (!selectedSupplier.value) return ''
+      return selectedSupplier.value.name
     })
     
-    // 获取仓库列表数据
-    const warehouseList = computed(() => {
-      let warehouses = warehouseStore.list
+    // 获取供应商列表数据
+    const supplierList = computed(() => {
+      let suppliers = supplierStore.list
       
-      // 排除指定的仓库
+      // 排除指定的供应商
       if (props.excludeIds.length > 0) {
-        warehouses = warehouses.filter(item => !props.excludeIds.includes(item.id))
+        suppliers = suppliers.filter(item => !props.excludeIds.includes(item.id))
       }
       
-      return warehouses
+      return suppliers
     })
     
-    // 过滤后的仓库列表（用于搜索）
-    const filteredWarehouses = computed(() => {
-      let warehouses = warehouseList.value
+    // 过滤后的供应商列表（用于搜索）
+    const filteredSuppliers = computed(() => {
+      let suppliers = supplierList.value
       
       // 过滤状态
       if (props.onlyEnabled && !props.allowDisabled) {
-        warehouses = warehouses.filter(item => item.status !== 0)
+        suppliers = suppliers.filter(item => item.status !== 0)
       }
       
       // 搜索过滤
       if (searchKeyword.value.trim()) {
         const keyword = searchKeyword.value.toLowerCase()
-        return warehouses.filter(item => {
-          // 匹配仓库名称
+        return suppliers.filter(item => {
+          // 匹配供应商名称
           if (item.name && item.name.toLowerCase().includes(keyword)) {
             return true
           }
-          // 匹配仓库编码
+          // 匹配供应商编码
           if (item.code && item.code.toLowerCase().includes(keyword)) {
             return true
           }
-          // 匹配仓库地址
-          if (item.address && item.address.toLowerCase().includes(keyword)) {
+          // 匹配联系人
+          if (item.contactPerson && item.contactPerson.toLowerCase().includes(keyword)) {
+            return true
+          }
+          // 匹配电话
+          if (item.phone && item.phone.includes(keyword)) {
             return true
           }
           return false
         })
       }
       
-      return warehouses
+      return suppliers
     })
     
     // 检查是否选中
-    const isSelected = (warehouseId) => {
+    const isSelected = (supplierId) => {
       if (props.showConfirmButton) {
         // 显示确认按钮时，使用临时选择
-        return tempSelection.value == warehouseId
+        return tempSelection.value == supplierId
       }
-      return props.modelValue == warehouseId
+      return props.modelValue == supplierId
     }
     
     // 打开选择器
@@ -333,16 +347,16 @@ export default {
       showPicker.value = true
     }
     
-    // 加载仓库数据
-    const loadWarehouses = async () => {
+    // 加载供应商数据
+    const loadSuppliers = async () => {
       if (loading.value) return
       
       loading.value = true
       try {
-        await warehouseStore.loadList()
+        await supplierStore.loadList()
       } catch (error) {
-        console.error('加载仓库列表失败:', error)
-        showToast('加载仓库列表失败')
+        console.error('加载供应商列表失败:', error)
+        showToast('加载供应商列表失败')
       } finally {
         loading.value = false
       }
@@ -350,17 +364,17 @@ export default {
     
     // 搜索处理
     const handleSearch = () => {
-      // 搜索逻辑已经在filteredWarehouses计算属性中处理
+      // 搜索逻辑已经在filteredSuppliers计算属性中处理
     }
     
     const handleClearSearch = () => {
       searchKeyword.value = ''
     }
     
-    // 选择仓库
-    const handleWarehouseSelect = (warehouse) => {
+    // 选择供应商
+    const handleSupplierSelect = (supplier) => {
       // 如果是"全部"选项
-      if (warehouse.id === 0) {
+      if (supplier.id === 0) {
         // 如果显示确认按钮，使用临时选择
         if (props.showConfirmButton) {
           tempSelection.value = 0
@@ -369,26 +383,26 @@ export default {
         
         // 否则立即确认选择
         emit('update:modelValue', 0)
-        emit('change', 0, '全部仓库')
-        emit('select', { id: 0, name: '全部仓库' })
+        emit('change', 0, '全部供应商')
+        emit('select', { id: 0, name: '全部供应商' })
         showPicker.value = false
         return
       }
       
-      // 检查是否允许选择已禁用的仓库
-      if (warehouse.status === 0 && !props.allowDisabled) {
-        showToast('该仓库已禁用，无法选择')
+      // 检查是否允许选择已禁用的供应商
+      if (supplier.status === 0 && !props.allowDisabled) {
+        showToast('该供应商已禁用，无法选择')
         return
       }
       
       // 如果显示确认按钮，使用临时选择
       if (props.showConfirmButton) {
-        tempSelection.value = tempSelection.value === warehouse.id ? null : warehouse.id
+        tempSelection.value = tempSelection.value === supplier.id ? null : supplier.id
         return
       }
       
-      // 如果选择的是已选中的仓库，则不重复选择
-      if (warehouse.id === props.modelValue) {
+      // 如果选择的是已选中的供应商，则不重复选择
+      if (supplier.id === props.modelValue) {
         if (props.immediateSelect) {
           showPicker.value = false
         }
@@ -396,9 +410,9 @@ export default {
       }
       
       // 立即确认选择
-      emit('update:modelValue', warehouse.id)
-      emit('change', warehouse.id, warehouse.name)
-      emit('select', warehouse)
+      emit('update:modelValue', supplier.id)
+      emit('change', supplier.id, supplier.name)
+      emit('select', supplier)
       
       if (props.immediateSelect) {
         showPicker.value = false
@@ -412,19 +426,19 @@ export default {
       // 处理"全部"选项
       if (tempSelection.value === 0 && props.showAllOption) {
         emit('update:modelValue', 0)
-        emit('change', 0, '全部仓库')
+        emit('change', 0, '全部供应商')
         emit('confirm', 0)
         showPicker.value = false
         tempSelection.value = null
         return
       }
       
-      const warehouse = warehouseList.value.find(item => item.id == tempSelection.value)
-      if (!warehouse) return
+      const supplier = supplierList.value.find(item => item.id == tempSelection.value)
+      if (!supplier) return
       
-      emit('update:modelValue', warehouse.id)
-      emit('change', warehouse.id, warehouse.name)
-      emit('confirm', warehouse.id)
+      emit('update:modelValue', supplier.id)
+      emit('change', supplier.id, supplier.name)
+      emit('confirm', supplier.id)
       
       showPicker.value = false
       tempSelection.value = null
@@ -449,14 +463,14 @@ export default {
         // 弹窗显示时，清空搜索关键词
         searchKeyword.value = ''
         
-        // 如果仓库列表为空，则加载数据
-        if (warehouseList.value.length === 0) {
-          loadWarehouses()
+        // 如果供应商列表为空，则加载数据
+        if (supplierList.value.length === 0) {
+          loadSuppliers()
         }
         
         // 自动聚焦搜索框（需要等待弹窗渲染完成）
         nextTick(() => {
-          const searchInput = document.querySelector('.warehouse-picker .van-search__field')
+          const searchInput = document.querySelector('.supplier-picker .van-search__field')
           if (searchInput) {
             searchInput.focus()
           }
@@ -473,10 +487,10 @@ export default {
       // 这里可以处理外部值变化时的逻辑
     }, { immediate: true })
     
-    // 组件挂载时预加载仓库数据
+    // 组件挂载时预加载供应商数据
     onMounted(() => {
       if (props.autoLoad) {
-        loadWarehouses()
+        loadSuppliers()
       }
     })
     
@@ -484,12 +498,12 @@ export default {
     const publicMethods = {
       openPicker,
       closePicker: () => { showPicker.value = false },
-      loadWarehouses,
+      loadSuppliers,
       clear: () => {
         emit('update:modelValue', null)
         searchKeyword.value = ''
       },
-      getSelectedWarehouse: () => selectedWarehouse.value
+      getSelectedSupplier: () => selectedSupplier.value
     }
     
     return {
@@ -500,15 +514,15 @@ export default {
       tempSelection,
       
       // 计算属性
-      selectedWarehouse,
+      selectedSupplier,
       displayText,
-      filteredWarehouses,
+      filteredSuppliers,
       
       // 方法
       openPicker,
       handleSearch,
       handleClearSearch,
-      handleWarehouseSelect,
+      handleSupplierSelect,
       handleConfirm,
       handleCancel,
       isSelected,
@@ -521,7 +535,7 @@ export default {
 </script>
 
 <style scoped>
-.warehouse-select-trigger {
+.supplier-select-trigger {
   display: inline-block;
   width: 100%;
 }
@@ -535,7 +549,7 @@ export default {
   }
 }
 
-.warehouse-picker {
+.supplier-picker {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -568,17 +582,17 @@ export default {
   border-bottom: 1px solid #ebedf0;
 }
 
-.warehouse-list-container {
+.supplier-list-container {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.warehouse-list {
+.supplier-list {
   padding: 8px 0;
 }
 
-.warehouse-item {
+.supplier-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -595,11 +609,11 @@ export default {
     background-color: #ebedf0;
   }
   
-  &.warehouse-item-selected {
+  &.supplier-item-selected {
     background-color: #f0f9ff;
   }
   
-  &.warehouse-item-disabled {
+  &.supplier-item-disabled {
     opacity: 0.6;
     cursor: not-allowed;
     
@@ -610,12 +624,12 @@ export default {
   }
 }
 
-.warehouse-info {
+.supplier-info {
   flex: 1;
   margin-right: 12px;
   overflow: hidden;
   
-  .warehouse-name {
+  .supplier-name {
     font-size: 14px;
     font-weight: 500;
     color: #323233;
@@ -625,14 +639,15 @@ export default {
     white-space: nowrap;
   }
   
-  .warehouse-details {
+  .supplier-details {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
   
-  .warehouse-code,
-  .warehouse-address {
+  .supplier-code,
+  .supplier-contact,
+  .supplier-phone {
     font-size: 12px;
     color: #969799;
     overflow: hidden;
@@ -641,7 +656,7 @@ export default {
   }
 }
 
-.warehouse-status {
+.supplier-status {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -713,7 +728,7 @@ export default {
     padding: 8px 14px;
   }
   
-  .warehouse-item {
+  .supplier-item {
     padding: 10px 14px;
   }
   

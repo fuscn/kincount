@@ -1,516 +1,415 @@
-<!-- src/views/test/WarehouseSelectTest.vue -->
 <template>
-  <div class="warehouse-select-test">
-    <van-nav-bar
-      title="仓库选择组件测试"
-      left-text="返回"
-      left-arrow
-      @click-left="router.back()"
+  <div class="brand-select-test">
+    <van-nav-bar 
+      title="BrandSelect 组件测试" 
+      left-text="返回" 
+      left-arrow 
+      @click-left="onBack" 
     />
     
     <div class="test-container">
-      <!-- 测试说明 -->
-      <div class="test-description">
-        <h3>仓库选择组件测试</h3>
-        <p>本页面演示WarehouseSelect组件的各种使用场景，请确保后端服务已启动。</p>
-        <p>当前仓库选项数量: {{ warehouseOptionsCount }}</p>
+      <!-- 测试1：基础使用 -->
+      <div class="test-section">
+        <h3>1. 基础使用（绑定ID）</h3>
+        <BrandSelect v-model="brandId1" placeholder="请选择品牌" />
+        <div class="test-result">
+          选中的品牌ID: <strong>{{ brandId1 || '未选择' }}</strong>
+        </div>
+        <van-button size="small" type="primary" @click="getSelectedBrand1">
+          获取选中品牌
+        </van-button>
       </div>
       
-      <!-- 基本用法 -->
+      <!-- 测试2：返回对象形式 -->
       <div class="test-section">
-        <h4>1. 基本用法</h4>
-        <WarehouseSelect
-          v-model="form1.warehouseId"
-          label="仓库"
-          placeholder="请选择仓库"
-          required
+        <h3>2. 返回对象形式</h3>
+        <BrandSelect 
+          v-model="brandObject" 
+          :return-object="true"
+          placeholder="选择品牌（返回对象）" 
         />
         <div class="test-result">
-          选中值: {{ form1.warehouseId !== null ? form1.warehouseId : '未选择' }}
+          选中的品牌对象: 
+          <pre v-if="brandObject">{{ JSON.stringify(brandObject, null, 2) }}</pre>
+          <span v-else>未选择</span>
         </div>
       </div>
       
-      <!-- 显示全部选项 -->
+      <!-- 测试3：显示操作按钮 -->
       <div class="test-section">
-        <h4>2. 显示"全部"选项</h4>
-        <WarehouseSelect
-          v-model="form2.warehouseId"
-          label="仓库筛选"
-          :show-all-option="true"
+        <h3>3. 显示操作按钮</h3>
+        <BrandSelect 
+          v-model="brandId2" 
+          :show-actions="true"
+          placeholder="点击选择（带确认按钮）"
+          @confirm="onConfirm"
+          @cancel="onCancel"
         />
         <div class="test-result">
-          选中值: {{ form2.warehouseId === 0 ? '全部仓库' : (form2.warehouseId || '未选择') }}
+          选中的品牌ID: <strong>{{ brandId2 || '未选择' }}</strong>
         </div>
       </div>
       
-      <!-- 禁用状态 -->
+      <!-- 测试4：自定义触发器 -->
       <div class="test-section">
-        <h4>3. 禁用状态</h4>
-        <div class="test-controls">
-          <van-switch v-model="disabled" size="20px" />
-          <span>禁用选择</span>
+        <h3>4. 自定义触发器</h3>
+        <BrandSelect v-model="brandId3">
+          <template #trigger="{ selected, open }">
+            <div class="custom-trigger" @click="open">
+              <van-icon name="shop-o" />
+              <span>{{ selected ? `已选: ${selected.name}` : '自定义触发按钮' }}</span>
+              <van-icon name="arrow-down" />
+            </div>
+          </template>
+        </BrandSelect>
+        <div class="test-result">
+          选中的品牌ID: <strong>{{ brandId3 || '未选择' }}</strong>
         </div>
-        <WarehouseSelect
-          v-model="form3.warehouseId"
-          label="仓库"
-          :disabled="disabled"
+      </div>
+      
+      <!-- 测试5：禁用状态 -->
+      <div class="test-section">
+        <h3>5. 禁用状态</h3>
+        <BrandSelect 
+          v-model="brandId4" 
+          :disabled="true"
+          placeholder="已禁用的选择器" 
         />
         <div class="test-result">
-          选中值: {{ form3.warehouseId || '未选择' }}
+          选中的品牌ID: <strong>{{ brandId4 || '未选择' }}</strong>
         </div>
       </div>
       
-      <!-- 带错误提示 -->
+      <!-- 测试6：允许选择已禁用的品牌 -->
       <div class="test-section">
-        <h4>4. 带错误提示</h4>
-        <div class="test-controls">
-          <van-button size="small" @click="toggleError">
-            {{ showError ? '隐藏错误' : '显示错误' }}
-          </van-button>
-        </div>
-        <WarehouseSelect
-          v-model="form4.warehouseId"
-          label="仓库"
-          :error-message="showError ? '请选择有效的仓库' : ''"
-          required
+        <h3>6. 允许选择已禁用的品牌</h3>
+        <BrandSelect 
+          v-model="brandId5" 
+          :only-enabled="false"
+          :allow-disabled="true"
+          placeholder="可选择已禁用品牌" 
         />
         <div class="test-result">
-          选中值: {{ form4.warehouseId || '未选择' }}
+          选中的品牌ID: <strong>{{ brandId5 || '未选择' }}</strong>
         </div>
       </div>
       
-      <!-- 排除特定仓库 -->
+      <!-- 测试7：通过ref调用方法 -->
       <div class="test-section">
-        <h4>5. 排除特定仓库</h4>
-        <WarehouseSelect
-          v-model="form5.warehouseId"
-          label="目标仓库"
-          :exclude-ids="excludedWarehouseIds"
-          placeholder="请选择调拨目标仓库"
+        <h3>7. 通过ref调用方法</h3>
+        <div class="button-group">
+          <van-button size="small" @click="openPicker">打开选择器</van-button>
+          <van-button size="small" @click="closePicker">关闭选择器</van-button>
+          <van-button size="small" @click="loadBrands">加载品牌数据</van-button>
+          <van-button size="small" @click="clearSelection">清空选择</van-button>
+          <van-button size="small" @click="refreshBrands">刷新品牌列表</van-button>
+        </div>
+        <BrandSelect 
+          ref="brandSelectRef" 
+          v-model="brandId6" 
+          placeholder="通过ref控制"
+          :show-actions="true"
         />
         <div class="test-result">
-          选中值: {{ form5.warehouseId || '未选择' }}<br>
-          排除的仓库ID: {{ excludedWarehouseIds.join(', ') || '无' }}
+          选中的品牌ID: <strong>{{ brandId6 || '未选择' }}</strong>
         </div>
       </div>
       
-      <!-- 监听change事件 -->
+      <!-- 测试8：自定义按钮样式 -->
       <div class="test-section">
-        <h4>6. 监听change事件</h4>
-        <WarehouseSelect
-          v-model="form6.warehouseId"
-          label="仓库"
-          @change="handleWarehouseChange"
+        <h3>8. 自定义按钮样式</h3>
+        <BrandSelect 
+          v-model="brandId7" 
+          placeholder="自定义按钮样式"
+          :trigger-button-type="'primary'"
+          :trigger-button-size="'small'"
+          :trigger-button-block="false"
+          :show-trigger-icon="false"
         />
-        <div class="test-log">
-          <p>最近一次change事件:</p>
-          <div class="log-content" v-if="lastChangeLog">
-            时间: {{ lastChangeLog.timestamp }}<br>
-            ID: {{ lastChangeLog.id }}<br>
-            名称: {{ lastChangeLog.name }}
-          </div>
-          <div class="log-content" v-else>
-            暂无选择记录
-          </div>
-        </div>
-      </div>
-      
-      <!-- 手动控制加载 -->
-      <div class="test-section">
-        <h4>7. 手动控制加载</h4>
-        <WarehouseSelect
-          ref="manualWarehouseSelectRef"
-          v-model="form7.warehouseId"
-          label="仓库"
-          :auto-load="false"
-        />
-        <div class="test-controls">
-          <van-button type="primary" size="small" @click="loadOptionsManually">
-            手动加载选项
-          </van-button>
-          <van-button type="default" size="small" @click="resetManualSelect">
-            重置选择
-          </van-button>
-          <van-button type="warning" size="small" @click="setDefaultValue">
-            设置默认值
-          </van-button>
-        </div>
         <div class="test-result">
-          选中值: {{ form7.warehouseId || '未选择' }}
+          选中的品牌ID: <strong>{{ brandId7 || '未选择' }}</strong>
         </div>
       </div>
       
-      <!-- 综合表单示例 -->
+      <!-- 测试9：搜索事件 -->
       <div class="test-section">
-        <h4>8. 综合表单示例</h4>
-        <div class="form-example">
-          <van-cell-group inset>
-            <van-field
-              v-model="comprehensiveForm.orderNo"
-              label="订单编号"
-              placeholder="请输入订单编号"
-            />
-            <WarehouseSelect
-              v-model="comprehensiveForm.warehouseId"
-              label="仓库"
-              required
-              :error-message="comprehensiveFormErrors.warehouseId"
-            />
-            <van-field
-              v-model="comprehensiveForm.remark"
-              label="备注"
-              type="textarea"
-              placeholder="请输入备注"
-              rows="2"
-              autosize
-            />
-          </van-cell-group>
-          <div class="form-actions">
-            <van-button type="primary" @click="submitComprehensiveForm">
-              提交表单
-            </van-button>
-            <van-button type="default" @click="resetComprehensiveForm">
-              重置
-            </van-button>
+        <h3>9. 搜索事件</h3>
+        <BrandSelect 
+          v-model="brandId8" 
+          placeholder="测试搜索功能"
+          @search="onSearch"
+        />
+        <div class="test-result">
+          选中的品牌ID: <strong>{{ brandId8 || '未选择' }}</strong>
+        </div>
+      </div>
+      
+      <!-- 控制台 -->
+      <div class="console-section">
+        <h3>控制台输出</h3>
+        <div class="console">
+          <div v-for="(log, index) in consoleLogs" :key="index" class="log-item">
+            <span class="time">[{{ log.time }}]</span>
+            <span class="message">{{ log.message }}</span>
           </div>
         </div>
-      </div>
-      
-      <!-- 当前状态显示 -->
-      <div class="status-section">
-        <h4>当前所有表单状态</h4>
-        <div class="status-list">
-          <div v-for="(form, index) in allFormData" :key="index">
-            表单{{ index + 1 }}: {{ form.warehouseId !== null ? form.warehouseId : '未选择' }}
-          </div>
-        </div>
+        <van-button size="small" @click="clearConsole">清空控制台</van-button>
       </div>
     </div>
-    
-    <!-- 加载提示 -->
-    <van-overlay :show="loading">
-      <div class="loading-overlay">
-        <van-loading type="spinner" color="#1989fa" />
-        <div class="loading-text">加载中...</div>
-      </div>
-    </van-overlay>
   </div>
 </template>
 
-<script>
-// 使用局部引入
-import WarehouseSelect from '@/components/business/WarehouseSelect.vue'
-import { ref, reactive, computed, onMounted } from 'vue'
+<script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast, showDialog, showNotify } from 'vant'
-import { useWarehouseStore } from '@/store/modules/warehouse'
+import { showToast } from 'vant'
+import BrandSelect from '@/components/business/BrandSelect.vue'
 
-export default {
-  name: 'WarehouseSelectTest',
-  
-  // 局部注册组件
-  components: {
-    WarehouseSelect
-  },
-  
-  setup() {
-    const router = useRouter()
-    const warehouseStore = useWarehouseStore()
-    
-    // 表单数据初始化
-    const form1 = reactive({ warehouseId: null })
-    const form2 = reactive({ warehouseId: null })
-    const form3 = reactive({ warehouseId: null })
-    const form4 = reactive({ warehouseId: null })
-    const form5 = reactive({ warehouseId: null })
-    const form6 = reactive({ warehouseId: null })
-    const form7 = reactive({ warehouseId: null })
-    
-    const disabled = ref(false)
-    const showError = ref(false)
-    const excludedWarehouseIds = ref([1, 2])
-    const lastChangeLog = ref(null)
-    const manualWarehouseSelectRef = ref(null)
-    const loading = ref(false)
-    
-    const comprehensiveForm = reactive({
-      orderNo: '',
-      warehouseId: null,
-      remark: ''
-    })
-    
-    const comprehensiveFormErrors = reactive({
-      warehouseId: ''
-    })
-    
-    const toggleError = () => {
-      showError.value = !showError.value
-      if (showError.value && !form4.warehouseId) {
-        showNotify({ type: 'warning', message: '请选择一个仓库以清除错误提示' })
-      }
-    }
-    
-    const handleWarehouseChange = (id, name) => {
-      lastChangeLog.value = {
-        id,
-        name,
-        timestamp: new Date().toLocaleTimeString()
-      }
-      
-      showToast({
-        message: `选择了仓库: ${name} (ID: ${id})`,
-        position: 'top'
-      })
-    }
-    
-    const loadOptionsManually = async () => {
-      try {
-        if (manualWarehouseSelectRef.value) {
-          await manualWarehouseSelectRef.value.loadWarehouseOptions()
-          showToast('仓库选项加载成功')
-        }
-      } catch (error) {
-        showToast('加载失败: ' + (error.message || '未知错误'))
-      }
-    }
-    
-    const resetManualSelect = () => {
-      form7.warehouseId = null
-      showToast('已重置选择')
-    }
-    
-    const setDefaultValue = () => {
-      form7.warehouseId = 1
-      showToast('已设置默认值: 1')
-    }
-    
-    const validateComprehensiveForm = () => {
-      let isValid = true
-      
-      comprehensiveFormErrors.warehouseId = ''
-      
-      if (comprehensiveForm.warehouseId === null || comprehensiveForm.warehouseId === undefined) {
-        comprehensiveFormErrors.warehouseId = '请选择仓库'
-        isValid = false
-      }
-      
-      return isValid
-    }
-    
-    const submitComprehensiveForm = () => {
-      if (validateComprehensiveForm()) {
-        showDialog({
-          title: '表单提交',
-          message: `订单编号: ${comprehensiveForm.orderNo || '无'}
-                    仓库ID: ${comprehensiveForm.warehouseId}
-                    备注: ${comprehensiveForm.remark || '无'}`,
-          theme: 'round-button'
-        }).then(() => {
-          showToast('表单提交成功')
-        })
-      } else {
-        showToast('请检查表单错误', { type: 'fail' })
-      }
-    }
-    
-    const resetComprehensiveForm = () => {
-      comprehensiveForm.orderNo = ''
-      comprehensiveForm.warehouseId = null
-      comprehensiveForm.remark = ''
-      comprehensiveFormErrors.warehouseId = ''
-      showToast('表单已重置')
-    }
-    
-    const allFormData = computed(() => {
-      return [
-        { warehouseId: form1.warehouseId },
-        { warehouseId: form2.warehouseId },
-        { warehouseId: form3.warehouseId },
-        { warehouseId: form4.warehouseId },
-        { warehouseId: form5.warehouseId },
-        { warehouseId: form6.warehouseId },
-        { warehouseId: form7.warehouseId },
-        { warehouseId: comprehensiveForm.warehouseId }
-      ]
-    })
-    
-    const warehouseOptionsCount = computed(() => {
-      return warehouseStore.options.length
-    })
-    
-    const simulateLoading = () => {
-      loading.value = true
-      setTimeout(() => {
-        loading.value = false
-      }, 1000)
-    }
-    
-    onMounted(() => {
-      simulateLoading()
-    })
-    
-    return {
-      router,
-      form1,
-      form2,
-      form3,
-      form4,
-      form5,
-      form6,
-      form7,
-      comprehensiveForm,
-      comprehensiveFormErrors,
-      disabled,
-      showError,
-      excludedWarehouseIds,
-      lastChangeLog,
-      manualWarehouseSelectRef,
-      loading,
-      allFormData,
-      warehouseOptionsCount,
-      toggleError,
-      handleWarehouseChange,
-      loadOptionsManually,
-      resetManualSelect,
-      setDefaultValue,
-      submitComprehensiveForm,
-      resetComprehensiveForm
+const router = useRouter()
+
+// 定义不同的测试变量
+const brandId1 = ref(null)
+const brandObject = ref(null)
+const brandId2 = ref(null)
+const brandId3 = ref(null)
+const brandId4 = ref(null)
+const brandId5 = ref(null)
+const brandId6 = ref(null)
+const brandId7 = ref(null)
+const brandId8 = ref(null)
+
+const brandSelectRef = ref(null)
+
+// 控制台日志
+const consoleLogs = ref([])
+
+// 记录日志
+const log = (message) => {
+  const time = new Date().toLocaleTimeString()
+  consoleLogs.value.unshift({ time, message })
+  console.log(`[${time}] ${message}`)
+}
+
+// 获取选中品牌
+const getSelectedBrand1 = () => {
+  if (brandSelectRef.value) {
+    const brand = brandSelectRef.value.getSelectedBrand?.()
+    if (brand) {
+      showToast(`选中品牌: ${brand.name}`)
+      log(`选中品牌: ${brand.name} (ID: ${brand.id})`)
+    } else {
+      showToast('未选择品牌')
     }
   }
 }
+
+// 确认事件
+const onConfirm = (value) => {
+  log(`确认选择: ${JSON.stringify(value)}`)
+  showToast('已确认选择')
+}
+
+// 取消事件
+const onCancel = () => {
+  log('取消选择')
+  showToast('已取消选择')
+}
+
+// 搜索事件
+const onSearch = (keyword) => {
+  log(`搜索关键词: ${keyword}`)
+}
+
+// 通过ref调用的方法
+const openPicker = () => {
+  if (brandSelectRef.value) {
+    brandSelectRef.value.openPicker()
+    log('通过ref打开选择器')
+  }
+}
+
+const closePicker = () => {
+  if (brandSelectRef.value) {
+    brandSelectRef.value.closePicker()
+    log('通过ref关闭选择器')
+  }
+}
+
+const loadBrands = () => {
+  if (brandSelectRef.value) {
+    brandSelectRef.value.loadBrands()
+    log('通过ref加载品牌数据')
+  }
+}
+
+const clearSelection = () => {
+  brandId6.value = null
+  if (brandSelectRef.value) {
+    brandSelectRef.value.clear()
+    log('清空选择')
+    showToast('已清空选择')
+  }
+}
+
+const refreshBrands = () => {
+  if (brandSelectRef.value) {
+    brandSelectRef.value.refreshBrands()
+    log('刷新品牌列表')
+    showToast('正在刷新品牌列表...')
+  }
+}
+
+const clearConsole = () => {
+  consoleLogs.value = []
+}
+
+const onBack = () => {
+  router.back()
+}
 </script>
 
-<style scoped>
-.warehouse-select-test {
+<style scoped lang="scss">
+.brand-select-test {
+  background: #f7f8fa;
   min-height: 100vh;
-  background-color: #f5f5f5;
 }
 
 .test-container {
   padding: 16px;
 }
 
-.test-description {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-}
-
-.test-description h3 {
-  margin-top: 0;
-  color: #323233;
-}
-
-.test-description p {
-  color: #646566;
-  margin-bottom: 0;
-}
-
 .test-section {
-  background: white;
-  border-radius: 8px;
+  margin-bottom: 24px;
   padding: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  
+  h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #333;
+    font-weight: 500;
+  }
+  
+  .test-result {
+    margin: 12px 0;
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #666;
+    
+    pre {
+      margin: 8px 0 0 0;
+      padding: 8px;
+      background: #fff;
+      border-radius: 4px;
+      font-size: 12px;
+      overflow: auto;
+      max-height: 120px;
+    }
+  }
+  
+  .button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    
+    .van-button {
+      flex: 1;
+      min-width: 100px;
+    }
+  }
 }
 
-.test-section h4 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  color: #1989fa;
-  font-size: 16px;
-}
-
-.test-result {
-  margin-top: 12px;
-  padding: 8px 12px;
-  background-color: #f7f8fa;
-  border-radius: 4px;
-  color: #646566;
-  font-size: 14px;
-}
-
-.test-controls {
+.custom-trigger {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.test-log {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: #f7f8fa;
-  border-radius: 4px;
-  border-left: 3px solid #1989fa;
-}
-
-.test-log p {
-  margin: 0 0 8px 0;
-  font-weight: 500;
-  color: #323233;
-}
-
-.log-content {
-  padding: 8px;
-  background: white;
-  border-radius: 4px;
-  color: #646566;
-  font-size: 14px;
-}
-
-.form-example {
-  background-color: #f7f8fa;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #f0f9ff;
+  border: 1px solid #1890ff;
   border-radius: 8px;
-  overflow: hidden;
+  cursor: pointer;
+  
+  span {
+    flex: 1;
+    margin: 0 8px;
+    font-size: 14px;
+    color: #1890ff;
+  }
+  
+  .van-icon {
+    color: #1890ff;
+  }
 }
 
-.form-actions {
-  display: flex;
-  gap: 12px;
+.console-section {
+  margin-top: 32px;
   padding: 16px;
-  background: white;
-  margin-top: 1px;
-}
-
-.status-section {
-  background: white;
+  background: #1e1e1e;
   border-radius: 8px;
-  padding: 16px;
-  margin-top: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  color: #fff;
+  
+  h3 {
+    margin: 0 0 12px 0;
+    color: #fff;
+    font-weight: 500;
+  }
+  
+  .console {
+    height: 200px;
+    overflow-y: auto;
+    background: #000;
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    
+    .log-item {
+      padding: 4px 0;
+      border-bottom: 1px solid #333;
+      
+      .time {
+        color: #00ff00;
+        margin-right: 8px;
+      }
+      
+      .message {
+        color: #fff;
+      }
+    }
+  }
+  
+  .van-button {
+    background: #333;
+    color: #fff;
+    border: none;
+  }
 }
 
-.status-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.status-list > div {
-  padding: 8px 12px;
-  background-color: #f7f8fa;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #646566;
-}
-
-.loading-overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background-color: rgba(255, 255, 255, 0.8);
-}
-
-.loading-text {
-  margin-top: 12px;
-  color: #1989fa;
-  font-size: 16px;
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .test-container {
+    padding: 12px;
+  }
+  
+  .test-section {
+    padding: 12px;
+    
+    h3 {
+      font-size: 15px;
+    }
+  }
+  
+  .button-group {
+    .van-button {
+      min-width: 80px;
+      font-size: 12px;
+    }
+  }
 }
 </style>

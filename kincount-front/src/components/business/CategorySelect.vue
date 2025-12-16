@@ -1,17 +1,15 @@
 <template>
-  <!-- 触发按钮 -->
+  <!-- 触发按钮/区域 -->
   <div v-if="!hideTrigger" @click="showSelector = true">
     <slot name="trigger" :selected="selectedItem">
-      <van-field
-        v-model="displayText"
-        readonly
-        :label="label"
-        :placeholder="placeholder"
-        is-link
-        :rules="rules"
-        :required="required"
-        @click="showSelector = true"
-      />
+      <!-- 默认触发按钮 -->
+      <van-button 
+        :type="buttonType" 
+        :size="buttonSize"
+        :block="buttonBlock"
+      >
+        {{ displayText || placeholder || '选择分类' }}
+      </van-button>
     </slot>
   </div>
 
@@ -21,7 +19,6 @@
     position="bottom"
     :style="{ height: '70%' }"
     round
-    closeable
     @close="handleClose"
   >
     <div class="category-select-popup">
@@ -67,6 +64,7 @@
 import { ref, computed, watch } from 'vue'
 import { useCategoryStore } from '@/store/modules/category'
 import CategoryTreeItem from './CategoryTreeItem.vue'
+import { Button as VanButton, Popup, NavBar, Loading, Empty } from 'vant'
 
 const props = defineProps({
   // 选择值
@@ -82,10 +80,6 @@ const props = defineProps({
   },
   
   // 显示配置
-  label: {
-    type: String,
-    default: '选择分类'
-  },
   placeholder: {
     type: String,
     default: '请选择分类'
@@ -103,16 +97,6 @@ const props = defineProps({
     default: '确定'
   },
   
-  // 验证配置
-  required: {
-    type: Boolean,
-    default: false
-  },
-  rules: {
-    type: Array,
-    default: () => []
-  },
-  
   // 其他配置
   hideTrigger: {
     type: Boolean,
@@ -128,19 +112,97 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  // 新增：是否强制刷新数据
+  // 是否强制刷新数据
   forceRefresh: {
     type: Boolean,
     default: false
   },
-  // 新增：是否启用缓存
+  // 是否启用缓存
   enableCache: {
     type: Boolean,
     default: true
+  },
+  // 触发按钮类型（可选：button, text, custom）
+  triggerType: {
+    type: String,
+    default: 'button',
+    validator: (value) => ['button', 'text', 'custom'].includes(value)
+  },
+  // 按钮样式
+  buttonType: {
+    type: String,
+    default: 'primary'
+  },
+  buttonSize: {
+    type: String,
+    default: 'normal'
+  },
+  buttonBlock: {
+    type: Boolean,
+    default: true
+  },
+  // 是否显示搜索框
+  showSearch: {
+    type: Boolean,
+    default: false
+  },
+  // 搜索框占位符
+  searchPlaceholder: {
+    type: String,
+    default: '搜索分类'
+  },
+  // 是否显示已选中的分类路径
+  showSelectedPath: {
+    type: Boolean,
+    default: false
+  },
+  // 最大选择层级（0表示不限制）
+  maxLevel: {
+    type: Number,
+    default: 0
+  },
+  // 是否多选
+  multiple: {
+    type: Boolean,
+    default: false
+  },
+  // 多选时最多可选数量（0表示不限制）
+  maxCount: {
+    type: Number,
+    default: 0
+  },
+  // 是否显示全部分类选项
+  showAllOption: {
+    type: Boolean,
+    default: false
+  },
+  // 全部分类选项的文本
+  allOptionText: {
+    type: String,
+    default: '全部分类'
+  },
+  // 是否显示分类数量
+  showCount: {
+    type: Boolean,
+    default: false
+  },
+  // 是否显示分类图标
+  showIcon: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'confirm', 'cancel', 'change'])
+const emit = defineEmits([
+  'update:modelValue', 
+  'confirm', 
+  'cancel', 
+  'change',
+  'search',
+  'open',
+  'close',
+  'select'
+])
 
 // 状态
 const showSelector = ref(false)
@@ -149,6 +211,8 @@ const tempSelectedId = ref(null)
 const expandedNodeId = ref(null)
 const categoryStore = useCategoryStore()
 const treeData = ref([])
+const searchKeyword = ref('')
+const selectedItems = ref([]) // 用于多选模式
 
 // 计算属性
 const hasCachedData = computed(() => {
@@ -162,16 +226,74 @@ const selectedItem = computed(() => {
   // 如果没有数据，也返回 null
   if (!treeData.value.length) return null
   
+  // 多选模式
+  if (props.multiple) {
+    if (Array.isArray(props.modelValue)) {
+      return props.modelValue.map(id => findNodeById(id, treeData.value)).filter(Boolean)
+    }
+    return []
+  }
+  
+  // 单选模式
   return findNodeById(props.modelValue, treeData.value)
 })
 
 const displayText = computed(() => {
-  if (!selectedItem.value) return ''
-  
-  if (props.showFullPath) {
-    return getFullName(selectedItem.value)
+  if (props.multiple) {
+    // 多选模式
+    if (!selectedItem.value || selectedItem.value.length === 0) {
+      return props.placeholder || '选择分类'
+    }
+    
+    if (selectedItem.value.length === 1) {
+      return props.showFullPath 
+        ? getFullName(selectedItem.value[0])
+        : selectedItem.value[0].name
+    }
+    
+    return `已选择 ${selectedItem.value.length} 个分类`
+  } else {
+    // 单选模式
+    if (!selectedItem.value) return props.placeholder || '选择分类'
+    
+    if (props.showFullPath) {
+      return getFullName(selectedItem.value)
+    }
+    return selectedItem.value.name
   }
-  return selectedItem.value.name
+})
+
+const filteredTreeData = computed(() => {
+  if (!searchKeyword.value.trim() || !props.showSearch) {
+    return treeData.value
+  }
+  
+  const keyword = searchKeyword.value.toLowerCase()
+  const filterNodes = (nodes) => {
+    return nodes.filter(node => {
+      // 检查当前节点是否匹配
+      const isMatch = node.name.toLowerCase().includes(keyword)
+      
+      // 检查子节点是否匹配
+      let childrenMatch = false
+      if (node.children && node.children.length) {
+        node.children = filterNodes(node.children)
+        childrenMatch = node.children.length > 0
+      }
+      
+      // 如果当前节点匹配或子节点匹配，保留该节点
+      if (isMatch || childrenMatch) {
+        // 如果是子节点匹配，展开当前节点
+        if (childrenMatch && !isMatch) {
+          node._expanded = true
+        }
+        return true
+      }
+      return false
+    })
+  }
+  
+  return filterNodes(JSON.parse(JSON.stringify(treeData.value)))
 })
 
 // 方法：根据ID从树数据中查找节点
@@ -247,18 +369,49 @@ const loadCategories = async () => {
     
   } catch (error) {
     console.error('加载分类失败:', error)
+    throw error
   } finally {
     loading.value = false
   }
 }
 
 const handleSelectNode = (node) => {
+  // 检查最大层级限制
+  if (props.maxLevel > 0 && node.level > props.maxLevel) {
+    return
+  }
+  
+  // 多选模式
+  if (props.multiple) {
+    const index = selectedItems.value.findIndex(item => item.id === node.id)
+    
+    if (index === -1) {
+      // 检查最大数量限制
+      if (props.maxCount > 0 && selectedItems.value.length >= props.maxCount) {
+        return
+      }
+      selectedItems.value.push(node)
+    } else {
+      selectedItems.value.splice(index, 1)
+    }
+    
+    // 触发选择事件
+    emit('select', node, selectedItems.value)
+    
+    // 多选时不自动关闭
+    return
+  }
+  
+  // 单选模式
   // 如果允许选择父节点，或者节点没有子节点，则选中
   if (props.allowSelectParent || !node.children || node.children.length === 0) {
     const selectedId = node.id
     
     // 立即更新选中状态，让用户看到视觉反馈
     tempSelectedId.value = selectedId
+    
+    // 触发选择事件
+    emit('select', node)
     
     // 如果设置了自动关闭，延迟确认并关闭弹窗
     if (props.autoClose) {
@@ -279,8 +432,21 @@ const handleToggleExpand = (node) => {
     expandedNodeId.value = node.id
   }
 }
-
+const isConfirmed = ref(false)
 const handleConfirm = () => {
+  // 多选模式
+  if (props.multiple) {
+    if (selectedItems.value.length > 0) {
+      const selectedIds = selectedItems.value.map(item => item.id)
+      emit('update:modelValue', selectedIds)
+      emit('confirm', selectedIds, selectedItems.value)
+      emit('change', selectedIds)
+    }
+    showSelector.value = false
+    return
+  }
+  
+  // 单选模式
   if (tempSelectedId.value !== null && tempSelectedId.value !== undefined) {
     // 从 treeData 中查找完整的节点对象
     const selectedNode = findNodeById(tempSelectedId.value, treeData.value)
@@ -288,20 +454,37 @@ const handleConfirm = () => {
     emit('update:modelValue', tempSelectedId.value)
     emit('confirm', tempSelectedId.value, selectedNode)
     emit('change', tempSelectedId.value)
+    
+    // 设置确认标志
+    isConfirmed.value = true
   }
   showSelector.value = false
 }
 
 const handleCancel = () => {
   // 取消时，不重置选中状态，保持当前选择
-  // 这样下次打开时，用户还能看到之前的选择
   showSelector.value = false
   emit('cancel')
 }
 
+// 修改 handleClose 方法
 const handleClose = () => {
-  // 弹窗关闭时，保持当前选中状态
-  showSelector.value = false
+  // 如果是确认后关闭，不触发取消事件
+  if (isConfirmed.value) {
+    isConfirmed.value = false
+    return
+  }
+  
+  // 否则视为取消
+  handleCancel()
+}
+
+const handleSearch = () => {
+  emit('search', searchKeyword.value)
+}
+
+const clearSearch = () => {
+  searchKeyword.value = ''
 }
 
 // 监听显示状态
@@ -310,19 +493,37 @@ watch(showSelector, async (newVal) => {
     // 打开弹窗时加载数据（使用缓存）
     await loadCategories()
     
-    // 如果有当前选中的值，设置为临时选中
-    if (props.modelValue) {
-      tempSelectedId.value = props.modelValue
+    // 多选模式
+    if (props.multiple) {
+      if (props.modelValue && Array.isArray(props.modelValue)) {
+        selectedItems.value = props.modelValue
+          .map(id => findNodeById(id, treeData.value))
+          .filter(Boolean)
+      } else {
+        selectedItems.value = []
+      }
     } else {
-      tempSelectedId.value = null
+      // 单选模式：如果有当前选中的值，设置为临时选中
+      if (props.modelValue) {
+        tempSelectedId.value = props.modelValue
+      } else {
+        tempSelectedId.value = null
+      }
     }
     
     // 重置展开状态
     expandedNodeId.value = null
+    
+    // 触发打开事件
+    emit('open')
   } else {
     // 弹窗关闭时，不要重置tempSelectedId
     // 保持当前选中状态，直到下次打开
     expandedNodeId.value = null
+    searchKeyword.value = ''
+    
+    // 触发关闭事件
+    emit('close')
   }
 })
 
@@ -330,7 +531,17 @@ watch(showSelector, async (newVal) => {
 watch(() => props.modelValue, (newVal) => {
   // 只有当弹窗未显示时才更新 tempSelectedId
   if (!showSelector.value) {
-    tempSelectedId.value = newVal
+    if (props.multiple) {
+      if (Array.isArray(newVal)) {
+        selectedItems.value = newVal
+          .map(id => findNodeById(id, treeData.value))
+          .filter(Boolean)
+      } else {
+        selectedItems.value = []
+      }
+    } else {
+      tempSelectedId.value = newVal
+    }
   }
 }, { immediate: true })
 
@@ -343,8 +554,13 @@ defineExpose({
     showSelector.value = false
   },
   clear: () => {
-    emit('update:modelValue', null)
-    tempSelectedId.value = null
+    if (props.multiple) {
+      emit('update:modelValue', [])
+      selectedItems.value = []
+    } else {
+      emit('update:modelValue', null)
+      tempSelectedId.value = null
+    }
     expandedNodeId.value = null
   },
   reload: async (forceRefresh = true) => {
@@ -361,6 +577,25 @@ defineExpose({
   // 新增：查找节点
   findNode: (id) => {
     return findNodeById(id, treeData.value)
+  },
+  // 新增：获取分类树数据
+  getTreeData: () => {
+    return treeData.value
+  },
+  // 新增：展开指定节点
+  expandNode: (nodeId) => {
+    expandedNodeId.value = nodeId
+  },
+  // 新增：折叠所有节点
+  collapseAll: () => {
+    expandedNodeId.value = null
+  },
+  // 新增：选择指定节点
+  selectNode: (nodeId) => {
+    const node = findNodeById(nodeId, treeData.value)
+    if (node) {
+      handleSelectNode(node)
+    }
   }
 })
 </script>
@@ -377,6 +612,60 @@ defineExpose({
     
     :deep(.van-nav-bar) {
       background: transparent;
+      
+      .van-nav-bar__title {
+        font-weight: 600;
+      }
+      
+      .van-nav-bar__left {
+        .van-nav-bar__text {
+          color: #969799;
+        }
+      }
+      
+      .van-nav-bar__right {
+        .van-nav-bar__text {
+          color: #1989fa;
+          
+          &:disabled {
+            color: #c8c9cc;
+          }
+        }
+      }
+    }
+  }
+  
+  .search-box {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    background: #f7f8fa;
+    border-bottom: 1px solid #ebedf0;
+    
+    :deep(.van-search) {
+      padding: 0;
+      
+      .van-search__content {
+        border-radius: 16px;
+        background: #fff;
+      }
+    }
+  }
+  
+  .selected-path {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: #fff;
+    border-bottom: 1px solid #ebedf0;
+    font-size: 14px;
+    color: #323233;
+    
+    .path-label {
+      color: #969799;
+      margin-right: 8px;
+    }
+    
+    .path-content {
+      font-weight: 500;
     }
   }
   
@@ -394,5 +683,31 @@ defineExpose({
       background: #fff;
     }
   }
+}
+
+// 可选：添加自定义触发样式
+.trigger-text {
+  color: #1989fa;
+  cursor: pointer;
+  padding: 8px 0;
+  display: inline-block;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.trigger-custom {
+  cursor: pointer;
+}
+
+// 多选提示
+.multiple-tip {
+  font-size: 12px;
+  color: #969799;
+  text-align: center;
+  padding: 8px;
+  background: #f7f8fa;
+  border-top: 1px solid #ebedf0;
 }
 </style>
