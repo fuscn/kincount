@@ -11,19 +11,59 @@
 
     <!-- 搜索 -->
     <SearchBar placeholder="搜索商品名称/编号" @search="handleSearch" @clear="handleClearSearch" />
+    <!-- 筛选条件区域 - 精简一行布局 -->
+    <div class="filter-row">
+      <!-- 分类选择 - 只允许选择叶子节点 -->
+      <div class="filter-item">
+        <CategorySelect
+          v-model="filters.category_id"
+          :placeholder="selectedCategoryText"
+          :allow-select-parent="false"  
+          :auto-close="true"
+          :button-size="'small'"
+          @change="handleFilterChange"
+        />
+      </div>
 
-    <!-- 下拉筛选 -->
-    <van-dropdown-menu>
-      <van-dropdown-item v-model="filters.category_id" :options="categoryOptions" @change="handleFilterChange" />
-      <van-dropdown-item v-model="filters.brand_id" :options="brandOptions" @change="handleFilterChange" />
-      <van-dropdown-item v-model="filters.warehouse_id" :options="warehouseOptions" @change="handleFilterChange" />
-    </van-dropdown-menu>
+      <!-- 品牌选择 -->
+      <div class="filter-item">
+        <BrandSelect
+          v-model="filters.brand_id"
+          :placeholder="selectedBrandText"
+          :only-enabled="true"
+          :allow-disabled="false"
+          :trigger-button-size="'small'"
+          @change="handleFilterChange"
+        />
+      </div>
+
+      <!-- 重置按钮 -->
+      <div class="filter-reset">
+        <van-button 
+          size="small" 
+          type="default" 
+          plain
+          @click="handleResetFilters"
+          :disabled="!hasActiveFilters"
+          class="reset-btn"
+        >
+          重置
+        </van-button>
+      </div>
+    </div>
 
     <!-- 商品聚合列表 -->
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <van-list v-model:loading="listLoading" :finished="finished" :immediate-check="false"
-        :finished-text="productList.length === 0 ? '暂无商品数据' : '没有更多了'" @load="onLoad">
-        <ProductCard v-for="product in productList" :key="product.id" 
+      <van-list 
+        v-model:loading="listLoading" 
+        :finished="finished" 
+        :immediate-check="false"
+        :finished-text="productList.length === 0 ? '暂无商品数据' : '没有更多了'" 
+        @load="onLoad"
+      >
+        <ProductCard 
+          v-for="product in productList" 
+          :key="product.id"
           :name="product.name"
           :productNo="product.product_no" 
           :unit="product.unit" 
@@ -34,10 +74,14 @@
           :brand="product.brand" 
           :productId="product.id"
           :totalStock="product.total_stock"
-          @click="handleProductItemClick" />
+          @click="handleProductItemClick"
+        />
 
-        <van-empty v-if="!listLoading && !refreshing && productList.length === 0" description="暂无商品数据"
-          image="search" />
+        <van-empty 
+          v-if="!listLoading && !refreshing && productList.length === 0" 
+          description="暂无商品数据"
+          image="search"
+        />
       </van-list>
     </van-pull-refresh>
 
@@ -47,20 +91,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useProductStore } from '@/store/modules/product'
-import { getCategoryOptions } from '@/api/category'
-import { getBrandOptions } from '@/api/brand'
-import { getWarehouseOptions } from '@/api/warehouse'
+import { useCategoryStore } from '@/store/modules/category'
+import { useBrandStore } from '@/store/modules/brand'
 import { PERM } from '@/constants/permissions'
 import SearchBar from '@/components/common/SearchBar.vue'
 import ProductCard from '@/components/business/ProductCard.vue'
+import CategorySelect from '@/components/business/CategorySelect.vue'
+import BrandSelect from '@/components/business/BrandSelect.vue'
 
 /* -------------------- 路由 & 状态 -------------------- */
 const router = useRouter()
 const productStore = useProductStore()
+const categoryStore = useCategoryStore()
+const brandStore = useBrandStore()
 
 // 使用计算属性获取状态
 const productList = computed(() => productStore.productList)
@@ -69,16 +116,33 @@ const productTotal = computed(() => productStore.productTotal)
 /* -------------------- 筛选条件 -------------------- */
 const filters = reactive({
   keyword: '',
-  category_id: '',
-  brand_id: '',
-  warehouse_id: '',
+  category_id: null,
+  brand_id: null,
   page: 1,
   limit: 15
 })
 
-const categoryOptions = ref([{ text: '全部分类', value: '' }])
-const brandOptions = ref([{ text: '全部品牌', value: '' }])
-const warehouseOptions = ref([{ text: '全部仓库', value: '' }])
+// 计算选中项的显示文本
+const selectedCategoryText = computed(() => {
+  if (!filters.category_id) return '分类'
+  
+  const category = categoryStore.list.find(item => item.id === filters.category_id)
+  return category ? (category.name.length > 4 ? category.name.substring(0, 4) + '...' : category.name) : '分类'
+})
+
+const selectedBrandText = computed(() => {
+  if (!filters.brand_id) return '品牌'
+  
+  const brand = brandStore.list.find(item => item.id === filters.brand_id)
+  return brand ? (brand.name.length > 4 ? brand.name.substring(0, 4) + '...' : brand.name) : '品牌'
+})
+
+// 检查是否有活跃的筛选条件
+const hasActiveFilters = computed(() => {
+  return filters.category_id !== null || 
+         filters.brand_id !== null ||
+         filters.keyword !== ''
+})
 
 /* -------------------- 列表状态 -------------------- */
 const initialLoading = ref(false)
@@ -86,40 +150,6 @@ const listLoading = ref(false)
 const refreshing = ref(false)
 const finished = ref(false)
 const isLoading = ref(false) // 加载锁，防止重复请求
-
-/* -------------------- 下拉数据加载 -------------------- */
-const loadFilterOptions = async () => {
-  try {
-    const [catRes, brdRes, whRes] = await Promise.all([
-      getCategoryOptions(),
-      getBrandOptions(),
-      getWarehouseOptions()
-    ])
-
-    // 提取每个响应的 data 字段
-    const catData = catRes.data || []
-    const brdData = brdRes.data || []
-    const whData = whRes.data || []
-
-    categoryOptions.value = [
-      { text: '全部分类', value: '' },
-      ...catData.map(i => ({ text: i.label || i.name, value: i.value || i.id }))
-    ]
-
-    brandOptions.value = [
-      { text: '全部品牌', value: '' },
-      ...brdData.map(i => ({ text: i.name, value: i.id }))
-    ]
-
-    warehouseOptions.value = [
-      { text: '全部仓库', value: '' },
-      ...whData.map(i => ({ text: i.name, value: i.id }))
-    ]
-  } catch (error) {
-    console.error('加载筛选条件失败:', error)
-    showToast('加载筛选条件失败')
-  }
-}
 
 /* -------------------- 商品列表加载 -------------------- */
 const loadProductList = async (isRefresh = false) => {
@@ -148,8 +178,7 @@ const loadProductList = async (isRefresh = false) => {
       limit: filters.limit,
       keyword: filters.keyword,
       category_id: filters.category_id,
-      brand_id: filters.brand_id,
-      warehouse_id: filters.warehouse_id
+      brand_id: filters.brand_id
     }
 
     // 调用状态管理中的加载方法
@@ -192,9 +221,7 @@ const onLoad = () => {
 const initLoad = async () => {
   initialLoading.value = true
   try {
-    // 加载筛选选项
-    await loadFilterOptions()
-    // 手动触发第一次加载
+    // 只加载商品列表数据，分类和品牌数据由组件自己请求
     await loadProductList(true)
   } catch (error) {
     console.error('初始化失败:', error)
@@ -219,6 +246,14 @@ const handleFilterChange = () => {
   nextTick(() => loadProductList(true))
 }
 
+const handleResetFilters = () => {
+  filters.category_id = null
+  filters.brand_id = null
+  filters.keyword = ''
+  
+  nextTick(() => loadProductList(true))
+}
+
 const handleProductItemClick = (product) => {
   // 跳转到商品SKU列表页
   router.push(`/product/${product.id}/skus`)
@@ -227,6 +262,15 @@ const handleProductItemClick = (product) => {
 const handleCreateProduct = () => {
   router.push('/product/create')
 }
+
+/* -------------------- 监听筛选条件变化 -------------------- */
+watch(
+  () => [filters.category_id, filters.brand_id],
+  () => {
+    // 筛选条件变化时重置页码
+    filters.page = 1
+  }
+)
 
 /* -------------------- 生命周期 -------------------- */
 onMounted(() => {
@@ -241,9 +285,56 @@ onMounted(() => {
   min-height: 100vh;
   padding-top: 46px; // 适配fixed导航栏
 
-  .van-dropdown-menu {
-    padding: 0 12px;
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
     background-color: #fff;
+    border-bottom: 1px solid #ebedf0;
+    height: 48px; // 固定高度，避免太高
+
+    .filter-item {
+      flex: 1;
+      min-width: 0; // 防止内容溢出
+      
+      // 自定义选择组件样式
+      :deep(.van-button) {
+        width: 100%;
+        height: 32px;
+        padding: 0 8px;
+        font-size: 13px;
+        
+        .van-button__text {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: calc(100% - 16px);
+        }
+        
+        .van-icon {
+          margin-left: 2px;
+          flex-shrink: 0;
+          font-size: 14px;
+        }
+      }
+    }
+
+    .filter-reset {
+      flex-shrink: 0;
+      
+      .reset-btn {
+        height: 32px;
+        min-width: 60px;
+        padding: 0 12px;
+        font-size: 13px;
+        
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
   }
 
   .van-list {
@@ -256,5 +347,57 @@ onMounted(() => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+
+// 响应式调整
+@media (max-width: 480px) {
+  .product-page {
+    .filter-row {
+      gap: 6px;
+      padding: 6px 10px;
+      height: 44px;
+      
+      .filter-item {
+        :deep(.van-button) {
+          height: 30px;
+          font-size: 12px;
+          padding: 0 6px;
+        }
+      }
+      
+      .filter-reset {
+        .reset-btn {
+          height: 30px;
+          min-width: 54px;
+          padding: 0 8px;
+          font-size: 12px;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 320px) {
+  .product-page {
+    .filter-row {
+      gap: 4px;
+      padding: 4px 8px;
+      
+      .filter-item {
+        :deep(.van-button) {
+          font-size: 11px;
+          padding: 0 4px;
+        }
+      }
+      
+      .filter-reset {
+        .reset-btn {
+          min-width: 48px;
+          padding: 0 6px;
+          font-size: 11px;
+        }
+      }
+    }
+  }
 }
 </style>

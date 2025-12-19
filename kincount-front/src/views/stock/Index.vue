@@ -1,33 +1,81 @@
 <template>
-  <div class="stock-page">
-    <van-nav-bar title="库存查询" fixed placeholder />
+  <div class="stock-index">
+    <!-- 导航栏 -->
+    <van-nav-bar title="库存查询" fixed placeholder>
+      <template #right>
+        <van-button 
+          size="small" 
+          type="primary" 
+          @click="handleStockTransfer"
+        >
+          库存调拨
+        </van-button>
+      </template>
+    </van-nav-bar>
 
-    <!-- 搜索和筛选 -->
-    <div class="filter-section">
-      <van-search
-        v-model="filters.keyword"
-        placeholder="搜索商品名称/编号/SKU编码"
-        show-action
-        @search="handleSearch"
-        @clear="handleClearSearch"
-      >
-        <template #action>
-          <div @click="handleSearch">搜索</div>
-        </template>
-      </van-search>
-      
-      <van-dropdown-menu>
-        <van-dropdown-item 
-          v-model="filters.warehouse_id" 
-          :options="warehouseOptions" 
-          @change="loadStockList(true)"
+    <!-- 筛选区域 -->
+    <div class="filter-wrapper">
+      <!-- 库存状态标签筛选 -->
+      <van-tabs v-model="activeStatus" @change="handleStatusChange">
+        <van-tab title="全部" name="" />
+        <van-tab title="正常" name="normal" />
+        <van-tab title="预警" name="warning" />
+        <van-tab title="缺货" name="danger" />
+      </van-tabs>
+
+      <!-- 搜索与高级筛选 -->
+      <div class="search-filter">
+        <van-search 
+          v-model="keyword" 
+          placeholder="搜索商品名称/编号/SKU编码" 
+          @search="handleSearch" 
+          @clear="handleClearSearch" 
         />
-        <van-dropdown-item 
-          v-model="filters.category_id" 
-          :options="categoryOptions" 
-          @change="loadStockList(true)"
-        />
-      </van-dropdown-menu>
+        
+        <!-- 筛选行：仓库、分类、时间在同一行 -->
+        <div class="filter-row">
+          <!-- 仓库筛选 -->
+          <div class="warehouse-filter">
+            <WarehouseSelect
+              ref="warehouseSelectRef"
+              v-model="selectedWarehouse"
+              :placeholder="getWarehousePlaceholder()"
+              :show-all-option="true"
+              :show-confirm-button="false"
+              :trigger-button-type="'default'"
+              :trigger-button-size="'normal'"
+              :trigger-button-block="true"
+              @change="handleWarehouseChange"
+            />
+          </div>
+          
+          <!-- 分类筛选 -->
+          <div class="category-filter">
+            <CategorySelect
+              v-model="selectedCategory"
+              :placeholder="getCategoryPlaceholder()"
+              :show-confirm-button="false"
+              :button-type="'default'"
+              :button-size="'normal'"
+              :button-block="true"
+              class="category-select-trigger"
+              @change="handleCategoryChange"
+            />
+          </div>
+          
+          <!-- 时间筛选 -->
+          <div class="date-filter">
+            <van-dropdown-menu style="width: 100%; height: 100%;">
+              <van-dropdown-item 
+                v-model="dateRange" 
+                :options="dateOptions" 
+                :title="getDateTitle()"
+                @change="handleFilterChange" 
+              />
+            </van-dropdown-menu>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 库存统计 -->
@@ -60,443 +108,188 @@
       </van-row>
     </div>
 
-    <!-- SKU库存列表 -->
-    <van-pull-refresh v-model="refreshing" @refresh="loadStockList(true)">
-      <van-list
-        v-model:loading="listLoading"
-        :finished="finished"
-        :finished-text="skuList.length === 0 ? '暂无库存数据' : '没有更多了'"
-        @load="loadStockList"
+    <!-- 库存列表 -->
+    <van-pull-refresh v-model="refreshing" @refresh="handleRefresh">
+      <van-list 
+        v-model:loading="loading" 
+        :finished="finished" 
+        finished-text="没有更多库存数据了" 
+        @load="handleLoadMore" 
+        :immediate-check="false"
       >
-        <div class="sku-list">
-          <van-swipe-cell 
-            v-for="sku in skuList" 
-            :key="`${sku.sku_id}_${sku.warehouse_id}`"
+        <!-- 库存项 -->
+        <van-cell-group class="stock-list">
+          <van-cell 
+            v-for="stockItem in stockList" 
+            :key="`${stockItem.sku_id}_${stockItem.warehouse_id}`" 
+            :title="stockItem.sku?.product?.name || '未知产品'" 
+            :label="getStockLabel(stockItem)" 
+            @click="handleViewDetail(stockItem)" 
+            is-link
           >
-            <div 
-              class="sku-item"
-              @click="handleViewSku(sku)"
-            >
-              <div class="sku-header">
-                <div class="sku-name">{{ sku.product_name }}</div>
-                <van-tag :type="getStockTagType(sku)">
-                  {{ getStockStatusText(sku) }}
+            <template #extra>
+              <div class="stock-extra">
+                <van-tag :type="getStockTagType(stockItem)">
+                  {{ getStockStatusText(stockItem) }}
                 </van-tag>
-              </div>
-              
-              <div class="sku-info">
-                <div class="info-row">
-                  <span class="label">SKU编码：</span>
-                  <span class="value">{{ sku.sku_code }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">产品编号：</span>
-                  <span class="value">{{ sku.product_no }}</span>
-                </div>
-                
-                <!-- SKU规格信息 -->
-                <div class="info-row" v-if="sku.spec">
-                  <span class="label">规格：</span>
-                  <span class="value specs">
-                    <template v-if="typeof sku.spec === 'object'">
-                      <van-tag 
-                        v-for="(value, key) in sku.spec" 
-                        :key="key"
-                        size="mini"
-                        type="primary"
-                        plain
-                      >
-                        {{ key }}:{{ value }}
-                      </van-tag>
-                    </template>
-                    <template v-else>
-                      {{ sku.spec }}
-                    </template>
-                  </span>
-                </div>
-                
-                <div class="info-row">
-                  <span class="label">仓库：</span>
-                  <span class="value">{{ sku.warehouse_name }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">单位：</span>
-                  <span class="value">{{ sku.unit }}</span>
+                <div class="quantity">{{ stockItem.quantity }}{{ stockItem.sku?.unit || '' }}</div>
+                <div class="amount">¥{{ formatPrice(stockItem.total_amount) }}</div>
+                <div class="action-buttons">
+                  <van-button 
+                    size="mini" 
+                    type="primary" 
+                    @click.stop="handleStockTransfer(stockItem)"
+                  >
+                    调拨
+                  </van-button>
+                  <van-button 
+                    size="mini" 
+                    type="warning" 
+                    @click.stop="handleStockTake(stockItem)"
+                  >
+                    盘点
+                  </van-button>
                 </div>
               </div>
-
-              <div class="stock-details">
-                <div class="quantity-info">
-                  <div class="quantity-value">{{ sku.quantity }}</div>
-                  <div class="quantity-label">库存数量</div>
-                </div>
-                
-                <div class="price-info">
-                  <div class="price-row">
-                    <span class="price-label">成本价：</span>
-                    <span class="price-value">¥{{ formatPrice(sku.cost_price) }}</span>
-                  </div>
-                  <div class="price-row">
-                    <span class="price-label">销售价：</span>
-                    <span class="price-value sale">¥{{ formatPrice(sku.sale_price) }}</span>
-                  </div>
-                  <div class="price-row total">
-                    <span class="price-label">库存价值：</span>
-                    <span class="price-value">¥{{ formatPrice(sku.total_amount) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <template #right>
-              <van-button 
-                square 
-                type="primary" 
-                text="调拨" 
-                @click="handleStockTransfer(sku)" 
-              />
-              <van-button 
-                square 
-                type="warning" 
-                text="盘点" 
-                @click="handleStockTake(sku)" 
-              />
             </template>
-          </van-swipe-cell>
-        </div>
+          </van-cell>
+        </van-cell-group>
 
         <!-- 空状态 -->
-        <van-empty
-          v-if="!listLoading && !refreshing && skuList.length === 0"
-          description="暂无库存数据"
-          image="search"
+        <van-empty 
+          v-if="!loading && !refreshing && stockList.length === 0" 
+          image="search" 
+          :description="getEmptyDescription()" 
         />
       </van-list>
     </van-pull-refresh>
 
-    <!-- 操作菜单 -->
-    <van-action-sheet 
-      v-model:show="showActionSheet" 
-      :actions="actions" 
-      @select="onActionSelect"
-      cancel-text="取消"
-    />
-
-    <!-- SKU详情弹窗 -->
-    <van-popup 
-      v-model:show="showSkuDetail" 
-      position="bottom" 
-      :style="{ height: '80%' }"
-      round
-    >
-      <div class="sku-detail" v-if="selectedSku">
-        <van-nav-bar
-          :title="selectedSku.product_name"
-          left-text="返回"
-          @click-left="showSkuDetail = false"
-        />
-        
-        <div class="detail-content">
-          <van-cell-group title="基本信息">
-            <van-cell title="SKU编码" :value="selectedSku.sku_code" />
-            <van-cell title="产品编号" :value="selectedSku.product_no" />
-            <van-cell title="产品名称" :value="selectedSku.product_name" />
-            <van-cell title="规格">
-              <template #value>
-                <div v-if="selectedSku.spec">
-                  <template v-if="typeof selectedSku.spec === 'object'">
-                    <van-tag 
-                      v-for="(value, key) in selectedSku.spec" 
-                      :key="key"
-                      size="small"
-                      type="primary"
-                      plain
-                    >
-                      {{ key }}:{{ value }}
-                    </van-tag>
-                  </template>
-                  <template v-else>
-                    {{ selectedSku.spec }}
-                  </template>
-                </div>
-                <span v-else>无</span>
-              </template>
-            </van-cell>
-            <van-cell title="单位" :value="selectedSku.unit" />
-            <van-cell title="条形码" :value="selectedSku.barcode || '无'" />
-          </van-cell-group>
-
-          <van-cell-group title="库存信息">
-            <van-cell title="仓库" :value="selectedSku.warehouse_name" />
-            <van-cell title="库存数量" :value="`${selectedSku.quantity}${selectedSku.unit}`" />
-            <van-cell title="安全库存" :value="`${selectedSku.min_stock || 0}${selectedSku.unit}`" />
-            <van-cell title="最大库存" :value="`${selectedSku.max_stock || '无限制'}${selectedSku.unit}`" />
-          </van-cell-group>
-
-          <van-cell-group title="价格信息">
-            <van-cell title="成本价格" :value="`¥${formatPrice(selectedSku.cost_price)}`" />
-            <van-cell title="销售价格" :value="`¥${formatPrice(selectedSku.sale_price)}`" />
-            <van-cell title="库存价值" :value="`¥${formatPrice(selectedSku.total_amount)}`" />
-          </van-cell-group>
-
-          <van-cell-group title="其他信息">
-            <van-cell title="创建时间" :value="formatDateTime(selectedSku.created_at)" />
-            <van-cell title="更新时间" :value="formatDateTime(selectedSku.updated_at)" />
-            <van-cell title="状态" :value="selectedSku.status === 1 ? '正常' : '停用'" />
-          </van-cell-group>
-        </div>
-      </div>
-    </van-popup>
+    <!-- 初始加载状态 -->
+    <van-loading v-if="initialLoading" class="initial-loading" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  showToast,
-  showConfirmDialog
-} from 'vant'
+import { showToast, showFailToast, showConfirmDialog } from 'vant'
 import { useStockStore } from '@/store/modules/stock'
-import { getWarehouseOptions } from '@/api/warehouse'
-import { getCategoryOptions } from '@/api/category'
+import WarehouseSelect from '@/components/business/WarehouseSelect.vue'
+import CategorySelect from '@/components/business/CategorySelect.vue'
+
 
 const router = useRouter()
 const stockStore = useStockStore()
 
 // 响应式数据
-const filters = reactive({
-  keyword: '',
-  warehouse_id: '',
-  category_id: ''
-})
+const initialLoading = ref(true)
+const refreshing = ref(false)
+const loading = ref(false)
+const finished = ref(false)
 
+// 筛选参数
+const activeStatus = ref('')
+const keyword = ref('')
+const selectedWarehouse = ref('')
+const selectedCategory = ref('')
+const dateRange = ref('')
+const isLoading = ref(false)
+
+// 分页参数
 const pagination = reactive({
   page: 1,
-  pageSize: 20,
-  total: 0
+  pageSize: 20
 })
 
-const warehouseOptions = ref([{ text: '全部仓库', value: '' }])
-const categoryOptions = ref([{ text: '全部分类', value: '' }])
-const skuList = ref([])
-const statistics = ref({
+
+
+// 日期选项
+const dateOptions = ref([
+  { text: '全部时间', value: '' },
+  { text: '今日', value: 'today' },
+  { text: '本周', value: 'week' },
+  { text: '本月', value: 'month' },
+  { text: '近3个月', value: 'quarter' }
+])
+
+// 计算属性
+const stockList = computed(() => stockStore.list || [])
+const statistics = computed(() => stockStore.statistics || {
   skuCount: 0,
   totalQuantity: 0,
   totalValue: 0,
   warningCount: 0
 })
-const refreshing = ref(false)
-const listLoading = ref(false)
-const finished = ref(false)
-const showActionSheet = ref(false)
-const showSkuDetail = ref(false)
-const selectedSku = ref(null)
 
-const actions = ref([
-  { name: '查看详情', key: 'detail' },
-  { name: '库存调拨', key: 'transfer' },
-  { name: '库存盘点', key: 'take' },
-  { name: '查看产品档案', key: 'product' }
-])
+// 获取仓库占位符文本
+const getWarehousePlaceholder = () => {
+  if (selectedWarehouse.value === 0) return '全部仓库'
+  if (selectedWarehouse.value) {
+    return '选择仓库'
+  }
+  return '选择仓库'
+}
 
-// 格式化价格
+// 获取分类占位符文本
+const getCategoryPlaceholder = () => {
+  if (selectedCategory.value === 0) return '全部分类'
+  if (selectedCategory.value) {
+    return '选择分类'
+  }
+  return '选择分类'
+}
+
+// 获取日期标题
+const getDateTitle = () => {
+  const option = dateOptions.value.find(opt => opt.value === dateRange.value)
+  return option ? option.text : '选择时间'
+}
+
+// 获取空状态描述
+const getEmptyDescription = () => {
+  if (keyword.value) return `未找到"${keyword.value}"相关库存`
+  if (selectedWarehouse.value && selectedWarehouse.value !== 0) return '该仓库暂无库存数据'
+  if (selectedCategory.value) return '该分类暂无库存数据'
+  if (activeStatus.value) return '该状态下暂无库存数据'
+  if (dateRange.value) return '该时间段内暂无库存数据'
+  return '暂无库存数据'
+}
+
+// 格式化金额
 const formatPrice = (price) => {
   if (price === null || price === undefined || price === '') return '0.00'
   const num = Number(price)
   return isNaN(num) ? '0.00' : num.toFixed(2)
 }
 
-// 格式化日期时间
-const formatDateTime = (dateTime) => {
-  if (!dateTime) return '--'
+// 格式化时间
+const formatTime = (time) => {
+  if (!time) return ''
   try {
-    const d = new Date(dateTime)
-    if (isNaN(d.getTime())) return '--'
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const hours = String(d.getHours()).padStart(2, '0')
-    const minutes = String(d.getMinutes()).padStart(2, '0')
-    return `${year}-${month}-${day} ${hours}:${minutes}`
+    const d = new Date(time)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString()
   } catch (error) {
-    return '--'
+    return ''
   }
 }
 
-// 处理SKU数据，提取需要的信息
-const processSkuData = (stocks) => {
-  return stocks.map(stock => {
-    const sku = stock.sku || {}
-    const product = sku.product || {}
-    const warehouse = stock.warehouse || {}
-    
-    return {
-      // 库存记录信息
-      id: stock.id,
-      sku_id: stock.sku_id,
-      warehouse_id: stock.warehouse_id,
-      quantity: stock.quantity || 0,
-      cost_price: stock.cost_price || sku.cost_price,
-      total_amount: stock.total_amount || 0,
-      created_at: stock.created_at,
-      updated_at: stock.updated_at,
-      
-      // SKU信息
-      sku_code: sku.sku_code,
-      spec: sku.spec,
-      barcode: sku.barcode,
-      sale_price: sku.sale_price,
-      unit: sku.unit || product.unit,
-      status: sku.status,
-      
-      // 产品信息
-      product_id: product.id,
-      product_name: product.name,
-      product_no: product.product_no,
-      min_stock: product.min_stock || 0,
-      max_stock: product.max_stock,
-      
-      // 仓库信息
-      warehouse_name: warehouse.name,
-      warehouse_code: warehouse.code,
-      warehouse_address: warehouse.address
-    }
-  })
-}
-
-// 加载库存列表
-const loadStockList = async (isRefresh = false) => {
-  if ((!isRefresh && listLoading.value) || refreshing.value) return
-
-  if (isRefresh) {
-    pagination.page = 1
-    finished.value = false
-    refreshing.value = true
-  } else {
-    listLoading.value = true
+// 获取库存标签信息
+const getStockLabel = (stockItem) => {
+  const labels = []
+  if (stockItem.sku?.sku_code) labels.push(`SKU：${stockItem.sku.sku_code}`)
+  if (stockItem.warehouse?.name) labels.push(`仓库：${stockItem.warehouse.name}`)
+  if (stockItem.sku?.spec) {
+    const specText = Object.entries(stockItem.sku.spec).map(([key, value]) => `${key}:${value}`).join(' ')
+    if (specText) labels.push(`规格：${specText}`)
   }
-
-  try {
-    const params = {
-      page: pagination.page,
-      limit: pagination.pageSize,
-      ...filters
-    }
-
-    Object.keys(params).forEach(key => {
-      if (params[key] === '' || params[key] == null) delete params[key]
-    })
-
-    const response = await stockStore.loadList(params)
-
-    let listData = []
-    let totalCount = 0
-
-    if (response?.code === 200 && response.data) {
-      listData = response.data.list || []
-      totalCount = response.data.total || 0
-    } else if (response?.list) {
-      listData = response.list
-      totalCount = response.total || 0
-    } else {
-      listData = stockStore.list || []
-      totalCount = stockStore.total || 0
-    }
-
-    // 处理SKU数据
-    const processedData = processSkuData(listData)
-
-    if (isRefresh) {
-      skuList.value = processedData
-    } else {
-      skuList.value = [...skuList.value, ...processedData]
-    }
-
-    pagination.total = totalCount
-
-    if (skuList.value.length >= totalCount || listData.length === 0) {
-      finished.value = true
-    }
-
-    calculateStatistics()
-
-  } catch (error) {
-    console.error('加载库存列表失败:', error)
-    showToast('加载失败')
-    finished.value = true
-  } finally {
-    refreshing.value = false
-    listLoading.value = false
-  }
-}
-
-// 计算统计信息
-const calculateStatistics = () => {
-  const stats = {
-    skuCount: new Set(),
-    totalQuantity: 0,
-    totalValue: 0,
-    warningCount: 0
-  }
-
-  skuList.value.forEach(sku => {
-    stats.skuCount.add(sku.sku_id)
-    stats.totalQuantity += Number(sku.quantity) || 0
-    stats.totalValue += Number(sku.total_amount) || 0
-    
-    // 计算预警SKU（库存低于安全库存）
-    if (sku.quantity <= (sku.min_stock || 0)) {
-      stats.warningCount++
-    }
-  })
-
-  statistics.value = {
-    skuCount: stats.skuCount.size,
-    totalQuantity: stats.totalQuantity,
-    totalValue: stats.totalValue.toFixed(2),
-    warningCount: stats.warningCount
-  }
-}
-
-// 加载筛选选项
-const loadFilterOptions = async () => {
-  try {
-    const [warehouses, categories] = await Promise.all([
-      getWarehouseOptions(),
-      getCategoryOptions()
-    ])
-
-    // 处理仓库选项
-    warehouseOptions.value = [
-      { text: '全部仓库', value: '' },
-      ...(warehouses?.data || warehouses || []).map(item => ({
-        text: item.name || item.label,
-        value: item.id || item.value
-      }))
-    ]
-
-    // 处理分类选项
-    const categoryData = categories?.data || categories || []
-    
-    categoryOptions.value = [
-      { text: '全部分类', value: '' },
-      ...categoryData.map(item => ({
-        text: item.label,
-        value: item.value
-      }))
-    ]
-
-  } catch (error) {
-    console.error('加载筛选选项失败:', error)
-    showToast('加载筛选选项失败')
-  }
+  return labels.join(' | ')
 }
 
 // 获取库存状态标签类型
-const getStockTagType = (sku) => {
-  const quantity = Number(sku.quantity) || 0
-  const minStock = Number(sku.min_stock) || 0
+const getStockTagType = (stockItem) => {
+  const quantity = Number(stockItem.quantity) || 0
+  const minStock = Number(stockItem.min_stock) || 0
   
   if (quantity <= 0) return 'danger'
   if (quantity <= minStock) return 'warning'
@@ -504,66 +297,153 @@ const getStockTagType = (sku) => {
 }
 
 // 获取库存状态文本
-const getStockStatusText = (sku) => {
-  const quantity = Number(sku.quantity) || 0
-  const minStock = Number(sku.min_stock) || 0
+const getStockStatusText = (stockItem) => {
+  const quantity = Number(stockItem.quantity) || 0
+  const minStock = Number(stockItem.min_stock) || 0
   
   if (quantity <= 0) return '缺货'
   if (quantity <= minStock) return '预警'
   return '正常'
 }
 
-// 事件处理
+// 仓库选择变更事件
+const handleWarehouseChange = (value, name) => {
+  console.log('仓库变更:', value, name)
+  selectedWarehouse.value = value
+  handleFilterChange()
+}
+
+// 分类选择变更事件
+const handleCategoryChange = (value, name) => {
+  console.log('分类变更:', value, name)
+  selectedCategory.value = value
+  handleFilterChange()
+}
+
+// 状态标签变更事件
+const handleStatusChange = (name) => {
+  activeStatus.value = name
+  loadStockList(true)
+}
+
+// 搜索相关方法
 const handleSearch = () => {
   loadStockList(true)
 }
 
 const handleClearSearch = () => {
-  filters.keyword = ''
+  keyword.value = ''
   loadStockList(true)
 }
 
-const handleViewSku = (sku) => {
-  selectedSku.value = sku
-  showActionSheet.value = true
+// 筛选条件变化
+const handleFilterChange = () => {
+  loadStockList(true)
 }
 
-const onActionSelect = (action) => {
-  showActionSheet.value = false
-  
-  if (!selectedSku.value) return
+// 下拉刷新
+const handleRefresh = () => {
+  loadStockList(true)
+}
 
-  switch (action.key) {
-    case 'detail':
-      showSkuDetail.value = true
-      break
-    case 'transfer':
-      handleStockTransfer(selectedSku.value)
-      break
-    case 'take':
-      handleStockTake(selectedSku.value)
-      break
-    case 'product':
-      router.push({
-        path: '/product/detail',
-        query: { id: selectedSku.value.product_id }
-      })
-      break
+// 加载更多
+const handleLoadMore = () => {
+  loadStockList(false)
+}
+
+// 加载库存列表
+const loadStockList = async (isRefresh = false) => {
+  if (isLoading.value) return
+  if (loading.value && !isRefresh) return
+  if (refreshing.value && isRefresh) return
+
+  isLoading.value = true
+
+  try {
+    if (isRefresh) {
+      pagination.page = 1
+      finished.value = false
+      refreshing.value = true
+    } else {
+      if (finished.value) return
+      loading.value = true
+    }
+
+    const params = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      keyword: keyword.value,
+      status: activeStatus.value,
+      warehouse_id: selectedWarehouse.value,
+      category_id: selectedCategory.value,
+      date_range: dateRange.value
+    }
+    
+    // 移除空值参数
+    Object.keys(params).forEach(key => {
+      if (params[key] === '' || params[key] == null || (Array.isArray(params[key]) && params[key].length === 0)) {
+        delete params[key]
+      }
+    })
+
+    await stockStore.loadList(params)
+    
+    const currentList = stockList.value || []
+    const total = stockStore.total || 0
+    
+    // 判断是否加载完成
+    if (currentList.length >= total || currentList.length === 0) {
+      finished.value = true
+    } else {
+      if (!isRefresh) {
+        pagination.page++
+      }
+    }
+  } catch (error) {
+    showFailToast('加载库存数据失败')
+    console.error('loadStockList error:', error)
+    finished.value = false
+  } finally {
+    initialLoading.value = false
+    refreshing.value = false
+    loading.value = false
+    isLoading.value = false
   }
 }
 
+// 加载筛选选项
+const loadFilterOptions = async () => {
+  try {
+    // 仓库和分类数据由组件自行加载，这里无需处理
+  } catch (error) {
+    console.error('加载筛选选项失败:', error)
+    showToast('加载筛选选项失败')
+  }
+}
+
+// 查看库存详情
+const handleViewDetail = (stockItem) => {
+  router.push({
+    path: '/stock/detail',
+    query: { 
+      sku_id: stockItem.sku_id,
+      warehouse_id: stockItem.warehouse_id
+    }
+  })
+}
+
 // 库存调拨
-const handleStockTransfer = (sku) => {
+const handleStockTransfer = (stockItem) => {
   showConfirmDialog({
     title: '库存调拨',
-    message: `是否要对SKU「${sku.sku_code}」进行库存调拨？`
+    message: `是否要对「${stockItem.sku?.product?.name || '未知产品'}」进行库存调拨？`
   }).then(() => {
     router.push({
       path: '/stock/transfer',
       query: { 
-        sku_id: sku.sku_id,
-        sku_name: sku.product_name,
-        warehouse_id: sku.warehouse_id
+        sku_id: stockItem.sku_id,
+        sku_name: stockItem.sku?.product?.name || '未知产品',
+        warehouse_id: stockItem.warehouse_id
       }
     })
   }).catch(() => {
@@ -572,17 +452,17 @@ const handleStockTransfer = (sku) => {
 }
 
 // 库存盘点
-const handleStockTake = (sku) => {
+const handleStockTake = (stockItem) => {
   showConfirmDialog({
     title: '库存盘点',
-    message: `是否要对SKU「${sku.sku_code}」进行库存盘点？`
+    message: `是否要对「${stockItem.sku?.product?.name || '未知产品'}」进行库存盘点？`
   }).then(() => {
     router.push({
       path: '/stock/take',
       query: { 
-        sku_id: sku.sku_id,
-        sku_name: sku.product_name,
-        warehouse_id: sku.warehouse_id
+        sku_id: stockItem.sku_id,
+        sku_name: stockItem.sku?.product?.name || '未知产品',
+        warehouse_id: stockItem.warehouse_id
       }
     })
   }).catch(() => {
@@ -590,6 +470,7 @@ const handleStockTake = (sku) => {
   })
 }
 
+// 页面挂载时加载数据
 onMounted(() => {
   loadFilterOptions()
   loadStockList(true)
@@ -597,216 +478,207 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.stock-page {
-  padding: 16px;
-  background: #f7f8fa;
+.stock-index {
   min-height: 100vh;
-}
+  background-color: #f5f5f5;
+  padding-top: 46px; // 适配fixed导航栏
 
-.filter-section {
-  background: white;
-  margin-bottom: 12px;
-  border-radius: 8px;
-  overflow: hidden;
-}
+  // 筛选区域样式
+  .filter-wrapper {
+    background-color: #fff;
+    margin-bottom: 10px;
 
-.stats-cards {
-  margin-bottom: 16px;
-}
+    .search-filter {
+      padding: 0 10px 10px;
 
-.stat-card {
-  background: white;
-  border-radius: 8px;
-  padding: 12px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  
-  &.warning {
-    background: #fff2f0;
-    .stat-value {
-      color: #ff4d4f;
-    }
-  }
-  
-  .stat-value {
-    font-size: 16px;
-    font-weight: bold;
-    color: #1989fa;
-    margin-bottom: 4px;
-  }
-  
-  .stat-label {
-    font-size: 11px;
-    color: #969799;
-  }
-}
-
-.sku-list {
-  padding: 8px 0;
-}
-
-.sku-item {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  
-  .sku-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
-    
-    .sku-name {
-      font-size: 16px;
-      font-weight: 500;
-      flex: 1;
-      margin-right: 12px;
-    }
-  }
-  
-  .sku-info {
-    margin-bottom: 12px;
-    
-    .info-row {
-      display: flex;
-      margin-bottom: 6px;
-      font-size: 13px;
-      
-      .label {
-        color: #969799;
-        min-width: 70px;
-      }
-      
-      .value {
-        color: #323233;
-        flex: 1;
+      .filter-row {
+        display: flex;
+        align-items: stretch; // 确保子元素高度一致
+        gap: 10px;
+        margin-top: 10px;
+        height: 30px; // 设置固定高度，确保按钮高度一致
         
-        &.specs {
+        .warehouse-filter,
+        .category-filter,
+        .date-filter {
+          flex: 1; // 平分宽度
           display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-          
-          :deep(.van-tag) {
-            margin-bottom: 2px;
+        }
+        
+        // 仓库选择器样式
+        .warehouse-filter {
+          :deep(.warehouse-select-trigger) {
+            width: 100%;
+            height: 100%;
+            
+            .default-trigger {
+              width: 100%;
+              height: 100%;
+              
+              .van-button {
+                width: 100%;
+                height: 100%;
+                border-radius: 6px;
+                background-color: #f7f8fa;
+                border: 1px solid #ebedf0;
+                color: #323233;
+                font-size: 14px;
+                
+                &:active {
+                  background-color: #f2f3f5;
+                }
+              }
+            }
+          }
+        }
+        
+        // 分类筛选样式
+        .category-filter {
+          :deep(.category-select-trigger) {
+            width: 100%;
+            height: 100%;
+            
+            .van-button {
+              width: 100%;
+              height: 100%;
+              border-radius: 6px;
+              background-color: #f7f8fa;
+              border: 1px solid #ebedf0;
+              color: #323233;
+              font-size: 14px;
+              
+              &:active {
+                background-color: #f2f3f5;
+              }
+            }
+          }
+        }
+        
+        // 日期筛选样式
+        .date-filter {
+          :deep(.van-dropdown-menu) {
+            width: 100%;
+            height: 100%;
+            
+            .van-dropdown-menu__bar {
+              height: 100%;
+              box-shadow: none;
+              border-radius: 6px;
+              background-color: #f7f8fa;
+              border: 1px solid #ebedf0;
+              
+              .van-dropdown-menu__item {
+                flex: 1;
+                
+                &:first-child {
+                  border-radius: 6px;
+                }
+                
+                .van-dropdown-menu__title {
+                  font-size: 14px;
+                  color: #323233;
+                  padding: 0 12px;
+                  line-height: 30px;
+                  
+                  &::after {
+                    border-color: #969799;
+                  }
+                }
+              }
+            }
           }
         }
       }
+
+      :deep(.van-dropdown-menu) {
+        margin-top: 0;
+      }
     }
   }
-  
-  .stock-details {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: #f7f8fa;
-    border-radius: 6px;
-    
-    .quantity-info {
+
+  // 统计卡片样式
+  .stats-cards {
+    padding: 0 10px;
+    margin-bottom: 10px;
+
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
       text-align: center;
-      min-width: 80px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
       
-      .quantity-value {
-        font-size: 20px;
+      &.warning {
+        background: #fff2f0;
+        
+        .stat-value {
+          color: #ff4d4f;
+        }
+      }
+      
+      .stat-value {
+        font-size: 16px;
         font-weight: bold;
         color: #1989fa;
-      }
-      
-      .quantity-label {
-        font-size: 12px;
-        color: #969799;
-        margin-top: 4px;
-      }
-    }
-    
-    .price-info {
-      flex: 1;
-      margin-left: 16px;
-      
-      .price-row {
-        display: flex;
-        justify-content: space-between;
         margin-bottom: 4px;
-        font-size: 12px;
-        
-        &.total {
-          margin-top: 6px;
-          padding-top: 6px;
-          border-top: 1px solid #e5e5e5;
-          
-          .price-label {
-            font-weight: 600;
-          }
-          
-          .price-value {
-            font-weight: 700;
-            color: #ee0a24;
-          }
-        }
-        
-        .price-label {
-          color: #969799;
-        }
-        
-        .price-value {
+      }
+      
+      .stat-label {
+        font-size: 11px;
+        color: #969799;
+      }
+    }
+  }
+
+  // 库存列表样式
+  .stock-list {
+    .van-cell {
+      padding: 15px 10px;
+      margin-bottom: 10px;
+      background-color: #fff;
+      border-radius: 8px;
+
+      .stock-extra {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+
+        .quantity {
+          font-size: 14px;
+          font-weight: 600;
           color: #323233;
-          
-          &.sale {
-            color: #07c160;
-          }
+        }
+
+        .amount {
+          font-size: 14px;
+          font-weight: 600;
+          color: #ee0a24;
+        }
+
+        .action-buttons {
+          display: flex;
+          gap: 5px;
         }
       }
     }
   }
-}
 
-.sku-detail {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-content {
-  flex: 1;
-  overflow-y: auto;
-  padding-bottom: 20px;
-}
-
-// 操作面板样式调整
-:deep(.van-action-sheet) {
-  .van-action-sheet__item {
-    font-size: 16px;
-    
-    &[style*="color: #1989fa"] {
-      color: #1989fa !important;
-    }
-    
-    &[style*="color: #07c160"] {
-      color: #07c160 !important;
-    }
-    
-    &[style*="color: #7232dd"] {
-      color: #7232dd !important;
-    }
-    
-    &[style*="color: #ff976a"] {
-      color: #ff976a !important;
-    }
-    
-    &[style*="color: #ee0a24"] {
-      color: #ee0a24 !important;
-    }
+  // 初始加载样式
+  .initial-loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
   }
 }
 
-// 优化导航栏样式
-:deep(.van-nav-bar) {
-  background: white;
-  
-  .van-nav-bar__title {
-    font-weight: 600;
-  }
+// 文本省略样式
+:deep(.van-button__text) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: inline-block;
 }
 </style>

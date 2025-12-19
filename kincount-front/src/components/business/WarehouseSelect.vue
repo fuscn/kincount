@@ -1,7 +1,7 @@
 <template>
   <!-- 触发区域 -->
   <div v-if="!hideTrigger" class="warehouse-select-trigger" @click="openPicker">
-    <!-- 插槽：允许完全自定义触发内容 -->
+    <!-- 插槽：自定义触发器 -->
     <slot name="trigger" :selected="selectedWarehouse" :open="openPicker">
       <!-- 默认触发按钮 -->
       <div class="default-trigger" :class="{ 'trigger-disabled': disabled }">
@@ -27,9 +27,9 @@
   <!-- 仓库选择弹窗 -->
   <van-popup
     v-model:show="showPicker"
-    position="bottom"
+    :position="popupPosition"
     round
-    :style="{ height: '80%' }"
+    :style="popupStyle"
     :close-on-click-overlay="closeOnClickOverlay"
   >
     <div class="warehouse-picker">
@@ -48,7 +48,8 @@
         <van-search
           v-model="searchKeyword"
           :placeholder="searchPlaceholder || '搜索仓库'"
-          @update:model-value="handleSearch"
+          @update:model-value="handleSearchInput"
+          @search="handleSearch"
           @clear="handleClearSearch"
         />
       </div>
@@ -140,111 +141,120 @@
   </van-popup>
 </template>
 
-<script>
+<script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { showToast } from 'vant'
 import { useWarehouseStore } from '@/store/modules/warehouse'
 
-export default {
-  name: 'WarehouseSelect',
-  
-  props: {
+const props = defineProps({
     // 值绑定
     modelValue: {
-      type: [Number, String],
-      default: null
+        type: [Number, String],
+        default: null
     },
     
     // 触发按钮配置
     hideTrigger: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
     placeholder: {
-      type: String,
-      default: '请选择仓库'
+        type: String,
+        default: '请选择仓库'
     },
     disabled: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
     triggerButtonType: {
-      type: String,
-      default: 'default',
-      validator: (value) => ['default', 'primary', 'success', 'warning', 'danger'].includes(value)
+        type: String,
+        default: 'default',
+        validator: (value) => ['default', 'primary', 'success', 'warning', 'danger'].includes(value)
     },
     triggerButtonSize: {
-      type: String,
-      default: 'normal',
-      validator: (value) => ['large', 'normal', 'small', 'mini'].includes(value)
+        type: String,
+        default: 'normal',
+        validator: (value) => ['large', 'normal', 'small', 'mini'].includes(value)
     },
     triggerButtonBlock: {
-      type: Boolean,
-      default: true
+        type: Boolean,
+        default: true
     },
     triggerLoading: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
     showTriggerIcon: {
-      type: Boolean,
-      default: true
+        type: Boolean,
+        default: true
     },
     triggerIcon: {
-      type: String,
-      default: 'arrow-down'
+        type: String,
+        default: 'arrow-down'
     },
     
     // 弹窗配置
     popupTitle: {
-      type: String,
-      default: '选择仓库'
+        type: String,
+        default: '选择仓库'
+    },
+    popupPosition: {
+        type: String,
+        default: 'bottom',
+        validator: (value) => ['bottom', 'center', 'top'].includes(value)
+    },
+    popupStyle: {
+        type: Object,
+        default: () => ({ height: '80%' })
     },
     searchPlaceholder: {
-      type: String,
-      default: '搜索仓库'
+        type: String,
+        default: '搜索仓库'
     },
     closeOnClickOverlay: {
-      type: Boolean,
-      default: true
+        type: Boolean,
+        default: true
     },
     showConfirmButton: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
     
     // 数据配置
     showAllOption: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
     onlyEnabled: {
-      type: Boolean,
-      default: true
+        type: Boolean,
+        default: true
     },
     excludeIds: {
-      type: Array,
-      default: () => []
+        type: Array,
+        default: () => []
     },
     autoLoad: {
-      type: Boolean,
-      default: true
+        type: Boolean,
+        default: true
     },
     allowDisabled: {
-      type: Boolean,
-      default: false
+        type: Boolean,
+        default: false
     },
-    // 是否立即选择（不显示确认按钮时有效）
     immediateSelect: {
       type: Boolean,
       default: true
+    },
+    // 使用状态管理缓存
+    useStoreCache: {
+      type: Boolean,
+      default: true
     }
-  },
+  })
   
-  emits: ['update:modelValue', 'change', 'select', 'confirm', 'cancel'],
-  
-  setup(props, { emit }) {
-    const warehouseStore = useWarehouseStore()
+  const emit = defineEmits(['update:modelValue', 'change', 'select', 'confirm', 'cancel', 'clear', 'search'])
+
+const warehouseStore = useWarehouseStore()
     
     // 状态
     const showPicker = ref(false)
@@ -351,10 +361,17 @@ export default {
     // 搜索处理
     const handleSearch = () => {
       // 搜索逻辑已经在filteredWarehouses计算属性中处理
+      emit('search', searchKeyword.value)
+    }
+    
+    const handleSearchInput = () => {
+      // 简单的输入处理，可以在这里添加防抖逻辑
+      handleSearch()
     }
     
     const handleClearSearch = () => {
       searchKeyword.value = ''
+      handleSearch()
     }
     
     // 选择仓库
@@ -449,8 +466,8 @@ export default {
         // 弹窗显示时，清空搜索关键词
         searchKeyword.value = ''
         
-        // 如果仓库列表为空，则加载数据
-        if (warehouseList.value.length === 0) {
+        // 如果仓库列表为空或不使用缓存，则加载数据
+        if (warehouseList.value.length === 0 || !props.useStoreCache) {
           loadWarehouses()
         }
         
@@ -475,49 +492,24 @@ export default {
     
     // 组件挂载时预加载仓库数据
     onMounted(() => {
-      if (props.autoLoad) {
+      if (props.autoLoad && !props.useStoreCache) {
+        // 预加载数据（如果不使用store缓存）
         loadWarehouses()
       }
     })
     
     // 暴露给父组件的方法
-    const publicMethods = {
-      openPicker,
-      closePicker: () => { showPicker.value = false },
-      loadWarehouses,
-      clear: () => {
+defineExpose({
+    openPicker,
+    closePicker: () => { showPicker.value = false },
+    loadWarehouses,
+    clear: () => {
         emit('update:modelValue', null)
         searchKeyword.value = ''
-      },
-      getSelectedWarehouse: () => selectedWarehouse.value
-    }
-    
-    return {
-      // 状态
-      showPicker,
-      searchKeyword,
-      loading,
-      tempSelection,
-      
-      // 计算属性
-      selectedWarehouse,
-      displayText,
-      filteredWarehouses,
-      
-      // 方法
-      openPicker,
-      handleSearch,
-      handleClearSearch,
-      handleWarehouseSelect,
-      handleConfirm,
-      handleCancel,
-      isSelected,
-      
-      // 暴露的方法
-      ...publicMethods
-    }
-  }
-}
+    },
+    getSelectedWarehouse: () => selectedWarehouse.value,
+    refresh: () => { loadWarehouses() }
+})
 </script>
 
 <style scoped>

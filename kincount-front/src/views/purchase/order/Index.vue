@@ -23,25 +23,45 @@
       <!-- 搜索与高级筛选 -->
       <div class="search-filter">
         <van-search v-model="keyword" placeholder="搜索订单号/供应商名称" @search="handleSearch" @clear="handleClearSearch" />
-        <van-dropdown-menu>
+        
+        <!-- 使用 SupplierSelect 组件替换原有的下拉菜单 -->
+        <div class="filter-row">
           <!-- 供应商筛选 -->
-          <van-dropdown-item v-model="selectedSupplier" :options="supplierOptions" placeholder="选择供应商"
-            @change="handleFilterChange" />
-          <!-- 时间筛选（可选） -->
-          <van-dropdown-item v-model="dateRange" :options="dateOptions" placeholder="选择时间"
-            @change="handleFilterChange" />
-        </van-dropdown-menu>
+          <div class="supplier-filter">
+            <SupplierSelect
+              ref="supplierSelectRef"
+              v-model="selectedSupplier"
+              :placeholder="getSupplierPlaceholder()"
+              :show-all-option="true"
+              :show-confirm-button="false"
+              :trigger-button-type="'default'"
+              :trigger-button-size="'normal'"
+              :trigger-button-block="true"
+              @change="handleSupplierChange"
+            />
+          </div>
+          
+          <!-- 时间筛选 -->
+          <div class="date-filter">
+            <van-dropdown-menu style="width: 100%; height: 100%;">
+              <van-dropdown-item 
+                v-model="dateRange" 
+                :options="dateOptions" 
+                :title="getDateTitle()"
+                @change="handleFilterChange" 
+              />
+            </van-dropdown-menu>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- 订单列表 -->
     <van-pull-refresh v-model="refreshing" @refresh="handleRefresh">
-      <van-list v-model:loading="loading" :finished="finished" finished-text="没有更多订单了" @load="handleLoadMore"
-        :immediate-check="false">
+      <van-list v-model:loading="loading" :finished="finished" finished-text="没有更多订单了" @load="handleLoadMore" :immediate-check="false">
         <!-- 订单项 -->
         <van-cell-group class="order-list">
-          <van-cell v-for="order in orderList" :key="order.id" :title="`订单号：${order.order_no || '未生成'}`"
-            :label="getOrderLabel(order)" @click="handleDetail(order.id)" is-link>
+          <van-cell v-for="order in orderList" :key="order.id" :title="`订单号：${order.order_no || '未生成'}`" :label="getOrderLabel(order)" @click="handleDetail(order.id)" is-link>
             <template #extra>
               <div class="order-extra">
                 <van-tag :type="getStatusTagType(order.status)">
@@ -64,14 +84,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { usePurchaseStore } from '@/store/modules/purchase'
-import { getSupplierList } from '@/api/supplier'
+import { useSupplierStore } from '@/store/modules/supplier'
+import SupplierSelect from '@/components/business/SupplierSelect.vue'
 
 const router = useRouter()
 const purchaseStore = usePurchaseStore()
+const supplierStore = useSupplierStore()
 
 // 响应式数据
 const initialLoading = ref(true)
@@ -79,9 +101,8 @@ const refreshing = ref(false)
 const loading = ref(false)
 const finished = ref(false)
 
-// 关键修复：将状态改为数组格式，支持多选
-const activeStatus = ref([]) // 改为数组，支持多状态筛选
-
+// 筛选参数
+const activeStatus = ref([])
 const keyword = ref('')
 const selectedSupplier = ref('')
 const dateRange = ref('')
@@ -93,8 +114,7 @@ const pagination = reactive({
   pageSize: 10
 })
 
-// 供应商选项
-const supplierOptions = ref([{ text: '全部供应商', value: '' }])
+// 日期选项
 const dateOptions = ref([
   { text: '全部时间', value: '' },
   { text: '今日', value: 'today' },
@@ -103,45 +123,40 @@ const dateOptions = ref([
   { text: '近3个月', value: 'quarter' }
 ])
 
+// 获取供应商占位符文本
+const getSupplierPlaceholder = () => {
+  if (selectedSupplier.value === 0) return '全部供应商'
+  if (selectedSupplier.value) {
+    const supplier = supplierStore.list.find(item => item.id == selectedSupplier.value)
+    return supplier ? supplier.name : '选择供应商'
+  }
+  return '选择供应商'
+}
+
+// 获取日期标题
+const getDateTitle = () => {
+  const option = dateOptions.value.find(opt => opt.value === dateRange.value)
+  return option ? option.text : '选择时间'
+}
+
 const orderList = computed(() => purchaseStore.orderList)
 
 /**
- * 加载供应商列表
+ * 供应商选择变更事件
  */
-const loadSuppliers = async () => {
-  try {
-    const res = await getSupplierList()
-    console.log('供应商API响应:', res)
-    
-    let list = []
-    if (res && res.code === 200) {
-      if (Array.isArray(res.data)) {
-        list = res.data
-      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
-        list = res.data.list
-      }
-    }
-    
-    supplierOptions.value = [
-      { text: '全部供应商', value: '' },
-      ...list.map(item => ({ text: item.name, value: item.id }))
-    ]
-  } catch (error) {
-    showToast('加载供应商列表失败')
-    console.error('loadSuppliers error:', error)
-  }
+const handleSupplierChange = (value, name) => {
+  console.log('供应商变更:', value, name)
+  selectedSupplier.value = value
+  handleFilterChange()
 }
 
 /**
  * 加载采购订单列表
- * @param {Boolean} isRefresh - 是否为刷新（重置分页）
  */
 const loadOrderList = async (isRefresh = false) => {
   if (isLoading.value) return
   if (loading.value && !isRefresh) return
   if (refreshing.value && isRefresh) return
-
-  console.log(`开始加载订单列表: isRefresh=${isRefresh}, page=${pagination.page}, status=`, activeStatus.value)
 
   isLoading.value = true
 
@@ -155,13 +170,13 @@ const loadOrderList = async (isRefresh = false) => {
       loading.value = true
     }
 
-    // 关键修复：处理状态参数格式
+    // 处理状态参数格式
     const statusParam = activeStatus.value.length > 0 ? activeStatus.value : ''
 
     const params = {
       page: pagination.page,
       pageSize: pagination.pageSize,
-      status: statusParam, // 使用处理后的状态参数
+      status: statusParam,
       keyword: keyword.value,
       supplierId: selectedSupplier.value,
       dateRange: dateRange.value
@@ -174,23 +189,16 @@ const loadOrderList = async (isRefresh = false) => {
       }
     })
 
-    console.log('请求参数:', params)
-
     const res = await purchaseStore.loadOrderList(params)
-    console.log('Store返回的数据:', res)
     
     const currentList = purchaseStore.orderList || []
-    console.log('当前订单列表长度:', currentList.length)
-
     const currentDataLength = res?.data?.list?.length || currentList.length
     
     if (currentDataLength < pagination.pageSize) {
       finished.value = true
-      console.log('加载完成，没有更多数据')
     } else {
       if (!isRefresh) {
         pagination.page++
-        console.log('继续加载下一页，当前页码:', pagination.page)
       }
     }
   } catch (error) {
@@ -209,9 +217,6 @@ const loadOrderList = async (isRefresh = false) => {
  * 状态标签变更事件
  */
 const handleStatusChange = (name) => {
-  // 关键修复：van-tabs 的 change 事件返回的是当前激活的tab的name
-  console.log('状态变更:', name)
-  
   // 如果是全部，清空状态数组
   if (name === '') {
     activeStatus.value = []
@@ -223,33 +228,29 @@ const handleStatusChange = (name) => {
   loadOrderList(true)
 }
 
-// 其他方法保持不变...
+// 搜索相关方法
 const handleSearch = () => {
-  console.log('搜索关键词:', keyword.value)
   loadOrderList(true)
 }
 
 const handleClearSearch = () => {
-  console.log('清空搜索')
   keyword.value = ''
   loadOrderList(true)
 }
 
 const handleFilterChange = () => {
-  console.log('筛选条件变更 - 供应商:', selectedSupplier.value, '时间:', dateRange.value)
   loadOrderList(true)
 }
 
 const handleRefresh = () => {
-  console.log('下拉刷新')
   loadOrderList(true)
 }
 
 const handleLoadMore = () => {
-  console.log('上拉加载更多')
   loadOrderList(false)
 }
 
+// 路由跳转方法
 const handleCreate = () => {
   router.push('/purchase/order/create')
 }
@@ -258,6 +259,7 @@ const handleDetail = (id) => {
   router.push(`/purchase/order/detail/${id}`)
 }
 
+// 状态显示方法
 const getStatusText = (status) => {
   const statusMap = {
     1: '待审核',
@@ -295,12 +297,12 @@ const formatTime = (time) => {
 }
 
 onMounted(async () => {
-  console.log('组件挂载，开始初始化供应商...')
-  await loadSuppliers()
+  // 预加载供应商数据
+  await supplierStore.loadList()
   initialLoading.value = false
-  console.log('供应商初始化完成，等待van-list自动加载订单数据')
 })
 </script>
+
 <style scoped lang="scss">
 .purchase-order-index {
   min-height: 100vh;
@@ -315,8 +317,85 @@ onMounted(async () => {
     .search-filter {
       padding: 0 10px 10px;
 
-      :deep(.van-dropdown-menu) {
+      .filter-row {
+        display: flex;
+        align-items: stretch; // 确保子元素高度一致
+        gap: 10px;
         margin-top: 10px;
+        height: 30px; // 设置固定高度，确保两个按钮高度一致
+        
+        .supplier-filter,
+        .date-filter {
+          flex: 1; // 平分宽度
+          display: flex;
+        }
+        
+        // 供应商选择器样式
+        .supplier-filter {
+          :deep(.supplier-select-trigger) {
+            width: 100%;
+            height: 100%;
+          }
+          
+          :deep(.default-trigger) {
+            width: 100%;
+            height: 100%;
+            
+            .van-button {
+              width: 100%;
+              height: 100%;
+              border-radius: 6px;
+              // 保持默认样式，不变成蓝色
+              background-color: #f7f8fa;
+              border: 1px solid #ebedf0;
+              color: #323233;
+              font-size: 14px;
+              
+              &:active {
+                background-color: #f2f3f5;
+              }
+            }
+          }
+        }
+        
+        // 日期筛选样式
+        .date-filter {
+          :deep(.van-dropdown-menu) {
+            width: 100%;
+            height: 100%;
+            
+            .van-dropdown-menu__bar {
+              height: 100%;
+              box-shadow: none;
+              border-radius: 6px;
+              background-color: #f7f8fa;
+              border: 1px solid #ebedf0;
+              
+              .van-dropdown-menu__item {
+                flex: 1;
+                
+                &:first-child {
+                  border-radius: 6px;
+                }
+                
+                .van-dropdown-menu__title {
+                  font-size: 14px;
+                  color: #323233;
+                  padding: 0 12px;
+                  line-height: 42px;
+                  
+                  &::after {
+                    border-color: #969799;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      :deep(.van-dropdown-menu) {
+        margin-top: 0;
       }
     }
   }

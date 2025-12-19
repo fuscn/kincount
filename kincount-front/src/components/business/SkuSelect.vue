@@ -13,10 +13,30 @@
         <van-search v-model="searchKeyword" placeholder="搜索商品编码、名称或规格" @update:model-value="handleSearch"
           @search="handleSearch" />
         <div class="filter-section" v-if="showFilters">
-          <van-dropdown-menu>
-            <van-dropdown-item v-model="filterCategory" :options="categoryOptions" @change="handleFilterChange" />
-            <van-dropdown-item v-model="filterBrand" :options="brandOptions" @change="handleFilterChange" />
-          </van-dropdown-menu>
+          <!-- 筛选条件行 -->
+          <div class="filter-row">
+            <!-- 分类选择 -->
+            <div class="filter-item">
+              <CategorySelect v-model="filterCategory" :placeholder="'分类'" :title="'选择分类'" :button-type="'default'"
+                :button-size="'small'" :button-block="false" :show-search="true" :allow-select-parent="false"
+                :auto-close="true" @change="handleFilterChange" />
+            </div>
+
+            <!-- 品牌选择 -->
+            <div class="filter-item">
+              <BrandSelect v-model="filterBrand" :placeholder="'品牌'" :popup-title="'选择品牌'"
+                :trigger-button-type="'default'" :trigger-button-size="'small'" :trigger-button-block="false"
+                :return-object="false" @change="handleFilterChange" />
+            </div>
+
+            <!-- 重置按钮 -->
+            <div class="filter-reset">
+              <van-button size="small" type="default" plain @click="handleResetFilters" :disabled="!hasActiveFilters"
+                class="reset-btn">
+                重置
+              </van-button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -73,6 +93,10 @@ import { useProductStore } from '@/store/modules/product'
 import { useCategoryStore } from '@/store/modules/category'
 import { useBrandStore } from '@/store/modules/brand'
 import { searchSkuSelect } from '@/api/product'
+
+// 导入组件
+import CategorySelect from './CategorySelect.vue'
+import BrandSelect from './BrandSelect.vue'
 
 // 定义 props
 const props = defineProps({
@@ -136,8 +160,6 @@ const currentPage = ref(1)
 // 筛选条件
 const filterCategory = ref('')
 const filterBrand = ref('')
-const categoryOptions = ref([{ text: '全部分类', value: '' }])
-const brandOptions = ref([{ text: '全部品牌', value: '' }])
 
 // 选中的SKU
 const selectedSkuIds = ref([...props.modelValue])
@@ -145,6 +167,13 @@ const selectedSkuData = ref([])
 
 // 递归更新防护
 let recursionGuard = false
+
+// 检查是否有活跃的筛选条件
+const hasActiveFilters = computed(() => {
+  return filterCategory.value !== '' ||
+    filterBrand.value !== '' ||
+    searchKeyword.value !== ''
+})
 
 // 安全更新函数
 const safeUpdate = (callback) => {
@@ -227,10 +256,6 @@ onMounted(() => {
   if (props.autoLoad) {
     loadInitialData()
   }
-  if (props.showFilters) {
-    loadCategories()
-    loadBrands()
-  }
 })
 
 // 加载初始数据
@@ -239,78 +264,6 @@ const loadInitialData = async () => {
   finished.value = false
   productStore.skuSelectOptions = []
   await loadMoreSkus()
-}
-
-// 加载分类选项
-const loadCategories = async () => {
-  try {
-    const res = await categoryStore.loadList({ page: 1, limit: 100 })
-    
-    
-    // 适配标准响应结构：从 res.data 中获取数据
-    let categories = []
-    if (res && res.code === 200) {
-      // 标准响应结构
-      if (Array.isArray(res.data)) {
-        categories = res.data
-      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
-        // 如果 data 是分页对象
-        categories = res.data.list
-      }
-    } else if (Array.isArray(res)) {
-      // 兼容直接返回数组的情况
-      categories = res
-    } else if (res && res.list) {
-      // 兼容旧结构
-      categories = res.list
-    }
-    
-    
-    categoryOptions.value = [
-      { text: '全部分类', value: '' },
-      ...categories.map(item => ({
-        text: item.name,
-        value: item.id
-      }))
-    ]
-  } catch (error) {
-  }
-}
-
-// 加载品牌选项
-const loadBrands = async () => {
-  try {
-    const res = await brandStore.loadList({ page: 1, limit: 100 })
-    
-    
-    // 适配标准响应结构：从 res.data 中获取数据
-    let brands = []
-    if (res && res.code === 200) {
-      // 标准响应结构
-      if (Array.isArray(res.data)) {
-        brands = res.data
-      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
-        // 如果 data 是分页对象
-        brands = res.data.list
-      }
-    } else if (Array.isArray(res)) {
-      // 兼容直接返回数组的情况
-      brands = res
-    } else if (res && res.list) {
-      // 兼容旧结构
-      brands = res.list
-    }
-    
-    
-    brandOptions.value = [
-      { text: '全部品牌', value: '' },
-      ...brands.map(item => ({
-        text: item.name,
-        value: item.id
-      }))
-    ]
-  } catch (error) {
-  }
 }
 
 // 加载SKU列表
@@ -326,8 +279,8 @@ const loadMoreSkus = async () => {
       brand_id: filterBrand.value
     }
     const res = await searchSkuSelect(params)
-    
-    
+
+
     // 适配标准响应结构：从 res.data 中获取数据
     let list = []
     if (res && res.code === 200) {
@@ -345,17 +298,17 @@ const loadMoreSkus = async () => {
       // 兼容旧结构
       list = res.list
     }
-    
-    
+
+
     if (currentPage.value === 1) {
       productStore.skuSelectOptions = list
     } else {
       productStore.skuSelectOptions = [...productStore.skuSelectOptions, ...list]
     }
-    
+
     // 重新初始化选中数据，确保新加载的数据也能正确匹配
     initSelectedData()
-    
+
     // 检查是否还有更多数据
     if (list.length < 20) {
       finished.value = true
@@ -373,6 +326,7 @@ const loadMoreSkus = async () => {
     loading.value = false
   }
 }
+
 // 搜索处理
 const handleSearch = () => {
   safeUpdate(() => {
@@ -386,6 +340,19 @@ const handleSearch = () => {
 // 筛选条件变化
 const handleFilterChange = () => {
   safeUpdate(() => {
+    currentPage.value = 1
+    finished.value = false
+    productStore.skuSelectOptions = []
+    loadMoreSkus()
+  })
+}
+
+// 重置筛选条件
+const handleResetFilters = () => {
+  safeUpdate(() => {
+    searchKeyword.value = ''
+    filterCategory.value = ''
+    filterBrand.value = ''
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []
@@ -529,8 +496,55 @@ defineExpose({
   margin-bottom: 8px;
 
   .filter-section {
-    :deep(.van-dropdown-menu) {
-      box-shadow: none;
+    padding: 8px 12px;
+    background: #f7f8fa;
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .filter-item {
+        flex: 1;
+        min-width: 0; // 防止内容溢出
+
+        // 自定义选择组件样式
+        :deep(.van-button) {
+          width: 100%;
+          height: 32px;
+          padding: 0 8px;
+          font-size: 13px;
+
+          .van-button__text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: calc(100% - 16px);
+          }
+
+          .van-icon {
+            margin-left: 2px;
+            flex-shrink: 0;
+            font-size: 14px;
+          }
+        }
+      }
+
+      .filter-reset {
+        flex-shrink: 0;
+
+        .reset-btn {
+          height: 32px;
+          min-width: 60px;
+          padding: 0 12px;
+          font-size: 13px;
+
+          &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+        }
+      }
     }
   }
 }
@@ -631,6 +645,61 @@ defineExpose({
   .van-cell__value {
     display: flex;
     align-items: center;
+  }
+}
+
+// 响应式调整
+@media (max-width: 480px) {
+  .sku-select-header {
+    .filter-section {
+      .filter-row {
+        gap: 6px;
+        padding: 6px 10px;
+
+        .filter-item {
+          :deep(.van-button) {
+            height: 30px;
+            font-size: 12px;
+            padding: 0 6px;
+          }
+        }
+
+        .filter-reset {
+          .reset-btn {
+            height: 30px;
+            min-width: 54px;
+            padding: 0 8px;
+            font-size: 12px;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 320px) {
+  .sku-select-header {
+    .filter-section {
+      .filter-row {
+        gap: 4px;
+        padding: 4px 8px;
+
+        .filter-item {
+          :deep(.van-button) {
+            font-size: 11px;
+            padding: 0 4px;
+          }
+        }
+
+        .filter-reset {
+          .reset-btn {
+            min-width: 48px;
+            padding: 0 6px;
+            font-size: 11px;
+          }
+        }
+      }
+    }
   }
 }
 </style>

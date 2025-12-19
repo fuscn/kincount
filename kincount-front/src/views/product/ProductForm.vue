@@ -35,13 +35,14 @@
           readonly
           clickable
           label="商品分类"
-          :placeholder="selectedCategory?.name || '请选择分类'"
+          :placeholder="categoryDisplayText || '请选择分类'"
           :rules="[{ required: true, message: '请选择商品分类' }]"
           :error-message="formErrors.category_id"
           @click="openCategorySelect"
+          class="category-field"
         >
           <template #input>
-            {{ selectedCategory?.name || '' }}
+            <span class="category-display">{{ categoryDisplayText }}</span>
           </template>
           <template #right-icon>
             <van-icon name="arrow" />
@@ -128,8 +129,6 @@ import {
 import CategorySelect from '@/components/business/CategorySelect.vue'
 import BrandSelect from '@/components/business/BrandSelect.vue'
 import Upload from '@/components/common/Upload.vue'
-import { useCategoryStore } from '@/store/modules/category'
-import { useBrandStore } from '@/store/modules/brand'
 
 /* ===== 基础数据 ===== */
 const route = useRoute()
@@ -137,9 +136,6 @@ const router = useRouter()
 const formRef = ref()
 const categorySelectRef = ref()
 const brandSelectRef = ref()
-
-const categoryStore = useCategoryStore()
-const brandStore = useBrandStore()
 
 const isEdit = computed(() => !!route.params.id)
 const submitted = ref(false)
@@ -158,7 +154,31 @@ const form = reactive({
 })
 
 /* ===== 计算属性 ===== */
-// 获取选中的分类对象
+// 获取分类显示文本 - 包含完整路径
+const categoryDisplayText = computed(() => {
+  if (!form.category_id) return ''
+  
+  // 从 CategorySelect 组件获取选中的分类节点
+  const selectedNode = categorySelectRef.value?.getSelectedItem?.()
+  if (!selectedNode) return ''
+  
+  // 检查节点是否有完整路径信息
+  if (selectedNode.fullPath) {
+    // 如果组件提供了完整路径，直接使用
+    return selectedNode.fullPath
+  } else if (selectedNode.pathNames && Array.isArray(selectedNode.pathNames)) {
+    // 如果组件提供了路径名称数组
+    return selectedNode.pathNames.join(' > ')
+  } else if (selectedNode.parentNames && Array.isArray(selectedNode.parentNames)) {
+    // 如果组件提供了父级名称数组
+    return [...selectedNode.parentNames, selectedNode.name].join(' > ')
+  }
+  
+  // 如果都没有，只显示分类名称
+  return selectedNode.name
+})
+
+// 获取选中的分类对象（可选，如果需要的话）
 const selectedCategory = computed(() => {
   if (!form.category_id) return null
   return categorySelectRef.value?.getSelectedItem?.() || null
@@ -201,6 +221,10 @@ async function loadAggregate() {
     nextTick(() => {
       if (form.category_id) {
         categorySelectRef.value?.reload?.()
+        // 如果编辑时需要获取分类路径，可以在这里处理
+        setTimeout(() => {
+          console.log('当前分类显示文本:', categoryDisplayText.value)
+        }, 500)
       }
       if (form.brand_id) {
         brandSelectRef.value?.refreshBrands?.()
@@ -213,11 +237,17 @@ async function loadAggregate() {
 }
 
 /* ===== 事件处理 ===== */
-// 分类选择确认事件
+// 分类选择确认事件 - 更新显示文本
 const onCategorySelectConfirm = (id, node) => {
   console.log('分类选择确认:', id, node)
   form.category_id = id
   formErrors.category_id = ''
+  
+  // 记录选择的分类路径信息
+  if (node) {
+    console.log('选择的分类节点:', node)
+    console.log('完整路径:', categoryDisplayText.value)
+  }
 }
 
 // 分类选择取消事件
@@ -314,6 +344,9 @@ const onSubmit = async () => {
       images: form.images || [],
       description: form.description?.trim() || ''
     }
+
+    console.log('提交的分类ID:', payload.category_id)
+    console.log('分类显示文本:', categoryDisplayText.value)
 
     // 调用 API
     let response
@@ -420,6 +453,36 @@ const resetForm = () => {
   background: #f7f8fa;
   min-height: 100vh;
   padding-bottom: 20px;
+}
+
+.form-wrap {
+  :deep(.van-cell-group__title) {
+    padding-top: 16px;
+    padding-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  :deep(.van-field__label) {
+    font-weight: 500;
+  }
+}
+
+/* 分类字段样式 */
+.category-field {
+  :deep(.van-field__control) {
+    // 允许文本换行
+    white-space: normal;
+    word-break: break-all;
+    min-height: 24px;
+    line-height: 1.4;
+  }
+  
+  .category-display {
+    display: inline-block;
+    width: 100%;
+    color: #323233;
+  }
 }
 
 /* 如果需要完全隐藏品牌选择器的默认按钮，可以添加这个样式 */

@@ -1,63 +1,42 @@
+<!-- 修改 CategorySelect.vue 模板 -->
 <template>
-  <!-- 触发按钮/区域 -->
-  <div v-if="!hideTrigger" @click="showSelector = true">
-    <slot name="trigger" :selected="selectedItem">
-      <!-- 默认触发按钮 -->
-      <van-button 
-        :type="buttonType" 
-        :size="buttonSize"
-        :block="buttonBlock"
-      >
-        {{ displayText || placeholder || '选择分类' }}
-      </van-button>
-    </slot>
-  </div>
+  <!-- 确保只有一个根元素 -->
+  <div class="category-select-wrapper">
+    <!-- 触发按钮/区域 -->
+    <div v-if="!hideTrigger" @click="showSelector = true">
+      <slot name="trigger" :selected="selectedItem">
+        <!-- 默认触发按钮 -->
+        <van-button :type="buttonType" :size="buttonSize" :block="buttonBlock">
+          {{ displayText || placeholder || '选择分类' }}
+        </van-button>
+      </slot>
+    </div>
 
-  <!-- 分类选择器弹窗 -->
-  <van-popup
-    v-model:show="showSelector"
-    position="bottom"
-    :style="{ height: '70%' }"
-    round
-    @close="handleClose"
-  >
-    <div class="category-select-popup">
-      <!-- 标题栏 -->
-      <div class="popup-header">
-        <van-nav-bar
-          :title="title"
-          :left-text="cancelText"
-          :right-text="confirmText"
-          @click-left="handleCancel"
-          @click-right="handleConfirm"
-        />
-      </div>
+    <!-- 分类选择器弹窗 -->
+    <van-popup v-model:show="showSelector" position="bottom" :style="{ height: '70%' }" round @close="handleClose">
+      <div class="category-select-popup">
+        <!-- 标题栏 -->
+        <div class="popup-header">
+          <van-nav-bar :title="title" :left-text="cancelText" :right-text="confirmText" @click-left="handleCancel"
+            @click-right="handleConfirm" />
+        </div>
 
-      <!-- 分类树 -->
-      <div class="tree-container">
-        <van-loading v-if="loading && !hasCachedData" class="loading" />
-        
-        <van-empty
-          v-if="!loading && !treeData.length"
-          description="暂无分类数据"
-        />
-        
-        <!-- 树形列表 -->
-        <div v-else class="tree-list">
-          <CategoryTreeItem
-            v-for="node in treeData"
-            :key="node.id"
-            :node="node"
-            :selected-id="tempSelectedId"
-            :allow-select-parent="allowSelectParent"
-            :expanded-node-id="expandedNodeId"
-            @select="handleSelectNode"
-            @toggle-expand="handleToggleExpand"
-          />
+        <!-- 分类树 -->
+        <div class="tree-container">
+          <van-loading v-if="loading && !hasCachedData" class="loading" />
+
+          <van-empty v-if="!loading && !treeData.length" description="暂无分类数据" />
+
+          <!-- 树形列表 -->
+          <div v-else class="tree-list">
+            <CategoryTreeItem v-for="node in treeData" :key="node.id" :node="node" :selected-id="tempSelectedId"
+              :allow-select-parent="allowSelectParent" :expanded-node-id="expandedNodeId" @select="handleSelectNode"
+              @toggle-expand="handleToggleExpand" />
+          </div>
         </div>
       </div>
-    </div>
-  </van-popup>
+    </van-popup>
+  </div>
 </template>
 
 <script setup>
@@ -72,13 +51,13 @@ const props = defineProps({
     type: [Number, String],
     default: null
   },
-  
+
   // 是否允许选择父节点
   allowSelectParent: {
     type: Boolean,
     default: false
   },
-  
+
   // 显示配置
   placeholder: {
     type: String,
@@ -96,7 +75,7 @@ const props = defineProps({
     type: String,
     default: '确定'
   },
-  
+
   // 其他配置
   hideTrigger: {
     type: Boolean,
@@ -131,7 +110,7 @@ const props = defineProps({
   // 按钮样式
   buttonType: {
     type: String,
-    default: 'primary'
+    default: 'default'
   },
   buttonSize: {
     type: String,
@@ -194,9 +173,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'update:modelValue', 
-  'confirm', 
-  'cancel', 
+  'update:modelValue',
+  'confirm',
+  'cancel',
   'change',
   'search',
   'open',
@@ -222,10 +201,10 @@ const hasCachedData = computed(() => {
 const selectedItem = computed(() => {
   // 如果没有值，直接返回 null
   if (!props.modelValue) return null
-  
+
   // 如果没有数据，也返回 null
   if (!treeData.value.length) return null
-  
+
   // 多选模式
   if (props.multiple) {
     if (Array.isArray(props.modelValue)) {
@@ -233,7 +212,7 @@ const selectedItem = computed(() => {
     }
     return []
   }
-  
+
   // 单选模式
   return findNodeById(props.modelValue, treeData.value)
 })
@@ -244,18 +223,18 @@ const displayText = computed(() => {
     if (!selectedItem.value || selectedItem.value.length === 0) {
       return props.placeholder || '选择分类'
     }
-    
+
     if (selectedItem.value.length === 1) {
-      return props.showFullPath 
+      return props.showFullPath
         ? getFullName(selectedItem.value[0])
         : selectedItem.value[0].name
     }
-    
+
     return `已选择 ${selectedItem.value.length} 个分类`
   } else {
     // 单选模式
     if (!selectedItem.value) return props.placeholder || '选择分类'
-    
+
     if (props.showFullPath) {
       return getFullName(selectedItem.value)
     }
@@ -267,20 +246,20 @@ const filteredTreeData = computed(() => {
   if (!searchKeyword.value.trim() || !props.showSearch) {
     return treeData.value
   }
-  
+
   const keyword = searchKeyword.value.toLowerCase()
   const filterNodes = (nodes) => {
     return nodes.filter(node => {
       // 检查当前节点是否匹配
       const isMatch = node.name.toLowerCase().includes(keyword)
-      
+
       // 检查子节点是否匹配
       let childrenMatch = false
       if (node.children && node.children.length) {
         node.children = filterNodes(node.children)
         childrenMatch = node.children.length > 0
       }
-      
+
       // 如果当前节点匹配或子节点匹配，保留该节点
       if (isMatch || childrenMatch) {
         // 如果是子节点匹配，展开当前节点
@@ -292,21 +271,34 @@ const filteredTreeData = computed(() => {
       return false
     })
   }
-  
+
   return filterNodes(JSON.parse(JSON.stringify(treeData.value)))
 })
 
 // 方法：根据ID从树数据中查找节点
 const findNodeById = (id, nodes) => {
   if (!id || !nodes || !nodes.length) return null
-  
+
   for (const node of nodes) {
     if (node.id === id) {
       // 返回干净的节点对象，去掉内部属性
       const { _level, _expanded, children, ...cleanNode } = node
+
+      // 获取父级节点路径
+      const parentNodes = []
+      let parent = findParent(node.id, nodes)
+      while (parent) {
+        parentNodes.unshift(parent)
+        parent = findParent(parent.id, nodes)
+      }
+
       return {
         ...cleanNode,
-        hasChildren: children && children.length > 0
+        hasChildren: children && children.length > 0,
+        // 添加完整路径信息
+        fullPath: getFullName(node),
+        pathNames: [...parentNodes.map(p => p.name), node.name],
+        parentNames: parentNodes.map(p => p.name)
       }
     }
     if (node.children && node.children.length) {
@@ -316,7 +308,6 @@ const findNodeById = (id, nodes) => {
   }
   return null
 }
-
 const getFullName = (node) => {
   const names = [node.name]
   let parent = findParent(node.id, treeData.value)
@@ -343,15 +334,15 @@ const loadCategories = async () => {
   if (props.enableCache && hasCachedData.value && !props.forceRefresh) {
     return
   }
-  
+
   loading.value = true
   try {
     // 调用 store 的 loadTree，传递是否强制刷新
     const data = await categoryStore.loadTree('', props.forceRefresh)
-    
+
     // 深度拷贝数据，避免与其他组件共享状态
     const copyData = JSON.parse(JSON.stringify(data))
-    
+
     // 处理数据：所有节点默认折叠
     const processData = (nodes, level = 0) => {
       return nodes.map(node => ({
@@ -361,12 +352,12 @@ const loadCategories = async () => {
         children: node.children ? processData(node.children, level + 1) : []
       }))
     }
-    
+
     treeData.value = processData(copyData)
-    
+
     // 重置展开状态
     expandedNodeId.value = null
-    
+
   } catch (error) {
     console.error('加载分类失败:', error)
     throw error
@@ -380,11 +371,11 @@ const handleSelectNode = (node) => {
   if (props.maxLevel > 0 && node.level > props.maxLevel) {
     return
   }
-  
+
   // 多选模式
   if (props.multiple) {
     const index = selectedItems.value.findIndex(item => item.id === node.id)
-    
+
     if (index === -1) {
       // 检查最大数量限制
       if (props.maxCount > 0 && selectedItems.value.length >= props.maxCount) {
@@ -394,25 +385,25 @@ const handleSelectNode = (node) => {
     } else {
       selectedItems.value.splice(index, 1)
     }
-    
+
     // 触发选择事件
     emit('select', node, selectedItems.value)
-    
+
     // 多选时不自动关闭
     return
   }
-  
+
   // 单选模式
   // 如果允许选择父节点，或者节点没有子节点，则选中
   if (props.allowSelectParent || !node.children || node.children.length === 0) {
     const selectedId = node.id
-    
+
     // 立即更新选中状态，让用户看到视觉反馈
     tempSelectedId.value = selectedId
-    
+
     // 触发选择事件
     emit('select', node)
-    
+
     // 如果设置了自动关闭，延迟确认并关闭弹窗
     if (props.autoClose) {
       setTimeout(() => {
@@ -445,16 +436,16 @@ const handleConfirm = () => {
     showSelector.value = false
     return
   }
-  
+
   // 单选模式
   if (tempSelectedId.value !== null && tempSelectedId.value !== undefined) {
     // 从 treeData 中查找完整的节点对象
     const selectedNode = findNodeById(tempSelectedId.value, treeData.value)
-    
+
     emit('update:modelValue', tempSelectedId.value)
     emit('confirm', tempSelectedId.value, selectedNode)
     emit('change', tempSelectedId.value)
-    
+
     // 设置确认标志
     isConfirmed.value = true
   }
@@ -474,7 +465,7 @@ const handleClose = () => {
     isConfirmed.value = false
     return
   }
-  
+
   // 否则视为取消
   handleCancel()
 }
@@ -492,7 +483,7 @@ watch(showSelector, async (newVal) => {
   if (newVal) {
     // 打开弹窗时加载数据（使用缓存）
     await loadCategories()
-    
+
     // 多选模式
     if (props.multiple) {
       if (props.modelValue && Array.isArray(props.modelValue)) {
@@ -510,10 +501,10 @@ watch(showSelector, async (newVal) => {
         tempSelectedId.value = null
       }
     }
-    
+
     // 重置展开状态
     expandedNodeId.value = null
-    
+
     // 触发打开事件
     emit('open')
   } else {
@@ -521,7 +512,7 @@ watch(showSelector, async (newVal) => {
     // 保持当前选中状态，直到下次打开
     expandedNodeId.value = null
     searchKeyword.value = ''
-    
+
     // 触发关闭事件
     emit('close')
   }
@@ -568,15 +559,101 @@ defineExpose({
     await loadCategories(forceRefresh)
   },
   getSelectedItem: () => {
-    return selectedItem.value
+    const item = selectedItem.value
+    if (!item) return null
+
+    // 如果是多选模式，返回数组
+    if (props.multiple) {
+      return item.map(node => ({
+        ...node,
+        fullPath: getFullName(node),
+        // 添加路径信息
+        pathNames: (() => {
+          const parentNodes = []
+          let parent = findParent(node.id, treeData.value)
+          while (parent) {
+            parentNodes.unshift(parent)
+            parent = findParent(parent.id, treeData.value)
+          }
+          return [...parentNodes.map(p => p.name), node.name]
+        })(),
+        parentNames: (() => {
+          const parentNodes = []
+          let parent = findParent(node.id, treeData.value)
+          while (parent) {
+            parentNodes.unshift(parent)
+            parent = findParent(parent.id, treeData.value)
+          }
+          return parentNodes.map(p => p.name)
+        })()
+      }))
+    }
+
+    // 单选模式，返回单个节点
+    if (item.fullPath) {
+      return item // 如果已经有完整路径信息，直接返回
+    }
+
+    // 否则添加完整路径信息
+    return {
+      ...item,
+      fullPath: getFullName(item),
+      pathNames: (() => {
+        const parentNodes = []
+        let parent = findParent(item.id, treeData.value)
+        while (parent) {
+          parentNodes.unshift(parent)
+          parent = findParent(parent.id, treeData.value)
+        }
+        return [...parentNodes.map(p => p.name), item.name]
+      })(),
+      parentNames: (() => {
+        const parentNodes = []
+        let parent = findParent(item.id, treeData.value)
+        while (parent) {
+          parentNodes.unshift(parent)
+          parent = findParent(parent.id, treeData.value)
+        }
+        return parentNodes.map(p => p.name)
+      })()
+    }
   },
   // 新增：手动刷新缓存
   refreshCache: async () => {
     await categoryStore.loadTree('', true)
   },
-  // 新增：查找节点
+  // 新增：查找节点（返回带完整路径的节点）
   findNode: (id) => {
-    return findNodeById(id, treeData.value)
+    const node = findNodeById(id, treeData.value)
+    if (!node) return null
+
+    // 确保返回的节点有完整路径信息
+    if (!node.fullPath) {
+      return {
+        ...node,
+        fullPath: getFullName(node),
+        pathNames: (() => {
+          const parentNodes = []
+          let parent = findParent(node.id, treeData.value)
+          while (parent) {
+            parentNodes.unshift(parent)
+            parent = findParent(parent.id, treeData.value)
+          }
+          return [...parentNodes.map(p => p.name), node.name]
+        })(),
+        parentNames: (() => {
+          const parentNodes = []
+          let parent = findParent(node.id, treeData.value)
+          while (parent) {
+            parentNodes.unshift(parent)
+            parent = findParent(parent.id, treeData.value)
+          }
+          return parentNodes.map(p => p.name)
+        })()
+      }
+    }
+
+    return node
   },
   // 新增：获取分类树数据
   getTreeData: () => {
@@ -596,6 +673,11 @@ defineExpose({
     if (node) {
       handleSelectNode(node)
     }
+  },
+  // 新增：获取分类的完整路径
+  getFullPath: (id) => {
+    const node = findNodeById(id, treeData.value)
+    return node ? getFullName(node) : ''
   }
 })
 </script>
@@ -606,27 +688,27 @@ defineExpose({
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
-  
+
   .popup-header {
     flex-shrink: 0;
-    
+
     :deep(.van-nav-bar) {
       background: transparent;
-      
+
       .van-nav-bar__title {
         font-weight: 600;
       }
-      
+
       .van-nav-bar__left {
         .van-nav-bar__text {
           color: #969799;
         }
       }
-      
+
       .van-nav-bar__right {
         .van-nav-bar__text {
           color: #1989fa;
-          
+
           &:disabled {
             color: #c8c9cc;
           }
@@ -634,23 +716,23 @@ defineExpose({
       }
     }
   }
-  
+
   .search-box {
     flex-shrink: 0;
     padding: 10px 16px;
     background: #f7f8fa;
     border-bottom: 1px solid #ebedf0;
-    
+
     :deep(.van-search) {
       padding: 0;
-      
+
       .van-search__content {
         border-radius: 16px;
         background: #fff;
       }
     }
   }
-  
+
   .selected-path {
     flex-shrink: 0;
     padding: 12px 16px;
@@ -658,27 +740,27 @@ defineExpose({
     border-bottom: 1px solid #ebedf0;
     font-size: 14px;
     color: #323233;
-    
+
     .path-label {
       color: #969799;
       margin-right: 8px;
     }
-    
+
     .path-content {
       font-weight: 500;
     }
   }
-  
+
   .tree-container {
     flex: 1;
     overflow-y: auto;
     position: relative;
-    
+
     .loading {
       padding: 40px 0;
       text-align: center;
     }
-    
+
     .tree-list {
       background: #fff;
     }
@@ -691,7 +773,7 @@ defineExpose({
   cursor: pointer;
   padding: 8px 0;
   display: inline-block;
-  
+
   &:hover {
     opacity: 0.8;
   }

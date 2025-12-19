@@ -11,7 +11,6 @@
     round 
     :style="{ height: '80%' }" 
     teleport="body"
-    :close-on-click-overlay="false"
     :transition-appear="true"
   >
     <div class="floating-menu-popup">
