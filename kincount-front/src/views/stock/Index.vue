@@ -43,7 +43,7 @@
               :show-all-option="true"
               :show-confirm-button="false"
               :trigger-button-type="'default'"
-              :trigger-button-size="'normal'"
+              :trigger-button-size="'small'"
               :trigger-button-block="true"
               @change="handleWarehouseChange"
             />
@@ -56,7 +56,7 @@
               :placeholder="getCategoryPlaceholder()"
               :show-confirm-button="false"
               :button-type="'default'"
-              :button-size="'normal'"
+              :button-size="'small'"
               :button-block="true"
               class="category-select-trigger"
               @change="handleCategoryChange"
@@ -123,9 +123,7 @@
             v-for="stockItem in stockList" 
             :key="`${stockItem.sku_id}_${stockItem.warehouse_id}`" 
             :title="stockItem.sku?.product?.name || '未知产品'" 
-            :label="getStockLabel(stockItem)" 
-            @click="handleViewDetail(stockItem)" 
-            is-link
+            :label="getStockLabel(stockItem)"
           >
             <template #extra>
               <div class="stock-extra">
@@ -214,11 +212,33 @@ const dateOptions = ref([
 
 // 计算属性
 const stockList = computed(() => stockStore.list || [])
-const statistics = computed(() => stockStore.statistics || {
-  skuCount: 0,
-  totalQuantity: 0,
-  totalValue: 0,
-  warningCount: 0
+const statistics = computed(() => {
+  // 如果API返回了正确的统计数据，使用API数据
+  const apiStats = stockStore.statistics || {}
+  
+  // 如果API返回的是列表数据（说明统计API未实现），则从列表数据计算统计
+  if (apiStats.list && Array.isArray(apiStats.list)) {
+    console.log('从列表数据计算统计信息')
+    const list = apiStats.list
+    const stats = {
+      skuCount: new Set(list.map(item => item.sku_id)).size,
+      totalQuantity: list.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+      totalValue: list.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0),
+      warningCount: 0 // 需要结合min_stock计算，暂时设为0
+    }
+    console.log('计算出的统计信息:', stats)
+    return stats
+  }
+  
+  // 使用API返回的正确统计数据
+  const result = {
+    skuCount: apiStats.sku_count || apiStats.skuCount || 0,
+    totalQuantity: apiStats.total_quantity || apiStats.totalQuantity || 0,
+    totalValue: apiStats.total_value || apiStats.totalValue || 0,
+    warningCount: apiStats.warning_count || apiStats.warningCount || 0
+  }
+  console.log('使用API统计数据:', result)
+  return result
 })
 
 // 获取仓库占位符文本
@@ -421,15 +441,16 @@ const loadFilterOptions = async () => {
   }
 }
 
-// 查看库存详情
-const handleViewDetail = (stockItem) => {
-  router.push({
-    path: '/stock/detail',
-    query: { 
-      sku_id: stockItem.sku_id,
-      warehouse_id: stockItem.warehouse_id
-    }
-  })
+// 加载统计数据
+const loadStatistics = async () => {
+  try {
+    console.log('开始加载统计数据...')
+    await stockStore.loadStatistics()
+    console.log('统计数据加载完成:', stockStore.statistics)
+  } catch (error) {
+    console.error('加载统计数据失败:', error)
+    // 如果API调用失败，statistics会保持为空对象，计算属性会使用stockList来计算
+  }
 }
 
 // 库存调拨
@@ -474,6 +495,7 @@ const handleStockTake = (stockItem) => {
 onMounted(() => {
   loadFilterOptions()
   loadStockList(true)
+  loadStatistics()
 })
 </script>
 
@@ -538,17 +560,27 @@ onMounted(() => {
             width: 100%;
             height: 100%;
             
-            .van-button {
+            .category-select-wrapper {
               width: 100%;
               height: 100%;
-              border-radius: 6px;
-              background-color: #f7f8fa;
-              border: 1px solid #ebedf0;
-              color: #323233;
-              font-size: 14px;
               
-              &:active {
-                background-color: #f2f3f5;
+              .van-button {
+                width: 100% !important;
+                height: 100% !important;
+                border-radius: 6px !important;
+                background-color: #f7f8fa !important;
+                border: 1px solid #ebedf0 !important;
+                color: #323233 !important;
+                font-size: 14px !important;
+                box-shadow: none !important;
+                
+                &:active {
+                  background-color: #f2f3f5 !important;
+                }
+                
+                &:before {
+                  display: none !important;
+                }
               }
             }
           }

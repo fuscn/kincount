@@ -5,10 +5,13 @@ namespace app\kincount\model;
 
 class StockTakeItem extends BaseModel
 {
+    // 指定表名
+    protected $table = 'stock_take_items';
 
     protected $type = [
         'stock_take_id' => 'integer',
         'product_id' => 'integer',
+        'sku_id' => 'integer',
         'system_quantity' => 'integer',
         'actual_quantity' => 'integer',
         'difference_quantity' => 'integer',

@@ -1,4 +1,5 @@
 <template>
+  <!-- 列表模式 -->
   <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
     <van-list
       v-model:loading="loading"
@@ -13,17 +14,9 @@
           class="sku-card"
           @click="$emit('click-card', item)"
         >
-          <!-- 图片区域 -->
-          <div class="sku-image">
-            <img 
-              :src="getProductImage(item)" 
-              :alt="getProductName(item)"
-              @error="handleImageError"
-              loading="lazy"
-            />
-            <div v-if="getWarningTag(item)" class="sku-tag">
-              {{ getWarningTag(item) }}
-            </div>
+          <!-- 选中状态勾号 -->
+          <div v-if="selectable && selectedIds.includes(item.id)" class="selected-check">
+            <van-icon name="success" size="16" color="#fff" />
           </div>
           
           <!-- 信息区域 -->
@@ -63,9 +56,20 @@ import { ref, watch } from 'vue'
 import { getStockList } from '@/api/stock'
 
 const props = defineProps({
+  // 列表模式参数
   warehouseId: [String, Number],
   keyword: String,
-  warningType: String // low | high
+  warningType: String, // low | high
+  
+  // 选择模式参数
+  selectable: {
+    type: Boolean,
+    default: false
+  },
+  selectedIds: {
+    type: Array,
+    default: () => []
+  }
 })
 
 const emit = defineEmits(['click-card'])
@@ -74,9 +78,6 @@ const list = ref([])
 const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
-
-// 默认图片 Base64 编码（避免网络请求）
-const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjRjhGOEY4Ii8+CjxwYXRoIGQ9Ik0zOCAyNkg0MlYzMEgzOFYyNlpNMzAgMzRIMzRWMzhIMzBWMzRaTTMwIDI2SDM0VjMwSDMwVjI2Wk0yMiAzNEgyNlYzOEgyMlYzNFpNMjIgMjZIMjZWMzBIMjJWMjZaTTM4IDM0SDQyVjM4SDM4VjM0Wk0zMCAxOEgzNFYyMkgzMFYxOFpNMjIgMThIMjZWMjJIMjJWMThaTTM4IDE4SDQyVjIySDM4VjE4Wk0xOCAyNkgyMlYzMEgxOFYyNlpNMTggMzRIMjJWMzhIMThWMzRaTTE4IDE4SDIyVjIySDE4VjE4Wk0xNCAyNkgxOFYzMEgxNFYyNlpNMTQgMzRIMThWMzhIMTRWMzRaTTE0IDE4SDE4VjIySDE0VjE4WiIgZmlsbD0iI0RDRENEQyIvPgo8L3N2Zz4K'
 
 // 图片错误处理记录
 const imageErrorMap = ref(new Map())
@@ -278,6 +279,9 @@ watch(
 </script>
 
 <style scoped lang="scss">
+
+
+/* 列表模式样式（原有） */
 .sku-card-list {
   padding: 8px;
 }
@@ -290,37 +294,24 @@ watch(
   margin-bottom: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
+  position: relative;
   
   &:active {
     background: #f5f5f5;
   }
   
-  .sku-image {
-    position: relative;
-    width: 60px;
-    height: 60px;
-    flex-shrink: 0;
-    margin-right: 12px;
-    
-    img {
-      width: 100%;
-      height: 100%;
-      border-radius: 4px;
-      object-fit: cover;
-      background: #f8f8f8;
-    }
-    
-    .sku-tag {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      background: #ff4444;
-      color: white;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 8px;
-      line-height: 1;
-    }
+  .selected-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    background: #07c160;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
   }
   
   .sku-info {

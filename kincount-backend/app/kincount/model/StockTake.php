@@ -3,6 +3,9 @@ namespace app\kincount\model;
 
 class StockTake extends BaseModel
 {
+    // 指定表名
+    protected $table = 'stock_takes';
+    
     protected $type = [
         'warehouse_id' => 'integer',
         'total_difference' => 'float',
@@ -35,13 +38,53 @@ class StockTake extends BaseModel
         return $this->hasMany(StockTakeItem::class, 'stock_take_id');
     }
     
+    // 获取总差异金额（实时计算）
+    public function getTotalDifferenceAttr($value, $data)
+    {
+        // 如果有关联的items数据已加载，则使用已加载的数据计算
+        if (isset($this->items) && !empty($this->items)) {
+            $total = 0;
+            foreach ($this->items as $item) {
+                $total += $item->difference_amount;
+            }
+            return $total;
+        }
+        // 否则通过数据库查询实时计算
+        if (isset($this->id)) {
+            return $this->items()->sum('difference_amount');
+        }
+        // 最后返回数据库中的原始值
+        return $value ?? 0;
+    }
+    
+    // 获取总差异数量（实时计算）
+    public function getTotalDifferenceQuantityAttr($value, $data)
+    {
+        // 如果有关联的items数据已加载，则使用已加载的数据计算
+        if (isset($this->items) && !empty($this->items)) {
+            $total = 0;
+            foreach ($this->items as $item) {
+                $total += $item->difference_quantity;
+            }
+            return $total;
+        }
+        // 否则通过数据库查询实时计算
+        if (isset($this->id)) {
+            return $this->items()->sum('difference_quantity');
+        }
+        // 最后返回数据库中的原始值
+        return $value ?? 0;
+    }
+    
     // 库存盘点状态选项
     public function getStatusOptions()
     {
         return [
+            0 => '待盘点',
             1 => '盘点中',
-            2 => '已完成',
-            3 => '已取消'
+            2 => '已审核',
+            3 => '已完成',
+            4 => '已取消'
         ];
     }
     

@@ -313,44 +313,5 @@ class StockController extends BaseController
             ]
         ]);
     }
-    public function debug()
-    {
-        try {
-            // 检查数据库连接
-            $dbStatus = \think\facade\Db::execute('SELECT 1');
 
-            // 检查表结构
-            $tables = ['stocks', 'products', 'categories', 'warehouses'];
-            $tableInfo = [];
-
-            foreach ($tables as $table) {
-                try {
-                    $columns = \think\facade\Db::getFields($table);
-                    $tableInfo[$table] = [
-                        'exists' => true,
-                        'columns' => array_keys($columns)
-                    ];
-                } catch (\Exception $e) {
-                    $tableInfo[$table] = [
-                        'exists' => false,
-                        'error' => $e->getMessage()
-                    ];
-                }
-            }
-
-            return json([
-                'code' => 200,
-                'message' => '调试信息',
-                'data' => [
-                    'database_connection' => $dbStatus !== false ? '正常' : '失败',
-                    'tables' => $tableInfo
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return json([
-                'code' => 500,
-                'message' => '调试失败: ' . $e->getMessage()
-            ]);
-        }
-    }
 }

@@ -141,7 +141,17 @@ export const useStockStore = defineStore('stock', {
 
     async loadStatistics() {
       try {
-        this.statistics = await getStockStatistics()
+        const result = await getStockStatistics()
+        
+        // 处理不同的响应结构
+        if (result && result.data) {
+          this.statistics = result.data
+        } else if (result && result.code === 200) {
+          this.statistics = result.data || {}
+        } else {
+          this.statistics = result || {}
+        }
+        
         return this.statistics
       } catch (error) {
         this.statistics = {}
@@ -153,9 +163,29 @@ export const useStockStore = defineStore('stock', {
     async loadTakeList(params) {
       try {
         const result = await getStockTakeList(params)
-        this.takeList = result?.list || []
-        this.takeTotal = result?.total || 0
-        return result
+        
+        // 处理不同的响应结构
+        let listData = []
+        let totalCount = 0
+
+        if (result && result.data && result.data.list) {
+          listData = result.data.list
+          totalCount = result.data.total || 0
+        } else if (result && result.list) {
+          listData = result.list
+          totalCount = result.total || 0
+        } else if (Array.isArray(result)) {
+          listData = result
+          totalCount = result.length
+        } else {
+          listData = result || []
+          totalCount = result?.total || 0
+        }
+
+        this.takeList = listData
+        this.takeTotal = totalCount
+
+        return { list: listData, total: totalCount }
       } catch (error) {
         this.takeList = []
         this.takeTotal = 0

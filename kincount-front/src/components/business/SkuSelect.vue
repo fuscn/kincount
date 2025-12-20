@@ -77,10 +77,7 @@
         <div class="selected-info">
           已选择 {{ selectedSkuIds.length }} 个商品
         </div>
-        <div class="action-buttons">
-          <van-button type="default" @click="handleCancel">取消</van-button>
-          <van-button type="primary" @click="handleConfirm">确定</van-button>
-        </div>
+
       </div>
     </div>
   </div>

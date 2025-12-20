@@ -24,6 +24,18 @@ export default [
     meta: { title: '库存盘点', showTabbar: false, showLayoutNavBar: false }
   },
   {
+    path: 'stock/take/detail/:id',
+    name: 'StockTakeDetail',
+    component: () => import('@/views/stock/TakeDetail.vue'),
+    meta: { title: '盘点详情', showTabbar: false, showLayoutNavBar: false }
+  },
+  {
+    path: 'stock/take/edit/:id',
+    name: 'StockTakeEdit',
+    component: () => import('@/views/stock/TakeCreate.vue'),
+    meta: { title: '编辑盘点', showTabbar: false, showLayoutNavBar: false }
+  },
+  {
     path: 'stock/transfer',
     name: 'StockTransfer',
     component: () => import('@/views/stock/Transfer.vue'),

@@ -34,7 +34,7 @@
       </van-search>
 
       <!-- 状态筛选 -->
-      <van-tabs v-model="activeStatus" @change="handleStatusChange">
+      <van-tabs v-model="activeStatus" @change="handleStatusChange" :lazy-render="false">
         <van-tab 
           v-for="tab in statusTabs" 
           :key="tab.value" 
@@ -49,23 +49,30 @@
           v-model:loading="listLoading"
           :finished="finished"
           :finished-text="takeList.length === 0 ? '暂无盘点数据' : '没有更多了'"
-          @load="loadTakeList"
+          @load="() => loadTakeList(false)"
+          :immediate-check="false"
         >
           <van-cell-group>
             <van-cell
               v-for="take in takeList"
               :key="take.id"
-              :title="`盘点单号: ${take.take_no || take.order_no}`"
               :label="getTakeLabel(take)"
               @click="handleViewTake(take)"
             >
+              <template #title>
+                <div class="take-number">
+                  <span class="label">盘点单号:</span>
+                  <span class="number">{{ take.take_no || take.order_no }}</span>
+                </div>
+              </template>
               <template #value>
-                <van-tag :type="getStatusTagType(take.status)">
-                  {{ getStatusText(take.status) }}
-                </van-tag>
+                <!-- 状态标签移到右边，这里留空 -->
               </template>
               <template #extra>
-                <div class="cell-actions">
+                <div class="cell-extra">
+                  <van-tag :type="getStatusTagType(take.status)" class="status-tag">
+                    {{ getStatusText(take.status) }}
+                  </van-tag>
                   <van-button 
                     size="mini" 
                     type="primary" 
@@ -117,6 +124,7 @@ const refreshing = ref(false)
 const listLoading = ref(false)
 const initialLoading = ref(true)
 const finished = ref(false)
+const isInitialized = ref(false) // 防止初始化时多次调用
 
 const pagination = reactive({
   page: 1,
@@ -126,8 +134,9 @@ const pagination = reactive({
 
 const statusTabs = ref([
   { title: '全部', value: '' },
-  { title: '待盘点', value: '1' },
-  { title: '盘点中', value: '2' },
+  { title: '待盘点', value: '0' },
+  { title: '盘点中', value: '1' },
+  { title: '已审核', value: '2' },
   { title: '已完成', value: '3' },
   { title: '已取消', value: '4' }
 ])
@@ -135,8 +144,9 @@ const statusTabs = ref([
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待盘点',
-    2: '盘点中', 
+    0: '待盘点',
+    1: '盘点中', 
+    2: '已审核',
     3: '已完成',
     4: '已取消'
   }
@@ -146,9 +156,10 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'success', 
+    0: 'warning',
+    1: 'primary',
+    2: 'success', 
+    3: 'success',
     4: 'danger'
   }
   return typeMap[status] || 'default'
@@ -157,7 +168,9 @@ const getStatusTagType = (status) => {
 // 获取盘点单标签信息
 const getTakeLabel = (take) => {
   const parts = []
-  if (take.warehouse_name) {
+  if (take.warehouse?.name) {
+    parts.push(`仓库: ${take.warehouse.name}`)
+  } else if (take.warehouse_name) {
     parts.push(`仓库: ${take.warehouse_name}`)
   }
   if (take.created_at) {
@@ -165,6 +178,10 @@ const getTakeLabel = (take) => {
   }
   if (take.total_items) {
     parts.push(`明细: ${take.total_items}项`)
+  } else if (take.total_difference_quantity !== undefined) {
+    parts.push(`差异: ${take.total_difference_quantity > 0 ? '+' : ''}${take.total_difference_quantity}`)
+  } else if (take.total_difference !== undefined) {
+    parts.push(`差异金额: ${take.total_difference > 0 ? '+' : ''}${take.total_difference}`)
   }
   return parts.join(' | ')
 }
@@ -223,6 +240,7 @@ const loadTakeList = async (isRefresh = false) => {
     refreshing.value = false
     listLoading.value = false
     initialLoading.value = false
+    isInitialized.value = true // 标记已初始化
   }
 }
 
@@ -245,6 +263,10 @@ const handleClearSearch = () => {
 }
 
 const handleStatusChange = () => {
+  // 防止初始化时触发
+  if (!isInitialized.value) {
+    return
+  }
   loadTakeList(true)
 }
 
@@ -271,9 +293,32 @@ onMounted(() => {
   padding: 16px;
 }
 
-.cell-actions {
+.cell-extra {
   display: flex;
+  align-items: center;
   gap: 8px;
+  
+  .status-tag {
+    flex-shrink: 0;
+  }
+}
+
+.take-number {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .label {
+    color: #969799;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  
+  .number {
+    color: #323233;
+    font-size: 14px;
+    font-weight: 500;
+  }
 }
 
 .page-loading {
