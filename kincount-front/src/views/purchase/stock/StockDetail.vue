@@ -300,9 +300,9 @@ const getSkuSpecs = (item) => {
 // 入库单状态文本映射
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
   return statusMap[status] || '未知'
 }
@@ -310,9 +310,9 @@ const getStatusText = (status) => {
 // 入库单状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'success',  // 已审核 - 成功色
-    3: 'danger'    // 已取消 - 危险色
+    0: 'warning',  // 待审核 - 警告色
+    1: 'success',  // 已审核 - 成功色
+    2: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }
@@ -350,16 +350,16 @@ const goToPurchaseOrder = (orderId) => {
 
 // 操作权限判断
 const canAudit = computed(() => {
-  return stockData.value?.status === 1 // 待审核
+  return stockData.value?.status === 0 // 待审核
 })
 
 const canCancelAudit = computed(() => {
-  return stockData.value?.status === 2 // 已审核
+  return stockData.value?.status === 1 // 已审核
 })
 
 const canCancel = computed(() => {
   const status = stockData.value?.status
-  return [1, 2].includes(status) // 待审核、已审核
+  return [0, 1].includes(status) // 待审核、已审核
 })
 
 // 是否有可用操作

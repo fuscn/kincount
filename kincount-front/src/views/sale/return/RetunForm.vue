@@ -316,12 +316,12 @@ const selectedDate = ref([])
 const minDate = new Date(2020, 0, 1)
 const maxDate = new Date()
 
-// 退货原因选项（映射到后端的数字类型）
+// 退货原因选项（映射到数据库的数字类型）
 const returnReasonOptions = ref([
-  { name: '质量问题', value: 1 },
-  { name: '客户原因', value: 2 },
-  { name: '发错货', value: 3 },
-  { name: '其他', value: 4 }
+  { name: '质量问题', value: 0 },
+  { name: '数量问题', value: 1 },
+  { name: '客户取消', value: 2 },
+  { name: '其他', value: 3 }
 ])
 
 // 计算属性
@@ -560,11 +560,11 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
     // 根据源单类型添加状态参数
     if (sourceType.value === 'order') {
       // 销售订单：已审核、部分出库、已完成
-      params.status = '2,3,4'
+      params.status = '1,2,3'
       res = await saleStore.loadOrderList(params)
     } else {
       // 销售出库单：已审核
-      params.status = '2,3'
+      params.status = '1,2'
       res = await saleStore.loadStockList(params)
     }
 
@@ -688,6 +688,12 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.customer_name = detail.customer?.name || detail.customer_name || ''
         sourceForm.order_no = detail.order_no
 
+        // 自动设置退货仓库（如果订单有指定仓库）
+        if (detail.warehouse_id && detail.warehouse) {
+          form.warehouse_id = detail.warehouse_id
+          form.warehouse_name = detail.warehouse.name || ''
+        }
+
         // 处理订单商品明细
         if (detail.items && Array.isArray(detail.items)) {
           sourceForm.items = detail.items.map(item => {
@@ -723,6 +729,12 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.customer_id = detail.customer_id
         sourceForm.customer_name = detail.customer?.name || detail.customer_name || ''
         sourceForm.order_no = detail.stock_no
+
+        // 自动设置退货仓库（出库单肯定有仓库）
+        if (detail.warehouse_id && detail.warehouse) {
+          form.warehouse_id = detail.warehouse_id
+          form.warehouse_name = detail.warehouse.name || ''
+        }
 
         // 处理出库商品明细
         if (detail.items && Array.isArray(detail.items)) {
@@ -798,7 +810,7 @@ const loadWarehouses = async (page = 1, keyword = '', isRefresh = false) => {
       page,
       limit: 20,
       keyword: keyword.trim(),
-      status: 1
+      status: 0
     }
 
     // 使用仓库store加载列表
@@ -1078,7 +1090,7 @@ const validateForm = () => {
 const buildSubmitData = () => {
   // 根据源单类型确定source_order_id和source_stock_id
   const submitData = {
-    type: 1, // 销售退货类型（后端需要1表示销售退货）
+    type: 0, // 销售退货类型（数据库定义：0-销售退货 1-采购退货）
     target_id: sourceForm.customer_id, // 客户ID
     warehouse_id: form.warehouse_id,
     return_date: form.return_date,
@@ -1117,7 +1129,7 @@ const buildSubmitData = () => {
   // 添加调试信息
   console.log('=== 退货单提交数据详情 ===')
   console.log('基础信息:', {
-    退货类型: submitData.type === 1 ? '销售退货' : '采购退货',
+    退货类型: submitData.type === 0 ? '销售退货' : '采购退货',
     客户ID: submitData.target_id,
     仓库ID: submitData.warehouse_id,
     退货日期: submitData.return_date,

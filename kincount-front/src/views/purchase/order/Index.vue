@@ -14,10 +14,10 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeStatus" @change="handleStatusChange">
         <van-tab title="全部" name="" />
-        <van-tab title="待审核" name="1" />
-        <van-tab title="已审核" name="2" />
-        <van-tab title="已完成" name="4" />
-        <van-tab title="已取消" name="5" />
+        <van-tab title="待审核" name="0" />
+        <van-tab title="已审核" name="1" />
+        <van-tab title="已完成" name="3" />
+        <van-tab title="已取消" name="4" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->
@@ -262,22 +262,22 @@ const handleDetail = (id) => {
 // 状态显示方法
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核', 
-    3: '部分入库',
-    4: '已完成',
-    5: '已取消'
+    0: '待审核',
+    1: '已审核', 
+    2: '部分入库',
+    3: '已完成',
+    4: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
 
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'info',
-    4: 'success',
-    5: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'info',
+    3: 'success',
+    4: 'danger'
   }
   return typeMap[status] || 'default'
 }

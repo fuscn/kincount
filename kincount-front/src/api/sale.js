@@ -191,7 +191,7 @@ export function addSaleReturn(data) {
 
   // 构建请求数据 - 确保所有字段都存在
   const requestData = {
-    type: data.type || 1,
+    type: data.type || 0, // 销售退货类型（数据库定义：0-销售退货 1-采购退货）
     target_id: data.target_id,
     warehouse_id: data.warehouse_id,
     return_date: data.return_date,

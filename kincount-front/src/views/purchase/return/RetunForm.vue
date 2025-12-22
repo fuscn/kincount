@@ -89,22 +89,17 @@
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
                       }})</span>
-                    </div>
-                    <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
-                        || 0 }}</span>{{ item.unit }}
+                      <span class="max-return-info">最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}</span>
                     </div>
                   </div>
                 </template>
                 <template #default>
                   <div class="item-details">
-                    <div class="price-quantity">
-                      <!-- 单价（只读） -->
-                      <div class="input-field price-field">
-                        <van-field v-model="item.unit_price" type="number" readonly
-                          class="readonly-field compact-field">
-                          <template #extra>元</template>
-                        </van-field>
+                    <div class="quantity-total-column">
+                      <!-- 总金额 -->
+                      <div class="item-total">
+                        <div class="total-amount">¥{{ getItemReturnAmount(item) }}</div>
                       </div>
                       <!-- 退货数量输入框 -->
                       <div class="input-field quantity-field">
@@ -114,9 +109,6 @@
                           <template #extra>{{ item.unit || '个' }}</template>
                         </van-field>
                       </div>
-                    </div>
-                    <div class="item-total">
-                      <div class="total-amount">¥{{ getItemReturnAmount(item) }}</div>
                     </div>
                   </div>
                 </template>
@@ -212,10 +204,8 @@
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
                       }})</span>
-                    </div>
-                    <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
-                        || 0 }}</span>{{ item.unit }}
+                      <span class="max-return-info">最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}</span>
                     </div>
                   </div>
                 </template>
@@ -314,12 +304,12 @@ const selectedDate = ref([])
 const minDate = new Date(2020, 0, 1)
 const maxDate = new Date()
 
-// 退货原因选项（映射到后端的数字类型）
+// 退货原因选项（映射到数据库的数字类型）
 const returnReasonOptions = ref([
-  { name: '质量问题', value: 1 },
-  { name: '数量问题', value: 2 },
-  { name: '供应商取消', value: 3 },
-  { name: '其他', value: 4 }
+  { name: '质量问题', value: 0 },
+  { name: '数量问题', value: 1 },
+  { name: '供应商取消', value: 2 },
+  { name: '其他', value: 3 }
 ])
 
 // 计算属性
@@ -385,11 +375,11 @@ const getSourceCellLabel = (source) => {
 // 获取订单状态文本
 const getOrderStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '部分入库',
-    4: '已完成',
-    5: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库',
+    3: '已完成',
+    4: '已取消'
   }
   return statusMap[status] || `未知(${status})`
 }
@@ -559,11 +549,11 @@ const loadSourceList = async (page = 1, keyword = '', isRefresh = false) => {
     // 根据源单类型添加状态参数
     if (sourceType.value === 'order') {
       // 采购订单：已审核、部分入库、已完成
-      params.status = '2,3,4'
+      params.status = '1,2,3'
       res = await purchaseStore.loadOrderList(params)
     } else {
-      // 采购入库单：已审核
-      params.status = '2,3'
+      // 采购入库单：待审核、已审核
+      params.status = '0,1'
       res = await purchaseStore.loadStockList(params)
     }
 
@@ -687,6 +677,12 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.supplier_name = detail.supplier?.name || detail.supplier_name || ''
         sourceForm.order_no = detail.order_no
 
+        // 自动设置退货仓库（如果订单有指定仓库）
+        if (detail.warehouse_id && detail.warehouse) {
+          form.warehouse_id = detail.warehouse_id
+          form.warehouse_name = detail.warehouse.name || ''
+        }
+
         // 处理订单商品明细
         if (detail.items && Array.isArray(detail.items)) {
           sourceForm.items = detail.items.map(item => {
@@ -722,6 +718,12 @@ const loadSourceDetail = async (sourceId, type) => {
         sourceForm.supplier_id = detail.supplier_id
         sourceForm.supplier_name = detail.supplier?.name || detail.supplier_name || ''
         sourceForm.order_no = detail.stock_no
+
+        // 自动设置退货仓库（入库单肯定有仓库）
+        if (detail.warehouse_id && detail.warehouse) {
+          form.warehouse_id = detail.warehouse_id
+          form.warehouse_name = detail.warehouse.name || ''
+        }
 
         // 处理入库商品明细
         if (detail.items && Array.isArray(detail.items)) {
@@ -1075,9 +1077,9 @@ const validateForm = () => {
 
 // 构建提交数据
 const buildSubmitData = () => {
-  // 采购退货类型为2
+  // 采购退货类型为1
   const submitData = {
-    type: 2, // 采购退货类型（后端需要2表示采购退货）
+    type: 1, // 采购退货类型（数据库定义：0-销售退货 1-采购退货）
     target_id: sourceForm.supplier_id, // 供应商ID
     warehouse_id: form.warehouse_id,
     return_date: form.return_date,
@@ -1116,7 +1118,7 @@ const buildSubmitData = () => {
   // 添加调试信息
   console.log('=== 采购退货单提交数据详情 ===')
   console.log('基础信息:', {
-    退货类型: submitData.type === 1 ? '销售退货' : '采购退货',
+    退货类型: submitData.type === 1 ? '采购退货' : '销售退货',
     供应商ID: submitData.target_id,
     仓库ID: submitData.warehouse_id,
     退货日期: submitData.return_date,
@@ -1370,7 +1372,10 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
-  flex-wrap: wrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0; /* 确保flex子元素可以收缩 */
 }
 
 .product-name {
@@ -1378,6 +1383,11 @@ onMounted(async () => {
   color: #323233;
   font-size: 14px;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0; /* 确保可以收缩 */
 }
 
 .sku-code {
@@ -1387,6 +1397,8 @@ onMounted(async () => {
   background: #f5f5f5;
   padding: 1px 4px;
   border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止SKU编码被压缩 */
 }
 
 .product-label {
@@ -1403,36 +1415,41 @@ onMounted(async () => {
     color: #1989fa;
     line-height: 1.3;
     margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 
     .returned-info {
       color: #969799;
       margin-left: 4px;
     }
-  }
-
-  .max-return-text {
-    color: #1989fa;
-    line-height: 1.3;
-
-    .out-of-stock {
-      color: #ee0a24;
-      font-weight: bold;
+    
+    .max-return-info {
+      color: #07c160;
+      margin-left: 8px;
+      
+      .out-of-stock {
+        color: #ee0a24;
+        font-weight: bold;
+      }
     }
   }
+
 }
 
 .item-details {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   width: 100%;
   gap: 8px;
 }
 
-.price-quantity {
+.quantity-total-column {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
+  align-items: flex-end;
 
   .input-field {
     display: flex;
@@ -1496,29 +1513,20 @@ onMounted(async () => {
       }
     }
 
-    &.price-field {
-
-      .editable-field,
-      .readonly-field {
-        width: 85px;
-      }
-    }
-
     &.quantity-field {
 
       .editable-field,
       .readonly-field {
-        width: 85px;
+        width: 100px;
       }
     }
   }
 }
 
 .item-total {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 70px;
+    display: flex;
+    flex-direction: column;
+    min-width: 70px;
 
   .total-amount {
     color: #f53f3f;

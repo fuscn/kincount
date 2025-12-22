@@ -164,7 +164,7 @@ class PurchaseOrderController extends BaseController
                     'order_no'     => $orderNo,
                     'supplier_id'  => $post['supplier_id'],
                     'warehouse_id' => $post['warehouse_id'],
-                    'status'       => 1,
+                    'status'       => 0,
                     'remark'       => $post['remark'] ?? '',
                     'created_by'   => $this->getUserId(),
                     'expected_date' => $post['expected_date'] ?? null,
@@ -231,7 +231,7 @@ class PurchaseOrderController extends BaseController
             if (!$order) {
                 return $this->error('采购订单不存在');
             }
-            if ($order->status != 1) {
+            if ($order->status != 0) {
                 return $this->error('只有待审核状态的采购订单可修改');
             }
 
@@ -371,7 +371,7 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核状态可删除');
+        if ($order->status != 0) return $this->error('只有待审核状态可删除');
 
         Db::transaction(function () use ($order) {
             PurchaseOrderItem::where('purchase_order_id', $order->id)->delete();
@@ -390,13 +390,13 @@ class PurchaseOrderController extends BaseController
             if (!$order) {
                 throw new \Exception('采购订单不存在');
             }
-            if ($order->status != 1) {
+            if ($order->status != 0) {
                 throw new \Exception('当前状态无法审核');
             }
 
             // 2. 更新订单状态
             $order->save([
-                'status' => 2,
+                'status' => 1,
                 'audit_by' => $this->getUserId(),
                 'audit_time' => date('Y-m-d H:i:s')
             ]);
@@ -442,9 +442,9 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if (!in_array($order->status, [1, 2])) return $this->error('当前状态不能取消');
+        if (!in_array($order->status, [0, 1])) return $this->error('当前状态不能取消');
 
-        $order->save(['status' => 5]);
+        $order->save(['status' => 4]);
         return $this->success([], '已取消');
     }
 
@@ -452,7 +452,7 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 2) return $this->error('只有已审核状态可完成');
+        if ($order->status != 1) return $this->error('只有已审核状态可完成');
 
         $order->save(['status' => 4]);
         return $this->success([], '订单已完成');
@@ -470,7 +470,7 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可添加明细');
+        if ($order->status != 0) return $this->error('只有待审核可添加明细');
 
         $post = input('post.');
         $validate = new \think\Validate([
@@ -500,7 +500,7 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可修改明细');
+        if ($order->status != 0) return $this->error('只有待审核可修改明细');
 
         $item = PurchaseOrderItem::where('purchase_order_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');
@@ -523,7 +523,7 @@ class PurchaseOrderController extends BaseController
     {
         $order = PurchaseOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('采购订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可删除明细');
+        if ($order->status != 0) return $this->error('只有待审核可删除明细');
 
         $item = PurchaseOrderItem::where('purchase_order_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');

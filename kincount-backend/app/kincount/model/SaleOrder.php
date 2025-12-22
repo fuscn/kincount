@@ -7,11 +7,11 @@ use think\model\relation\HasMany;
 class SaleOrder extends BaseModel
 {
     // 销售订单状态常量
-    const STATUS_PENDING = 1;      // 待审核
-    const STATUS_AUDITED = 2;      // 已审核
-    const STATUS_PARTIAL = 3;      // 部分出库
-    const STATUS_COMPLETED = 4;    // 已完成
-    const STATUS_CANCELLED = 5;    // 已取消
+    const STATUS_PENDING = 0;      // 待审核
+    const STATUS_AUDITED = 1;      // 已审核
+    const STATUS_PARTIAL = 2;      // 部分出库
+    const STATUS_COMPLETED = 3;    // 已完成
+    const STATUS_CANCELLED = 4;    // 已取消
 
     // 销售订单状态选项
     public function getStatusOptions()

@@ -282,11 +282,11 @@ const formatDateTime = (dateTime) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '部分入库',
-    4: '已完成',
-    5: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库',
+    3: '已完成',
+    4: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -294,11 +294,11 @@ const getStatusText = (status) => {
 // 获取状态类型
 const getStatusType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'info',
-    4: 'success',
-    5: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'info',
+    3: 'success',
+    4: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -306,9 +306,9 @@ const getStatusType = (status) => {
 // 获取入库单状态文本
 const getStockStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -316,9 +316,9 @@ const getStockStatusText = (status) => {
 // 获取入库单状态类型
 const getStockStatusType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'success',
-    3: 'danger'
+    0: 'warning',
+    1: 'success',
+    2: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -373,39 +373,39 @@ const availableItems = computed(() => {
     .filter(item => getAvailableQuantity(item) > 0)
     .map(item => ({
       ...item,
-      stockQuantity: 0
+      stockQuantity: getAvailableQuantity(item)
     }))
 })
 
 // 操作权限判断
 const canAudit = computed(() => {
-  return orderData.value?.status === 1 // 待审核
+  return orderData.value?.status === 0 // 待审核
 })
 
 const canCancel = computed(() => {
   const status = orderData.value?.status
-  return [1, 2, 3].includes(status) // 待审核、已审核、部分入库
+  return [0, 1, 2].includes(status) // 待审核、已审核、部分入库
 })
 
 const canComplete = computed(() => {
   const status = orderData.value?.status
-  return [2, 3].includes(status) // 已审核、部分入库
+  return [1, 2].includes(status) // 已审核、部分入库
 })
 
 const canEdit = computed(() => {
   const status = orderData.value?.status
-  return [1].includes(status) // 仅待审核状态可编辑
+  return [0].includes(status) // 仅待审核状态可编辑
 })
 
 const canDelete = computed(() => {
   const status = orderData.value?.status
-  return [1, 5].includes(status) // 待审核、已取消
+  return [0, 4].includes(status) // 待审核、已取消
 })
 
 const canGenerateStock = computed(() => {
   // 已审核状态且有待入库的商品
   const status = orderData.value?.status
-  return [2, 3].includes(status) && availableItems.value.length > 0
+  return [1, 2].includes(status) && availableItems.value.length > 0
 })
 
 // 是否有可用操作
@@ -591,11 +591,8 @@ const handleGenerateStock = () => {
     return
   }
 
-  // 重置数量选择
-  availableItems.value.forEach(item => {
-    item.stockQuantity = 0
-  })
-  stockTotalAmount.value = 0
+  // 计算初始总金额（使用默认的最大可入数量）
+  updateStockTotal()
 
   showGenerateStockDialog.value = true
 }

@@ -7,10 +7,9 @@ use think\model\relation\HasMany;
 class SaleStock extends BaseModel
 {
     // 销售出库状态常量
-    const STATUS_PENDING = 1;      // 待审核
-    const STATUS_AUDITED = 2;      // 已审核
-    const STATUS_COMPLETED = 3;    // 已完成
-    const STATUS_CANCELLED = 4;    // 已取消
+    const STATUS_PENDING = 0;      // 待审核
+    const STATUS_AUDITED = 1;      // 已审核
+    const STATUS_CANCELLED = 2;    // 已取消
 
     protected $type = [
         'sale_order_id' => 'integer',
@@ -64,7 +63,6 @@ class SaleStock extends BaseModel
         return [
             self::STATUS_PENDING => '待审核',
             self::STATUS_AUDITED => '已审核',
-            self::STATUS_COMPLETED => '已完成',
             self::STATUS_CANCELLED => '已取消'
         ];
     }

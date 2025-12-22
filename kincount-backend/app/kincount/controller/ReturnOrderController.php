@@ -169,11 +169,14 @@ class ReturnOrderController extends BaseController
                 return $this->error('仓库不存在');
             }
 
-            // 4. 检查源单是否存在未审核的退货单（防止重复退货）
+            // 4. 检查源单是否存在未完成的退货单（防止重复退货）
             $pendingReturnsQuery = \app\kincount\model\ReturnOrder::where('type', $post['type'])
                 ->whereIn('status', [
                     \app\kincount\model\ReturnOrder::STATUS_PENDING_AUDIT,
-                    \app\kincount\model\ReturnOrder::STATUS_AUDITED
+                    \app\kincount\model\ReturnOrder::STATUS_AUDITED,
+                    \app\kincount\model\ReturnOrder::STATUS_PART_STOCK,
+                    \app\kincount\model\ReturnOrder::STATUS_STOCK_COMPLETE,
+                    \app\kincount\model\ReturnOrder::STATUS_REFUND_COMPLETE
                 ]);
 
             if (isset($post['source_order_id']) && $post['source_order_id']) {
@@ -573,7 +576,7 @@ class ReturnOrderController extends BaseController
                     'amount' => $return->refund_amount, // 使用正数
                     'paid_amount' => 0.00,
                     'balance_amount' => $return->refund_amount, // 余额为正数
-                    'status' => 1, // 未结清
+                    'status' => AccountRecord::STATUS_UNSETTLED, // 未结清
                     'due_date' => date('Y-m-d', strtotime('+7 days')),
                     'remark' => "销售退货单[{$return->return_no}]应付金额",
                 ];
@@ -595,7 +598,7 @@ class ReturnOrderController extends BaseController
                     'amount' => $return->refund_amount, // 使用正数
                     'paid_amount' => 0.00,
                     'balance_amount' => $return->refund_amount, // 余额为正数
-                    'status' => 1, // 未结清
+                    'status' => AccountRecord::STATUS_UNSETTLED, // 未结清
                     'due_date' => date('Y-m-d', strtotime('+7 days')),
                     'remark' => "采购退货单[{$return->return_no}]应收金额",
                 ];
@@ -638,9 +641,9 @@ class ReturnOrderController extends BaseController
             $return->save();
 
             // 取消关联的出入库单
-            $stocks = ReturnStock::where('return_id', $return->id)->where('status', '!=', 3)->select();
+            $stocks = ReturnStock::where('return_id', $return->id)->where('status', '!=', ReturnStock::STATUS_CANCELLED)->select();
             foreach ($stocks as $stock) {
-                $stock->status = 3; // 已取消
+                $stock->status = ReturnStock::STATUS_CANCELLED; // 已取消
                 $stock->save();
             }
         });
@@ -886,13 +889,13 @@ class ReturnOrderController extends BaseController
             // 更新账款记录
             $accountRecord = AccountRecord::where('related_type', 'return')
                 ->where('related_id', $return->id)
-                ->where('status', 1)
+                ->where('status', AccountRecord::STATUS_UNSETTLED)
                 ->find();
 
             if ($accountRecord) {
                 $accountRecord->paid_amount = bcadd($accountRecord->paid_amount, $refundAmount, 2);
                 if ($accountRecord->paid_amount >= abs($accountRecord->balance_amount)) {
-                    $accountRecord->status = 2; // 已结清
+                    $accountRecord->status = AccountRecord::STATUS_SETTLED; // 已结清
                 }
                 $accountRecord->save();
             }
@@ -1017,7 +1020,7 @@ class ReturnOrderController extends BaseController
     /**
      * 获取已退货数量（包括未审核的退货单）
      * @param int $sourceItemId 源单明细ID
-     * @param int $type 退货类型（1-销售退货，2-采购退货）
+     * @param int $type 退货类型（0-销售退货，1-采购退货）
      * @param int $sourceOrderId 销售订单ID
      * @param int $sourceStockId 销售出库单ID
      * @param int $purchaseOrderId 采购订单ID

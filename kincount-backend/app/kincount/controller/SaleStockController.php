@@ -92,7 +92,7 @@ public function index()
                     'sale_order_id' => $post['sale_order_id'] ?? 0,
                     'customer_id'   => $post['customer_id'],
                     'warehouse_id'  => $post['warehouse_id'],
-                    'status'        => 1,
+                    'status'        => 0,
                     'remark'        => $post['remark'] ?? '',
                     'created_by'    => $this->getUserId(),
                 ]);
@@ -127,7 +127,7 @@ public function index()
                         $pendingOutbound = \app\kincount\model\SaleStockItem::alias('i')
                             ->join('sale_stocks s', 's.id = i.sale_stock_id')
                             ->where('s.sale_order_id', $post['sale_order_id'])
-                            ->where('s.status', 1)  // 待审核状态
+                            ->where('s.status', 0)  // 待审核状态
                             ->where('i.sku_id', $v['sku_id'])
                             ->sum('i.quantity');
 
@@ -179,11 +179,11 @@ public function index()
     {
         $stock = SaleStock::where('deleted_at', null)->find($id);
         if (!$stock) return $this->error('销售出库单不存在');
-        if ($stock->status != 1) return $this->error('当前状态无法审核');
+        if ($stock->status != 0) return $this->error('当前状态无法审核');
 
         Db::transaction(function () use ($stock) {
             /* 状态 */
-            $stock->save(['status' => 2, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
+            $stock->save(['status' => 1, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
 
             /* 库存扣减 + 回写销售订单已出库数量（SKU维度） */
             foreach ($stock->items as $item) {
@@ -217,15 +217,15 @@ public function index()
         if (!$stock) return $this->error('销售出库单不存在');
 
         // 只有已审核的出库单才能完成
-        if ($stock->status != 2) {
+        if ($stock->status != 1) {
             return $this->error('只有已审核的出库单才能完成');
         }
 
         try {
             Db::transaction(function () use ($stock) {
-                // 更新状态为已完成 (3)
+                // 更新状态为已完成 (1)
                 $stock->save([
-                    'status' => 3,
+                    'status' => 1,
                     'updated_at' => date('Y-m-d H:i:s')
                 ]);
 
@@ -259,13 +259,13 @@ public function index()
         $stock = SaleStock::where('deleted_at', null)->find($id);
         if (!$stock) return $this->error('销售出库单不存在');
 
-        if (!in_array($stock->status, [1, 2])) {
+        if (!in_array($stock->status, [0, 1])) {
             return $this->error('当前状态无法取消');
         }
 
         Db::transaction(function () use ($stock) {
             // 如果已经审核过，需要恢复库存
-            if ($stock->status == 2) {
+            if ($stock->status == 1) {
                 foreach ($stock->items as $item) {
                     // 恢复库存（SKU维度）
                     Stock::where('sku_id', $item->sku_id)
@@ -282,8 +282,8 @@ public function index()
                 }
             }
 
-            // 更新状态为已取消 (4)
-            $stock->save(['status' => 4, 'updated_at' => date('Y-m-d H:i:s')]);
+            // 更新状态为已取消 (2)
+            $stock->save(['status' => 2, 'updated_at' => date('Y-m-d H:i:s')]);
         });
 
         return $this->success([], '取消成功');

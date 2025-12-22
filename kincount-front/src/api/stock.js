@@ -200,10 +200,18 @@ export function deleteStockTransfer(id) {
   })
 }
 
-// 审核调拨单（库存移动生效）
+// 审核调拨单
 export function auditStockTransfer(id) {
   return request({
     url: `/stock/transfers/${id}/audit`,
+    method: 'post'
+  })
+}
+
+// 执行调拨单（库存移动生效）
+export function transferStockTransfer(id) {
+  return request({
+    url: `/stock/transfers/${id}/transfer`,
     method: 'post'
   })
 }

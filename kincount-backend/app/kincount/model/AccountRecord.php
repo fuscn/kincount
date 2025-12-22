@@ -4,6 +4,9 @@ namespace app\kincount\model;
 
 class AccountRecord extends BaseModel
 {
+    // 状态常量
+    const STATUS_UNSETTLED = 1;  // 未结清
+    const STATUS_SETTLED = 2;    // 已结清
 
     protected $type = [
         'type'            => 'integer',
@@ -36,6 +39,6 @@ class AccountRecord extends BaseModel
     // 状态文本
     public function getStatusTextAttr($value, $data)
     {
-        return $data['status'] == 1 ? '未结清' : '已结清';
+        return $data['status'] == self::STATUS_UNSETTLED ? '未结清' : '已结清';
     }
 }

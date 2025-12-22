@@ -8,9 +8,9 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeStatus" @change="handleStatusChange">
         <van-tab title="全部" name="" />
-        <van-tab title="待审核" name="1" />
-        <van-tab title="已审核" name="2" />
-        <van-tab title="已取消" name="3" />
+        <van-tab title="待审核" name="0" />
+        <van-tab title="已审核" name="1" />
+        <van-tab title="已取消" name="2" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->
@@ -202,9 +202,9 @@ const formatDate = (dateString) => {
 // 状态文本映射
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
   return statusMap[status] || '未知'
 }
@@ -212,9 +212,9 @@ const getStatusText = (status) => {
 // 状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'primary',  // 已审核 - 主要色（参考采购订单管理）
-    3: 'danger'    // 已取消 - 危险色
+    0: 'warning',  // 待审核 - 警告色
+    1: 'primary',  // 已审核 - 主要色（参考采购订单管理）
+    2: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }

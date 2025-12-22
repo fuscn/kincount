@@ -6,7 +6,7 @@ use think\Validate;
 class ReturnOrderValidate extends Validate
 {
     protected $rule = [
-        'type' => 'require|in:1,2',
+        'type' => 'require|in:0,1',
         'target_id' => 'require|integer|gt:0',
         'warehouse_id' => 'require|integer|gt:0',
         'source_order_id' => 'integer',
@@ -24,7 +24,7 @@ class ReturnOrderValidate extends Validate
     
     protected $message = [
         'type.require' => '退货类型不能为空',
-        'type.in' => '退货类型错误（1:销售退货, 2:采购退货）',
+        'type.in' => '退货类型错误（0:销售退货, 1:采购退货）',
         'target_id.require' => '目标客户/供应商不能为空',
         'target_id.integer' => '目标客户/供应商格式错误',
         'target_id.gt' => '目标客户/供应商必须大于0',

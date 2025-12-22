@@ -303,6 +303,7 @@ Route::group(function () use ($jwtMiddleware) {
         Route::put('/:id', 'StockTransferController/update');             // 更新调拨
         Route::delete('/:id', 'StockTransferController/delete');          // 删除调拨
         Route::post('/:id/audit', 'StockTransferController/audit');       // 审核调拨
+        Route::post('/:id/transfer', 'StockTransferController/transfer'); // 执行调拨
         Route::post('/:id/complete', 'StockTransferController/complete'); // 完成调拨
         Route::post('/:id/cancel', 'StockTransferController/cancel');     // 取消调拨
         Route::get('/:id/items', 'StockTransferController/items');        // 调拨明细

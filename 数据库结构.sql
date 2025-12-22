@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-20 18:29:03
+-- 导出时间: 2025-12-22 20:11:54
 -- 共 31 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -11,7 +11,7 @@
 -- ==================================================
 CREATE TABLE `account_records` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `type` tinyint(4) NOT NULL COMMENT '类型：1-应收(客户销售,采购退货) 2-应付(供应商采购,销售退货)',
+  `type` tinyint(4) NOT NULL COMMENT '类型：0-应收(客户销售,采购退货) 1-应付(供应商采购,销售退货)',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '目标ID(客户ID/供应商ID)',
   `target_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'supplier' COMMENT '目标类型: customer, supplier',
   `related_id` bigint(20) unsigned NOT NULL COMMENT '关联业务ID',
@@ -19,7 +19,7 @@ CREATE TABLE `account_records` (
   `amount` decimal(10,2) NOT NULL COMMENT '金额',
   `paid_amount` decimal(10,2) DEFAULT '0.00' COMMENT '已收/已付金额',
   `balance_amount` decimal(10,2) NOT NULL COMMENT '余额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-未结清 2-已结清',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-未结清 1-已结清',
   `due_date` date DEFAULT NULL COMMENT '到期日',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -39,7 +39,7 @@ CREATE TABLE `account_records` (
 CREATE TABLE `account_settlements` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `settlement_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '核销单号',
-  `account_type` tinyint(4) NOT NULL COMMENT '账款类型：1-应收 2-应付',
+  `account_type` tinyint(4) NOT NULL COMMENT '账款类型：0-应收 1-应付',
   `account_id` bigint(20) unsigned NOT NULL COMMENT '账款ID',
   `financial_id` bigint(20) unsigned NOT NULL COMMENT '财务收支ID',
   `settlement_amount` decimal(10,2) NOT NULL COMMENT '核销金额',
@@ -98,12 +98,12 @@ CREATE TABLE `categorys` (
 CREATE TABLE `customers` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '客户名称',
-  `type` tinyint(4) DEFAULT '1' COMMENT '客户类型：1-个人 2-公司',
+  `type` tinyint(4) DEFAULT '0' COMMENT '客户类型：0-个人 1-公司',
   `contact_person` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系人',
   `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系电话',
   `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '邮箱',
   `address` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '地址',
-  `level` tinyint(4) DEFAULT '1' COMMENT '客户等级：1-普通 2-银牌 3-金牌',
+  `level` tinyint(4) DEFAULT '0' COMMENT '客户等级：0-普通 1-银牌 2-金牌',
   `discount` decimal(3,2) DEFAULT '1.00' COMMENT '折扣率',
   `credit_amount` decimal(10,2) DEFAULT '0.00' COMMENT '信用额度',
   `arrears_amount` decimal(10,2) DEFAULT '0.00' COMMENT '欠款金额,客户欠我们的金额',
@@ -125,7 +125,7 @@ CREATE TABLE `customers` (
 CREATE TABLE `financial_records` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `record_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支单号',
-  `type` tinyint(4) NOT NULL COMMENT '类型：1-收入 2-支出',
+  `type` tinyint(4) NOT NULL COMMENT '类型：0-收入 1-支出',
   `category` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支类别',
   `amount` decimal(10,2) NOT NULL COMMENT '金额',
   `payment_method` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '支付方式',
@@ -164,7 +164,7 @@ CREATE TABLE `product_skus` (
   `cost_price` decimal(10,2) DEFAULT NULL,
   `sale_price` decimal(10,2) DEFAULT NULL,
   `unit` varchar(8) DEFAULT '张',
-  `status` tinyint(1) DEFAULT '1',
+  `status` tinyint(1) DEFAULT '1' COMMENT '0-禁用1-启用',
   `deleted_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -208,7 +208,7 @@ CREATE TABLE `products` (
   `max_stock` int(11) DEFAULT '0' COMMENT '最高库存预警',
   `images` json DEFAULT NULL COMMENT '商品图片(JSON数组)',
   `description` text COLLATE utf8mb4_unicode_ci COMMENT '商品描述',
-  `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-下架 1-上架',
+  `status` tinyint(4) DEFAULT '0' COMMENT '状态：0-下架 1-上架',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
@@ -257,7 +257,7 @@ CREATE TABLE `purchase_orders` (
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '入库仓库ID',
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '订单总金额',
   `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '已付金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-部分入库 4-已完成 5-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-部分入库 3-已完成 4-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -283,7 +283,7 @@ CREATE TABLE `purchase_stock_items` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `purchase_stock_id` bigint(20) unsigned NOT NULL COMMENT '采购入库ID',
   `product_id` bigint(20) unsigned NOT NULL COMMENT '商品ID',
-  `sku_id` int(11) NOT NULL,
+  `sku_id` int(11) NOT NULL COMMENT 'sku-id',
   `quantity` int(11) NOT NULL COMMENT '入库数量',
   `price` decimal(10,2) NOT NULL COMMENT '入库单价',
   `total_amount` decimal(10,2) NOT NULL COMMENT '总金额',
@@ -308,7 +308,7 @@ CREATE TABLE `purchase_stocks` (
   `supplier_id` bigint(20) unsigned NOT NULL COMMENT '供应商ID',
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '入库仓库ID',
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '入库总金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -357,7 +357,7 @@ CREATE TABLE `return_order_items` (
 CREATE TABLE `return_orders` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `return_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退货单号',
-  `type` tinyint(4) NOT NULL COMMENT '类型：1-销售退货 2-采购退货',
+  `type` tinyint(4) NOT NULL COMMENT '类型：0-销售退货 1-采购退货',
   `source_order_id` bigint(20) unsigned DEFAULT NULL COMMENT '源订单ID(sale_orders.id/purchase_orders.id)',
   `source_stock_id` bigint(20) unsigned DEFAULT NULL COMMENT '源出入库ID(sale_stocks.id/purchase_stocks.id)',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '对方ID(客户ID/供应商ID)',
@@ -365,11 +365,11 @@ CREATE TABLE `return_orders` (
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '退货总金额',
   `refund_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '应退/应付金额',
   `refunded_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '已退/已收金额',
-  `return_type` tinyint(4) DEFAULT '1' COMMENT '退货原因类型：1-质量问题 2-数量问题 3-客户/供应商取消 4-其他',
+  `return_type` tinyint(4) DEFAULT '1' COMMENT '退货原因类型：0-质量问题 1-数量问题 2-客户/供应商取消 3-其他',
   `return_reason` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '退货原因',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-部分入库/出库 4-已入库/出库 5-已退款/收款 6-已完成 7-已取消',
-  `stock_status` tinyint(4) DEFAULT '1' COMMENT '出入库状态：1-待处理 2-部分处理 3-已完成',
-  `refund_status` tinyint(4) DEFAULT '1' COMMENT '款项状态：1-待处理 2-部分处理 3-已完成',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-部分入库/出库 3-已入库/出库 4-已退款/收款 5-已完成 6-已取消',
+  `stock_status` tinyint(4) DEFAULT '0' COMMENT '出入库状态：0-待处理 1-部分处理 2-已完成',
+  `refund_status` tinyint(4) DEFAULT '0' COMMENT '款项状态：0-待处理 1-部分处理 2-已完成',
   `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -420,10 +420,10 @@ CREATE TABLE `return_stocks` (
   `stock_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '出入库单号',
   `return_id` bigint(20) unsigned NOT NULL COMMENT '退货单ID',
   `target_id` bigint(20) unsigned NOT NULL COMMENT '对方ID(客户/供应商)',
-  `type` tinyint(4) unsigned NOT NULL COMMENT '1=销售退货,2=采购退货',
+  `type` tinyint(4) unsigned NOT NULL COMMENT '0=销售退货,1=采购退货',
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '仓库ID',
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '出入库总金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-已取消',
   `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -493,7 +493,7 @@ CREATE TABLE `sale_orders` (
   `discount_amount` decimal(10,2) DEFAULT '0.00' COMMENT '折扣金额',
   `final_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '实收金额',
   `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '已收金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-部分出库 4-已完成 5-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-部分出库 3-已完成 4-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -544,7 +544,7 @@ CREATE TABLE `sale_stocks` (
   `customer_id` bigint(20) unsigned NOT NULL COMMENT '客户ID',
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '出库仓库ID',
   `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '出库总金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待审核 2-已审核 3-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待审核 1-已审核 2-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -580,7 +580,7 @@ CREATE TABLE `stock_take_items` (
   PRIMARY KEY (`id`),
   KEY `idx_take` (`stock_take_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
 
 
 -- ==================================================
@@ -591,7 +591,7 @@ CREATE TABLE `stock_takes` (
   `take_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '盘点单号',
   `warehouse_id` bigint(20) unsigned NOT NULL COMMENT '仓库ID',
   `total_difference` decimal(10,2) DEFAULT '0.00' COMMENT '总差异金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-盘点中 2-已完成 3-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待盘点,1-盘点中,2-已完成,3-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -603,7 +603,7 @@ CREATE TABLE `stock_takes` (
   UNIQUE KEY `take_no` (`take_no`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
 
 
 -- ==================================================
@@ -623,7 +623,7 @@ CREATE TABLE `stock_transfer_items` (
   PRIMARY KEY (`id`),
   KEY `idx_transfer` (`stock_transfer_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
 
 
 -- ==================================================
@@ -635,7 +635,7 @@ CREATE TABLE `stock_transfers` (
   `from_warehouse_id` bigint(20) unsigned NOT NULL COMMENT '调出仓库ID',
   `to_warehouse_id` bigint(20) unsigned NOT NULL COMMENT '调入仓库ID',
   `total_amount` decimal(10,2) DEFAULT '0.00' COMMENT '调拨总金额',
-  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '状态：1-待调拨 2-调拨中 3-已完成 4-已取消',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-待调拨,1-调拨中,2-已完成,3-已取消',
   `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `audit_by` bigint(20) unsigned DEFAULT NULL COMMENT '审核人',
@@ -648,7 +648,7 @@ CREATE TABLE `stock_transfers` (
   KEY `idx_from_warehouse` (`from_warehouse_id`),
   KEY `idx_to_warehouse` (`to_warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
 
 
 -- ==================================================
@@ -669,7 +669,7 @@ CREATE TABLE `stocks` (
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_stocks_product` (`sku_id`),
   KEY `idx_stocks_warehouse` (`warehouse_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
 
 
 -- ==================================================

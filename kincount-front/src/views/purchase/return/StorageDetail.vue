@@ -86,7 +86,7 @@
           <div class="status-info">
             <div class="status-item">
               <span class="label">退货类型：</span>
-              <span class="value">{{ returnStockDetail.return.type === 1 ? '销售退货' : '采购退货' }}</span>
+              <span class="value">{{ returnStockDetail.return.type === 0 ? '销售退货' : (returnStockDetail.return.type === 1 ? '采购退货' : '未知类型') }}</span>
             </div>
             <div class="status-item">
               <span class="label">退货单状态：</span>
@@ -94,7 +94,7 @@
                 {{ getReturnStatusText(returnStockDetail.return.status) }}
               </van-tag>
             </div>
-            <div class="status-item" v-if="returnStockDetail.return.type === 2">
+            <div class="status-item" v-if="returnStockDetail.return.type === 1">
               <span class="label">出库说明：</span>
               <span class="value">采购退货，商品出库退回供应商</span>
             </div>

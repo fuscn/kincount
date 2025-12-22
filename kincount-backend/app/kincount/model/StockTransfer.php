@@ -44,10 +44,10 @@ class StockTransfer extends BaseModel
     }
 
     // 库存调拨状态常量
-    const STATUS_PENDING = 1;      // 待调拨
-    const STATUS_TRANSFERRING = 2; // 调拨中
-    const STATUS_COMPLETED = 3;    // 已完成
-    const STATUS_CANCELLED = 4;    // 已取消
+    const STATUS_PENDING = 0;      // 待调拨
+    const STATUS_TRANSFERRING = 1; // 调拨中
+    const STATUS_COMPLETED = 2;    // 已完成
+    const STATUS_CANCELLED = 3;    // 已取消
 
     // 状态文本映射方法
     public function getStatusOptions()

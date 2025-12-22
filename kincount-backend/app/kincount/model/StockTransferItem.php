@@ -8,6 +8,7 @@ class StockTransferItem extends BaseModel
     protected $type = [
         'stock_transfer_id' => 'integer',
         'product_id' => 'integer',
+        'sku_id' => 'integer',
         'quantity' => 'integer',
         'cost_price' => 'float',
         'total_amount' => 'float'

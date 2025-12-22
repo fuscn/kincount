@@ -288,7 +288,7 @@ export function addPurchaseReturn(data) {
     method: 'post',
     data: {
       ...data,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }

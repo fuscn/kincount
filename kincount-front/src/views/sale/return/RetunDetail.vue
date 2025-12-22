@@ -8,7 +8,7 @@
     >
       <template #right>
         <van-button 
-          v-if="returnOrder.status === 1" 
+          v-if="returnOrder.status === 0" 
           size="small" 
           type="primary" 
           @click="handleAudit"
@@ -16,7 +16,7 @@
           审核
         </van-button>
         <van-button 
-          v-if="returnOrder.status === 2 && returnOrder.stock_status !== 3" 
+          v-if="returnOrder.status === 1 && returnOrder.stock_status !== 2" 
           size="small" 
           type="success" 
           @click="handleCreateStock"
@@ -24,7 +24,7 @@
           创建入库单
         </van-button>
         <van-button 
-          v-if="returnOrder.status === 2 && returnOrder.stock_status === 3" 
+          v-if="returnOrder.status === 1 && returnOrder.stock_status === 2" 
           size="small" 
           type="default"
           @click="viewStockOrder"
@@ -44,7 +44,6 @@
         <van-cell title="关联出库单" :value="returnOrder.sourceStock?.stock_no || '--'" />
         <van-cell title="客户名称" :value="returnOrder.customer?.name || '--'" />
         <van-cell title="退货日期" :value="formatDate(returnOrder.created_at)" />
-        <van-cell title="退货类型" :value="getReturnTypeText(returnOrder.return_type)" />
         <van-cell title="退货原因" :value="returnOrder.return_reason || '--'" />
         <van-cell title="退货状态">
           <template #value>
@@ -127,7 +126,7 @@
     </div>
 
     <!-- 底部操作按钮 -->
-    <div class="action-bar" v-if="returnOrder.status === 1">
+    <div class="action-bar" v-if="returnOrder.status === 0">
       <van-button 
         type="danger" 
         block
@@ -166,7 +165,7 @@ const returnOrder = ref({
   items: [],
   creator: {},
   auditor: null,
-  stock_status: 1
+  stock_status: 0
 })
 
 const returnStock = ref(null) // 退货入库单详情
@@ -212,10 +211,13 @@ const formatSpec = (spec) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库/出库',
+    3: '已入库/出库',
+    4: '已退款/收款',
+    5: '已完成',
+    6: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -223,10 +225,13 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'success',
-    4: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'warning',
+    3: 'primary',
+    4: 'success',
+    5: 'success',
+    6: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -234,9 +239,9 @@ const getStatusTagType = (status) => {
 // 获取库存状态文本
 const getStockStatusText = (status) => {
   const statusMap = {
-    1: '未入库',
-    2: '部分入库',
-    3: '已入库'
+    0: '未入库',
+    1: '部分入库',
+    2: '已入库'
   }
   return statusMap[status] || '未知'
 }
@@ -244,22 +249,11 @@ const getStockStatusText = (status) => {
 // 获取库存状态标签类型
 const getStockStatusTagType = (status) => {
   const typeMap = {
-    1: 'danger',
-    2: 'warning',
-    3: 'success'
+    0: 'danger',
+    1: 'warning',
+    2: 'success'
   }
   return typeMap[status] || 'default'
-}
-
-// 获取退货类型文本
-const getReturnTypeText = (type) => {
-  const typeMap = {
-    1: '质量问题',
-    2: '客户原因',
-    3: '发错货',
-    4: '其他'
-  }
-  return typeMap[type] || '未知类型'
 }
 
 // 加载退货详情
@@ -307,7 +301,7 @@ const loadReturnStockDetail = async (stockId) => {
     returnStock.value = {
       id: stockId,
       stock_no: `RS${new Date().getTime()}`,
-      status: 1,
+      status: 0,
       created_at: new Date().toISOString()
     }
   } catch (error) {
@@ -338,7 +332,7 @@ const loadOperationLogs = async (returnId) => {
     }
     
     // 如果有入库记录，添加入库操作记录
-    if (returnOrder.value.stock_status === 3) {
+    if (returnOrder.value.stock_status === 2) {
       operationLogs.value.push({
         action: '商品入库',
         operator: '仓库管理员',
@@ -348,7 +342,7 @@ const loadOperationLogs = async (returnId) => {
     }
     
     // 如果有完成时间，添加完成记录
-    if (returnOrder.value.status === 3) {
+    if (returnOrder.value.status === 5) {
       operationLogs.value.push({
         action: '退货完成',
         operator: '系统',

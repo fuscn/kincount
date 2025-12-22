@@ -18,10 +18,10 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeStatus" @change="handleStatusChange">
         <van-tab title="全部" name="" />
-        <van-tab title="待审核" name="1" />
-        <van-tab title="已审核" name="2" />
-        <van-tab title="已完成" name="3" />
-        <van-tab title="已取消" name="4" />
+        <van-tab title="待审核" name="0" />
+        <van-tab title="已审核" name="1" />
+        <van-tab title="已完成" name="5" />
+        <van-tab title="已取消" name="6" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->

@@ -317,9 +317,29 @@ export const useStockStore = defineStore('stock', {
     async loadTransferList(params) {
       try {
         const result = await getStockTransferList(params)
-        this.transferList = result?.list || []
-        this.transferTotal = result?.total || 0
-        return result
+        
+        // 处理不同的响应结构
+        let listData = []
+        let totalCount = 0
+
+        if (result && result.data && result.data.list) {
+          listData = result.data.list
+          totalCount = result.data.total || 0
+        } else if (result && result.list) {
+          listData = result.list
+          totalCount = result.total || 0
+        } else if (Array.isArray(result)) {
+          listData = result
+          totalCount = result.length
+        } else {
+          listData = result || []
+          totalCount = result?.total || 0
+        }
+
+        this.transferList = listData
+        this.transferTotal = totalCount
+        
+        return { list: listData, total: totalCount }
       } catch (error) {
         this.transferList = []
         this.transferTotal = 0
@@ -379,6 +399,16 @@ export const useStockStore = defineStore('stock', {
       try {
         await auditStockTransfer(id)
         await this.loadTransferDetail(id)
+      } catch (error) {
+        throw error
+      }
+    },
+
+    async transferStockTransferData(id) {
+      try {
+        const result = await transferStockTransfer(id)
+        await this.loadTransferDetail(id)
+        return result
       } catch (error) {
         throw error
       }

@@ -44,21 +44,27 @@
       </van-tabs>
 
       <!-- 调拨单列表 -->
-      <van-pull-refresh v-model="refreshing" @refresh="loadTransferList(true)">
-        <van-list
-          v-model:loading="listLoading"
-          :finished="finished"
-          :finished-text="transferList.length === 0 ? '暂无调拨数据' : '没有更多了'"
-          @load="loadTransferList"
-        >
+      <van-list
+        v-model:loading="listLoading"
+        :finished="finished"
+        :finished-text="transferList.length === 0 ? '暂无调拨数据' : '没有更多了'"
+        @load="onLoad"
+      >
           <van-cell-group>
             <van-cell
               v-for="transfer in transferList"
               :key="transfer.id"
-              :title="`调拨单号: ${transfer.transfer_no || transfer.order_no}`"
-              :label="getTransferLabel(transfer)"
               @click="handleViewTransfer(transfer)"
             >
+              <template #title>
+                <div class="transfer-number">
+                  <span class="label">调拨单号:</span>
+                  <span class="value">{{ transfer.transfer_no || transfer.order_no }}</span>
+                </div>
+              </template>
+              <template #label>
+                {{ getTransferLabel(transfer) }}
+              </template>
               <template #value>
                 <van-tag :type="getStatusTagType(transfer.status)">
                   {{ getStatusText(transfer.status) }}
@@ -72,6 +78,7 @@
                     plain
                     @click.stop="handleEditTransfer(transfer)"
                     v-perm="PERM.STOCK_TRANSFER"
+                    v-if="transfer.status === 0"
                   >
                     编辑
                   </van-button>
@@ -82,12 +89,11 @@
 
           <!-- 空状态 -->
           <van-empty
-            v-if="!listLoading && !refreshing && transferList.length === 0"
+            v-if="!listLoading && transferList.length === 0 && !initialLoading"
             description="暂无调拨单数据"
             image="search"
           />
         </van-list>
-      </van-pull-refresh>
     </div>
 
     <!-- 加载状态 -->
@@ -113,10 +119,10 @@ const navTitle = ref('库存调拨')
 const searchKeyword = ref('')
 const activeStatus = ref('')
 const transferList = ref([])
-const refreshing = ref(false)
 const listLoading = ref(false)
 const initialLoading = ref(true)
 const finished = ref(false)
+const isFirstLoad = ref(true)
 
 const pagination = reactive({
   page: 1,
@@ -126,21 +132,19 @@ const pagination = reactive({
 
 const statusTabs = ref([
   { title: '全部', value: '' },
-  { title: '待审核', value: '1' },
-  { title: '已审核', value: '2' },
-  { title: '调拨中', value: '3' },
-  { title: '已完成', value: '4' },
-  { title: '已取消', value: '5' }
+  { title: '待调拨', value: '0' },
+  { title: '调拨中', value: '1' },
+  { title: '已完成', value: '2' },
+  { title: '已取消', value: '3' }
 ])
 
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '调拨中',
-    4: '已完成',
-    5: '已取消'
+    0: '待调拨',
+    1: '调拨中',
+    2: '已完成',
+    3: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -148,11 +152,10 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'primary',
-    4: 'success',
-    5: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'success',
+    3: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -160,29 +163,49 @@ const getStatusTagType = (status) => {
 // 获取调拨单标签信息
 const getTransferLabel = (transfer) => {
   const parts = []
-  if (transfer.from_warehouse_name && transfer.to_warehouse_name) {
-    parts.push(`${transfer.from_warehouse_name} → ${transfer.to_warehouse_name}`)
+  if (transfer.fromWarehouse?.name && transfer.toWarehouse?.name) {
+    parts.push(`${transfer.fromWarehouse.name} → ${transfer.toWarehouse.name}`)
   }
   if (transfer.created_at) {
     parts.push(`创建: ${transfer.created_at}`)
   }
-  if (transfer.total_items) {
-    parts.push(`明细: ${transfer.total_items}项`)
+  if (transfer.auditor?.real_name) {
+    parts.push(`审核: ${transfer.auditor.real_name}`)
+  }
+  if (transfer.total_amount) {
+    parts.push(`金额: ¥${transfer.total_amount}`)
   }
   return parts.join(' | ')
 }
 
 // 加载调拨列表
-const loadTransferList = async (isRefresh = false) => {
-  if (isRefresh) {
-    pagination.page = 1
-    finished.value = false
-    refreshing.value = true
-  } else {
-    listLoading.value = true
-  }
-
+const loadTransferList = async (params) => {
   try {
+    await stockStore.loadTransferList(params)
+    
+    const listData = stockStore.transferList || []
+    const totalCount = stockStore.transferTotal || 0
+
+    return { listData, totalCount }
+  } catch (error) {
+    console.error('加载调拨列表失败:', error)
+    showToast('加载调拨列表失败')
+    throw error
+  }
+}
+
+
+
+// 列表加载
+const onLoad = async () => {
+  // 防止重复调用
+  if (listLoading.value) {
+    return
+  }
+  
+  try {
+    listLoading.value = true
+    
     const params = {
       page: pagination.page,
       limit: pagination.pageSize,
@@ -195,23 +218,16 @@ const loadTransferList = async (isRefresh = false) => {
       if (params[key] === '' || params[key] == null) delete params[key]
     })
 
-    await stockStore.loadTransferList(params)
+    const { listData, totalCount } = await loadTransferList(params)
     
-    let listData = []
-    let totalCount = 0
-
-    if (stockStore.transferList && Array.isArray(stockStore.transferList)) {
-      listData = stockStore.transferList
-      totalCount = stockStore.transferTotal || 0
-    }
-
-    if (isRefresh) {
+    if (pagination.page === 1) {
       transferList.value = listData
     } else {
       transferList.value = [...transferList.value, ...listData]
     }
     
     pagination.total = totalCount
+    pagination.page++
 
     // 检查是否加载完成
     if (transferList.value.length >= pagination.total) {
@@ -223,9 +239,9 @@ const loadTransferList = async (isRefresh = false) => {
     showToast('加载调拨列表失败')
     finished.value = true
   } finally {
-    refreshing.value = false
     listLoading.value = false
     initialLoading.value = false
+    isFirstLoad.value = false
   }
 }
 
@@ -239,16 +255,25 @@ const handleCreateTransfer = () => {
 }
 
 const handleSearch = () => {
-  loadTransferList(true)
+  pagination.page = 1
+  finished.value = false
+  transferList.value = []
+  onLoad()
 }
 
 const handleClearSearch = () => {
   searchKeyword.value = ''
-  loadTransferList(true)
+  pagination.page = 1
+  finished.value = false
+  transferList.value = []
+  onLoad()
 }
 
 const handleStatusChange = () => {
-  loadTransferList(true)
+  pagination.page = 1
+  finished.value = false
+  transferList.value = []
+  onLoad()
 }
 
 const handleViewTransfer = (transfer) => {
@@ -260,7 +285,8 @@ const handleEditTransfer = (transfer) => {
 }
 
 onMounted(() => {
-  loadTransferList(true)
+  // 组件挂载时手动触发首次加载
+  onLoad()
 })
 </script>
 
@@ -277,6 +303,25 @@ onMounted(() => {
 .cell-actions {
   display: flex;
   gap: 8px;
+}
+
+.transfer-number {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.transfer-number .label {
+  margin-right: 4px;
+  color: #323233;
+  font-weight: 500;
+}
+
+.transfer-number .value {
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #646566;
 }
 
 .page-loading {

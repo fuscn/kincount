@@ -148,7 +148,7 @@ class SaleOrderController extends BaseController
                     'order_no'      => $orderNo,
                     'customer_id'   => $post['customer_id'],
                     'warehouse_id'  => $post['warehouse_id'],
-                    'status'        => 1,
+                    'status'        => 0,
                     'remark'        => $post['remark'] ?? '',
                     'created_by'    => $this->getUserId(),
                     'expected_date' => $post['expected_date'] ?? null,
@@ -210,7 +210,7 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可修改');
+        if ($order->status != 0) return $this->error('只有待审核可修改');
 
         $post = input('post.');
         Db::transaction(function () use ($order, $post) {
@@ -263,7 +263,7 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可删除');
+        if ($order->status != 0) return $this->error('只有待审核可删除');
 
         Db::transaction(function () use ($order) {
             SaleOrderItem::where('sale_order_id', $order->id)->delete();
@@ -282,13 +282,13 @@ class SaleOrderController extends BaseController
             if (!$order) {
                 throw new \Exception('销售订单不存在');
             }
-            if ($order->status != 1) {
+            if ($order->status != 0) {
                 throw new \Exception('当前状态无法审核');
             }
 
             // 2. 更新订单状态
             $order->save([
-                'status' => 2, 
+                'status' => 1, 
                 'audit_by' => $this->getUserId(), 
                 'audit_time' => date('Y-m-d H:i:s')
             ]);
@@ -334,9 +334,9 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if (!in_array($order->status, [1, 2])) return $this->error('当前状态不能取消');
+        if (!in_array($order->status, [0, 1])) return $this->error('当前状态不能取消');
 
-        $order->save(['status' => 5]);
+        $order->save(['status' => 4]);
         return $this->success([], '已取消');
     }
 
@@ -344,9 +344,9 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 2) return $this->error('只有已审核可完成');
+        if ($order->status != 1) return $this->error('只有已审核可完成');
 
-        $order->save(['status' => 4]);
+        $order->save(['status' => 3]);
         return $this->success([], '订单已完成');
     }
 
@@ -361,7 +361,7 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可添加明细');
+        if ($order->status != 0) return $this->error('只有待审核可添加明细');
 
         $post = input('post.');
         $validate = new \think\Validate([
@@ -403,7 +403,7 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可修改明细');
+        if ($order->status != 0) return $this->error('只有待审核可修改明细');
 
         $item = SaleOrderItem::where('sale_order_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');
@@ -446,7 +446,7 @@ class SaleOrderController extends BaseController
     {
         $order = SaleOrder::where('deleted_at', null)->find($id);
         if (!$order) return $this->error('销售订单不存在');
-        if ($order->status != 1) return $this->error('只有待审核可删除明细');
+        if ($order->status != 0) return $this->error('只有待审核可删除明细');
 
         $item = SaleOrderItem::where('sale_order_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');

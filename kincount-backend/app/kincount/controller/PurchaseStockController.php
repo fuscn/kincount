@@ -55,7 +55,13 @@ class PurchaseStockController extends BaseController
             }
 
             if (!empty($params['status'])) {
-                $query->where('status', $params['status']);
+                // 处理状态参数，支持逗号分隔的多个状态
+                $status = is_array($params['status']) ? $params['status'] : explode(',', $params['status']);
+                $status = array_filter($status);
+                
+                if (!empty($status)) {
+                    $query->whereIn('status', $status);
+                }
             }
             if (!empty($params['purchase_order_id'])) {
                 $query->where('purchase_order_id', $params['purchase_order_id']);
@@ -112,7 +118,7 @@ class PurchaseStockController extends BaseController
                 'supplier_id'       => $post['supplier_id'],
                 'warehouse_id'      => $post['warehouse_id'],
                 'total_amount'      => 0,
-                'status'            => 1, // 待审核
+                'status'            => 0, // 待审核
                 'remark'            => $post['remark'] ?? '',
                 'created_by'        => $this->getUserId(),
             ]);
@@ -141,7 +147,7 @@ class PurchaseStockController extends BaseController
                     $pendingInbound = PurchaseStockItem::alias('i')
                         ->join('purchase_stocks s', 's.id = i.purchase_stock_id')
                         ->where('s.purchase_order_id', $post['purchase_order_id'])
-                        ->where('s.status', 1)  // 待审核状态
+                        ->where('s.status', 0)  // 待审核状态
                         ->where('i.sku_id', $v['sku_id'])
                         ->sum('i.quantity');
 
@@ -246,7 +252,7 @@ class PurchaseStockController extends BaseController
             }
 
             // 只有待审核状态的入库单可以更新
-            if ($stock->status != 1) {
+            if ($stock->status != 0) {
                 return $this->error('只有待审核状态的入库单可以更新');
             }
 
@@ -277,7 +283,7 @@ class PurchaseStockController extends BaseController
                 }
 
                 // 只有待审核状态的入库单可以删除
-                if ($stock->status != 1) {
+                if ($stock->status != 0) {
                     throw new \Exception('只有待审核状态的入库单可以删除');
                 }
 
@@ -325,7 +331,7 @@ class PurchaseStockController extends BaseController
                     throw new \Exception('入库单不存在');
                 }
 
-                if ($stock->status != 1) {
+                if ($stock->status != 0) {
                     throw new \Exception('只有待审核状态的入库单可以审核');
                 }
 
@@ -350,7 +356,7 @@ class PurchaseStockController extends BaseController
                 }
 
                 // 更新入库单状态
-                $stock->status = 2; // 已审核
+                $stock->status = 1; // 已审核
                 $stock->audit_by = $this->getUserId();
                 $stock->audit_time = date('Y-m-d H:i:s');
                 $stock->save();
@@ -410,7 +416,7 @@ class PurchaseStockController extends BaseController
                 }
 
                 // 只有待审核和已审核状态的入库单可以取消
-                if (!in_array($stock->status, [1, 2])) {
+                if (!in_array($stock->status, [0, 1])) {
                     throw new \Exception('当前状态的入库单不能取消');
                 }
 
@@ -429,7 +435,7 @@ class PurchaseStockController extends BaseController
                 }
 
                 // 更新入库单状态为已取消
-                $stock->status = 3; // 3-已取消
+                $stock->status = 2; // 2-已取消
                 $stock->save();
             });
 
@@ -451,7 +457,7 @@ class PurchaseStockController extends BaseController
                     throw new \Exception('入库单不存在');
                 }
 
-                if ($stock->status != 2) {
+                if ($stock->status != 1) {
                     throw new \Exception('只有已审核状态的入库单可以取消审核');
                 }
 
@@ -473,7 +479,7 @@ class PurchaseStockController extends BaseController
                 }
 
                 // 更新入库单状态
-                $stock->status = 1; // 待审核
+                $stock->status = 0; // 待审核
                 $stock->audit_by = null;
                 $stock->audit_time = null;
                 $stock->save();
@@ -527,7 +533,7 @@ class PurchaseStockController extends BaseController
             }
 
             // 只有待审核状态的入库单可以添加明细
-            if ($stock->status != 1) {
+            if ($stock->status != 0) {
                 return $this->error('只有待审核状态的入库单可以添加明细');
             }
 
@@ -577,7 +583,7 @@ class PurchaseStockController extends BaseController
             }
 
             // 只有待审核状态的入库单可以更新明细
-            if ($stock->status != 1) {
+            if ($stock->status != 0) {
                 return $this->error('只有待审核状态的入库单可以更新明细');
             }
 
@@ -644,7 +650,7 @@ class PurchaseStockController extends BaseController
             }
 
             // 只有待审核状态的入库单可以删除明细
-            if ($stock->status != 1) {
+            if ($stock->status != 0) {
                 return $this->error('只有待审核状态的入库单可以删除明细');
             }
 
@@ -786,7 +792,7 @@ class PurchaseStockController extends BaseController
     {
         // 检查采购订单是否存在且状态正确
         $purchaseOrder = PurchaseOrder::where('id', $purchaseOrderId)
-            ->where('status', 'in', [2, 3]) // 2-已审核, 3-部分入库
+            ->where('status', 'in', [1, 2]) // 1-已审核, 2-部分入库
             ->find();
 
         if (!$purchaseOrder) {
@@ -877,11 +883,11 @@ class PurchaseStockController extends BaseController
 
         $newStatus = $order->status;
         if ($allCompleted) {
-            $newStatus = 4; // 已完成
+            $newStatus = 3; // 已完成
         } elseif ($hasPartial) {
-            $newStatus = 3; // 部分入库
+            $newStatus = 2; // 部分入库
         } else {
-            $newStatus = 2; // 已审核（但未入库）
+            $newStatus = 1; // 已审核（但未入库）
         }
 
         if ($order->status != $newStatus) {

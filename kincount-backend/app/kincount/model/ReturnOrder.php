@@ -7,17 +7,17 @@ use think\model\relation\HasMany;
 class ReturnOrder extends BaseModel
 {
     // 退货单类型
-    const TYPE_SALE = 1;      // 销售退货
-    const TYPE_PURCHASE = 2;  // 采购退货
+    const TYPE_SALE = 0;      // 销售退货
+    const TYPE_PURCHASE = 1;  // 采购退货
 
     // 状态
-    const STATUS_PENDING_AUDIT = 1;  // 待审核
-    const STATUS_AUDITED = 2;        // 已审核
-    const STATUS_PART_STOCK = 3;     // 部分入库/出库
-    const STATUS_STOCK_COMPLETE = 4; // 已入库/出库
-    const STATUS_REFUND_COMPLETE = 5; // 已退款/收款
-    const STATUS_COMPLETED = 6;      // 已完成
-    const STATUS_CANCELLED = 7;      // 已取消
+    const STATUS_PENDING_AUDIT = 0;  // 待审核
+    const STATUS_AUDITED = 1;        // 已审核
+    const STATUS_PART_STOCK = 2;     // 部分入库/出库
+    const STATUS_STOCK_COMPLETE = 3; // 已入库/出库
+    const STATUS_REFUND_COMPLETE = 4; // 已退款/收款
+    const STATUS_COMPLETED = 5;      // 已完成
+    const STATUS_CANCELLED = 6;      // 已取消
 
     // 退货原因类型
     const REASON_QUALITY = 1;        // 质量问题
@@ -26,14 +26,14 @@ class ReturnOrder extends BaseModel
     const REASON_OTHER = 4;          // 其他
 
     // 出入库状态
-    const STOCK_PENDING = 1;         // 待处理
-    const STOCK_PART = 2;            // 部分处理
-    const STOCK_COMPLETE = 3;        // 已完成
+    const STOCK_PENDING = 0;         // 待处理
+    const STOCK_PART = 1;            // 部分处理
+    const STOCK_COMPLETE = 2;        // 已完成
 
     // 款项状态
-    const REFUND_PENDING = 1;        // 待处理
-    const REFUND_PART = 2;           // 部分处理
-    const REFUND_COMPLETE = 3;       // 已完成
+    const REFUND_PENDING = 0;        // 待处理
+    const REFUND_PART = 1;           // 部分处理
+    const REFUND_COMPLETE = 2;       // 已完成
 
 
     // 自动写入字段
@@ -238,7 +238,7 @@ class ReturnOrder extends BaseModel
     public function getStatusTextAttr($value, $data): string
     {
         $options = $this->getStatusOptions();
-        return $options[$data['status'] ?? 1] ?? '未知';
+        return $options[$data['status'] ?? 0] ?? '未知';
     }
 
     /**
@@ -247,7 +247,7 @@ class ReturnOrder extends BaseModel
     public function getReturnTypeTextAttr($value, $data): string
     {
         $options = $this->getReturnTypeOptions();
-        return $options[$data['return_type'] ?? 1] ?? '未知';
+        return $options[$data['return_type'] ?? 0] ?? '未知';
     }
 
     /**
@@ -256,7 +256,7 @@ class ReturnOrder extends BaseModel
     public function getStockStatusTextAttr($value, $data): string
     {
         $options = $this->getStockStatusOptions();
-        return $options[$data['stock_status'] ?? 1] ?? '未知';
+        return $options[$data['stock_status'] ?? 0] ?? '未知';
     }
 
     /**
@@ -265,7 +265,7 @@ class ReturnOrder extends BaseModel
     public function getRefundStatusTextAttr($value, $data): string
     {
         $options = $this->getRefundStatusOptions();
-        return $options[$data['refund_status'] ?? 1] ?? '未知';
+        return $options[$data['refund_status'] ?? 0] ?? '未知';
     }
 
     /**

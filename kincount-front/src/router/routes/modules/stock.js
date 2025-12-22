@@ -42,6 +42,18 @@ export default [
     meta: { title: '库存调拨', showTabbar: false, showLayoutNavBar: false }
   },
   {
+    path: 'stock/transfer/detail/:id',
+    name: 'StockTransferDetail',
+    component: () => import('@/views/stock/TransferDetail.vue'),
+    meta: { title: '调拨详情', showTabbar: false, showLayoutNavBar: false }
+  },
+  {
+    path: 'stock/transfer/edit/:id',
+    name: 'StockTransferEdit',
+    component: () => import('@/views/stock/TransferCreate.vue'),
+    meta: { title: '编辑调拨', showTabbar: false, showLayoutNavBar: false }
+  },
+  {
     path: 'stock/warning',
     name: 'StockWarning',
     component: () => import('@/views/stock/Warning.vue'),

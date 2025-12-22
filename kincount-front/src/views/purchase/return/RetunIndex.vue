@@ -14,11 +14,11 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeTab" @change="onTabChange">
         <van-tab title="全部" :name="-1"></van-tab>
-        <van-tab title="待审核" :name="1"></van-tab>
-        <van-tab title="已审核" :name="2"></van-tab>
-        <van-tab title="已入库" :name="4"></van-tab>
-        <van-tab title="已完成" :name="6"></van-tab>
-        <van-tab title="已取消" :name="7"></van-tab>
+        <van-tab title="待审核" :name="0"></van-tab>
+        <van-tab title="已审核" :name="1"></van-tab>
+        <van-tab title="已入库" :name="3"></van-tab>
+        <van-tab title="已完成" :name="5"></van-tab>
+        <van-tab title="已取消" :name="6"></van-tab>
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->

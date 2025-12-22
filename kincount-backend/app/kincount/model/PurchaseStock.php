@@ -4,9 +4,9 @@ use think\model\relation\HasMany;
 class PurchaseStock extends BaseModel
 {
     // 采购入库状态常量
-    const STATUS_PENDING = 1;      // 待审核
-    const STATUS_AUDITED = 2;      // 已审核
-    const STATUS_CANCELLED = 3;    // 已取消
+    const STATUS_PENDING = 0;      // 待审核
+    const STATUS_AUDITED = 1;      // 已审核
+    const STATUS_CANCELLED = 2;    // 已取消
     
     protected $type = [
         'purchase_order_id' => 'integer',
