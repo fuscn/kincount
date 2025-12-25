@@ -1,4 +1,42 @@
 <template>
+  <!-- 筛选区域 -->
+  <div class="filter-section" v-if="showFilters">
+    <div class="filter-row">
+      <!-- 分类筛选 -->
+      <div class="filter-item" v-if="enableCategoryFilter">
+        <CategorySelect
+          v-model="filters.category_id"
+          placeholder="选择分类"
+          :hide-trigger="false"
+          :show-all-option="true"
+          :button-size="'small'"
+          :button-block="false"
+          @change="onFilterChange"
+        />
+      </div>
+      
+      <!-- 品牌筛选 -->
+      <div class="filter-item" v-if="enableBrandFilter">
+        <BrandSelect
+          v-model="filters.brand_id"
+          placeholder="选择品牌"
+          :hide-trigger="false"
+          :show-all-option="true"
+          :button-size="'small'"
+          :button-block="false"
+          @change="onFilterChange"
+        />
+      </div>
+      
+
+      
+      <!-- 重置按钮 -->
+      <div class="filter-item">
+        <van-button size="small" @click="resetFilters">重置</van-button>
+      </div>
+    </div>
+  </div>
+  
   <!-- 列表模式 -->
   <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
     <van-list
@@ -10,9 +48,9 @@
       <div class="sku-card-list">
         <div 
           v-for="item in list" 
-          :key="item.id" 
+          :key="'sku-' + item.id + '-' + (item.sku_id || '')" 
           class="sku-card"
-          @click="$emit('click-card', item)"
+          @click="handleCardClick(item)"
         >
           <!-- 选中状态勾号 -->
           <div v-if="selectable && selectedIds.includes(item.id)" class="selected-check">
@@ -52,8 +90,10 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { getStockList } from '@/api/stock'
+import CategorySelect from '@/components/business/CategorySelect.vue'
+import BrandSelect from '@/components/business/BrandSelect.vue'
 
 const props = defineProps({
   // 列表模式参数
@@ -69,10 +109,31 @@ const props = defineProps({
   selectedIds: {
     type: Array,
     default: () => []
-  }
+  },
+  
+  // 筛选功能参数
+  showFilters: {
+    type: Boolean,
+    default: false
+  },
+  enableCategoryFilter: {
+    type: Boolean,
+    default: true
+  },
+  enableBrandFilter: {
+    type: Boolean,
+    default: true
+  },
+
 })
 
 const emit = defineEmits(['click-card'])
+
+// 筛选条件
+const filters = ref({
+  category_id: null,
+  brand_id: null
+})
 
 const list = ref([])
 const loading = ref(false)
@@ -81,6 +142,11 @@ const refreshing = ref(false)
 
 // 图片错误处理记录
 const imageErrorMap = ref(new Map())
+
+// 处理卡片点击事件
+const handleCardClick = (item) => {
+  emit('click-card', item)
+}
 
 // 获取商品名称（最重要的信息）
 const getProductName = (item) => {
@@ -203,6 +269,24 @@ const isWarning = (item) => {
   return quantity === 0 || quantity < 10 || quantity > 500
 }
 
+// 筛选条件变化处理
+const onFilterChange = () => {
+  page = 1
+  list.value = []
+  finished.value = false
+  imageErrorMap.value.clear()
+  onLoad()
+}
+
+// 重置筛选条件
+const resetFilters = () => {
+  filters.value = {
+    category_id: null,
+    brand_id: null
+  }
+  onFilterChange()
+}
+
 let page = 1
 let isLoading = false // 加载锁，防止重复请求
 
@@ -213,13 +297,24 @@ const onLoad = async () => {
     isLoading = true
     loading.value = true
     
-    const res = await getStockList({
+    // 构建请求参数
+    const params = {
       page,
       limit: 10,
       warehouse_id: props.warehouseId,
       keyword: props.keyword,
       warning_type: props.warningType
-    })
+    }
+    
+    // 添加筛选参数
+    if (filters.value.category_id) {
+      params.category_id = filters.value.category_id
+    }
+    if (filters.value.brand_id) {
+      params.brand_id = filters.value.brand_id
+    }
+    
+    const res = await getStockList(params)
     
     // 处理响应数据 - 注意拦截器已经过滤了数据，直接使用 res
     let dataList = []
@@ -276,10 +371,87 @@ watch(
     onLoad()
   }
 )
+
+// 监听筛选条件变化，确保选择状态正确更新
+watch(
+  () => [filters.value.category_id, filters.value.brand_id],
+  () => {
+    // 筛选条件变化时，不需要重置选择状态
+    // 选择状态由父组件OrderForm.vue中的tempSelectedIds管理
+  }
+)
+
+// 监听selectedIds变化，确保选择状态正确更新
+watch(
+  () => props.selectedIds,
+  (newVal, oldVal) => {
+    // 选择状态变化处理
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped lang="scss">
-
+/* 筛选区域样式 */
+.filter-section {
+  padding: 12px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-item {
+    // 分类和品牌筛选组件固定宽度
+    &:not(:last-child) {
+      width: 150px;
+      flex: 0 0 150px;
+      max-width: 150px;
+    }
+    
+    // 确保所有筛选按钮高度一致
+    :deep(.van-button) {
+      height: 32px;
+      line-height: 30px;
+    }
+    
+    // 确保筛选组件高度和宽度一致
+    :deep(.van-field__control) {
+      height: 32px;
+      line-height: 30px;
+    }
+    
+    // 确保CategorySelect和BrandSelect组件宽度一致
+    :deep(.van-field) {
+      width: 100%;
+    }
+    
+    // 确保CategorySelect组件内部按钮宽度一致
+    :deep(.category-select-wrapper .van-button) {
+      width: 100%;
+    }
+    
+    // 确保BrandSelect组件内部按钮宽度一致
+    :deep(.brand-select .van-button) {
+      width: 100%;
+    }
+    
+    // 重置按钮容器特殊处理
+    &:last-child {
+      flex: 0 0 80px;
+      max-width: 80px;
+      
+      .van-button--small {
+        width: 80px;
+        flex-shrink: 0;
+      }
+    }
+  }
+}
 
 /* 列表模式样式（原有） */
 .sku-card-list {

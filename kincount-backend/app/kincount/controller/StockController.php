@@ -17,15 +17,34 @@ class StockController extends BaseController
     {
         $params = request()->get();
         $query  = \app\kincount\model\Stock::with(['sku.product', 'warehouse'])
-            ->where('deleted_at', null);
+            ->where('stocks.deleted_at', null);
         if (!empty($params['keyword'])) {
             $query->whereHas('sku', function ($q) use ($params) {
-                $q->whereLike('sku_code|spec_text', "%{$params['keyword']}%");
+                $q->where('sku_code', 'like', "%{$params['keyword']}%");
             });
         }
         if (!empty($params['warehouse_id'])) {
-            $query->where('warehouse_id', $params['warehouse_id']);
+            $query->where('stocks.warehouse_id', $params['warehouse_id']);
         }
+        
+        // 添加分类筛选 - 使用join代替whereHas
+        if (!empty($params['category_id'])) {
+            $query->join('product_skus', 'stocks.sku_id = product_skus.id')
+                  ->join('products', 'product_skus.product_id = products.id')
+                  ->where('products.category_id', $params['category_id'])
+                  ->where('product_skus.deleted_at', null)
+                  ->where('products.deleted_at', null);
+        }
+        
+        // 添加品牌筛选 - 使用join代替whereHas
+        if (!empty($params['brand_id'])) {
+            $query->join('product_skus', 'stocks.sku_id = product_skus.id')
+                  ->join('products', 'product_skus.product_id = products.id')
+                  ->where('products.brand_id', $params['brand_id'])
+                  ->where('product_skus.deleted_at', null)
+                  ->where('products.deleted_at', null);
+        }
+        
         return $this->paginate($query->paginate(['list_rows' => $params['limit'] ?? 15]));
     }
 
@@ -54,9 +73,13 @@ class StockController extends BaseController
         $type = request()->get('type', 'low');
         $query = \app\kincount\model\Stock::with(['sku.product', 'warehouse'])
             ->where('deleted_at', null)
-            ->whereRaw('quantity <= (select min_stock from products where id = stocks.product_id)');
+            ->whereHas('sku.product', function ($q) {
+                $q->whereRaw('stocks.quantity <= products.min_stock');
+            });
         if ($type === 'high') {
-            $query->whereRaw('quantity >= (select max_stock from products where id = stocks.product_id)');
+            $query->whereHas('sku.product', function ($q) {
+                $q->whereRaw('stocks.quantity >= products.max_stock');
+            });
         }
         return $this->paginate($query->paginate(15));
     }
@@ -65,8 +88,12 @@ class StockController extends BaseController
     {
         $totalAmt = \app\kincount\model\Stock::sum('total_amount');
         $skuCnt   = \app\kincount\model\Stock::distinct('sku_id')->count();
-        $lowCnt   = \app\kincount\model\Stock::whereRaw('quantity <= (select min_stock from products where id = stocks.product_id)')->count();
-        $highCnt  = \app\kincount\model\Stock::whereRaw('quantity >= (select max_stock from products where id = stocks.product_id)')->count();
+        $lowCnt   = \app\kincount\model\Stock::whereHas('sku.product', function ($q) {
+            $q->whereRaw('stocks.quantity <= products.min_stock');
+        })->count();
+        $highCnt  = \app\kincount\model\Stock::whereHas('sku.product', function ($q) {
+            $q->whereRaw('stocks.quantity >= products.max_stock');
+        })->count();
         return $this->success([
             'total_amount'     => $totalAmt ?: 0,
             'sku_count'        => $skuCnt,

@@ -12,8 +12,8 @@
     <!-- 筛选区域 -->
     <div class="filter-wrapper">
       <!-- 状态标签筛选 -->
-      <van-tabs v-model="activeTab" @change="onTabChange">
-        <van-tab title="全部" :name="-1"></van-tab>
+      <van-tabs v-model:active="activeTab" @change="onTabChange" :animated="false">
+        <van-tab title="全部" :name="99"></van-tab>
         <van-tab title="待审核" :name="0"></van-tab>
         <van-tab title="已审核" :name="1"></van-tab>
         <van-tab title="已入库" :name="3"></van-tab>
@@ -101,7 +101,7 @@ const finished = ref(false)
 const isLoading = ref(false)
 
 // 筛选参数
-const activeTab = ref(-1) // -1:全部, 1:待审核, 2:已审核, 4:已入库, 6:已完成, 7:已取消
+const activeTab = ref(99) // 99:全部, 0:待审核, 1:已审核, 3:已入库, 5:已完成, 6:已取消
 const searchKeyword = ref('')
 const selectedSupplier = ref('')
 const dateRange = ref('')
@@ -148,13 +148,13 @@ const getReturnLabel = (item) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '部分入库',
-    4: '已入库',
-    5: '已退款',
-    6: '已完成',
-    7: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库',
+    3: '已入库',
+    4: '已退款',
+    5: '已完成',
+    6: '已取消'
   }
   return statusMap[status] || `未知(${status})`
 }
@@ -162,13 +162,13 @@ const getStatusText = (status) => {
 // 获取状态类型
 const getStatusType = (status) => {
   const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'primary',  // 已审核 - 主要色
-    3: 'warning',  // 部分入库 - 警告色
-    4: 'success',  // 已入库 - 成功色
-    5: 'success',  // 已退款 - 成功色
-    6: 'success',  // 已完成 - 成功色
-    7: 'danger'    // 已取消 - 危险色
+    0: 'warning',  // 待审核 - 警告色
+    1: 'primary',  // 已审核 - 主要色
+    2: 'warning',  // 部分入库 - 警告色
+    3: 'success',  // 已入库 - 成功色
+    4: 'success',  // 已退款 - 成功色
+    5: 'success',  // 已完成 - 成功色
+    6: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }
@@ -242,7 +242,7 @@ const loadReturnList = async (isRefresh = false) => {
     }
 
     // 处理状态参数格式
-    const statusParam = activeTab.value !== -1 ? activeTab.value : ''
+    const statusParam = activeTab.value !== 99 ? activeTab.value : ''
 
     const params = {
       page: page.value,
@@ -251,7 +251,7 @@ const loadReturnList = async (isRefresh = false) => {
       status: statusParam,
       supplier_id: selectedSupplier.value,
       date_range: dateRange.value,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
     
     // 移除空值参数
@@ -313,6 +313,13 @@ const handleCreate = () => {
 const handleDetail = (id) => {
   router.push(`/purchase/return/detail/${id}`)
 }
+
+// 页面加载时初始化数据
+onMounted(() => {
+  // 确保默认选中"全部"选项卡
+  activeTab.value = 99
+  loadReturnList(true)
+})
 </script>
 
 <style scoped lang="scss">

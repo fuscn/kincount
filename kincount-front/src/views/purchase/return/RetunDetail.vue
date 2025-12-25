@@ -254,9 +254,9 @@ const getStatusTagType = (status) => {
 // 获取出库状态文本
 const getStockStatusText = (status) => {
   const statusMap = {
-    0: '未出库',
-    1: '部分出库',
-    2: '已出库'
+    0: '待处理',
+    1: '部分处理',
+    2: '已完成'
   }
   return statusMap[status] || '未知'
 }

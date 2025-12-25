@@ -333,7 +333,8 @@ const loadReturnList = async (isRefresh = false) => {
       keyword: keyword.value,
       status: activeStatus.value,
       return_type: returnType.value,
-      date_range: dateRangeParam
+      date_range: dateRangeParam,
+      type: 0 // 销售退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
     
     // 只有当customer_id存在且不为0时才加入参数

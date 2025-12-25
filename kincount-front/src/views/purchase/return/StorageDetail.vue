@@ -9,7 +9,7 @@
     >
       <template #right>
         <van-button 
-          v-if="returnStockDetail.status === 1" 
+          v-if="returnStockDetail.status === 0" 
           size="small" 
           type="primary" 
           @click="handleAudit"
@@ -17,7 +17,7 @@
           审核
         </van-button>
         <van-button 
-          v-if="returnStockDetail.status === 1" 
+          v-if="returnStockDetail.status === 0" 
           size="small" 
           type="danger" 
           @click="handleCancel"
@@ -56,15 +56,12 @@
               title="供应商" 
               :value="returnStockDetail.target_info?.name || '--'" 
             />
-            <van-cell title="联系人" :value="returnStockDetail.target_info?.contact || '--'" />
-            <van-cell title="联系电话" :value="returnStockDetail.target_info?.phone || '--'" />
             <van-cell title="仓库" :value="returnStockDetail.warehouse?.name || '--'" />
-            <van-cell title="仓库地址" :value="returnStockDetail.warehouse?.address || '--'" />
             <van-cell title="出库总金额" :value="`¥${formatPrice(returnStockDetail.total_amount)}`" />
             <van-cell title="创建人" :value="returnStockDetail.creator?.real_name || '--'" />
             <van-cell title="创建时间" :value="formatDateTime(returnStockDetail.created_at)" />
             
-            <template v-if="returnStockDetail.status === 2">
+            <template v-if="returnStockDetail.status === 1">
               <van-cell title="审核人" :value="returnStockDetail.auditor?.real_name || '--'" />
               <van-cell title="审核时间" :value="formatDateTime(returnStockDetail.audit_time)" />
             </template>
@@ -108,67 +105,51 @@
             <div class="header-count">共 {{ returnStockItems.length }} 项</div>
           </div>
           
-          <div class="items-list">
-            <div v-for="(item, index) in returnStockItems" :key="item.id" class="item-row">
-              <div class="item-header">
-                <div class="item-index">#{{ index + 1 }}</div>
-                <div class="item-name">{{ item.product?.name || `商品${item.product_id}` }}</div>
-              </div>
-              
-              <div class="item-details">
-                <!-- 商品编号 -->
-                <div class="item-info">
-                  <span class="label">商品编号：</span>
-                  <span class="value">{{ item.product?.product_no || '--' }}</span>
-                </div>
-                
-                <!-- SKU信息 -->
-                <div v-if="item.sku" class="item-info">
-                  <span class="label">SKU编码：</span>
-                  <span class="value">{{ item.sku.sku_code || '--' }}</span>
-                </div>
-                
-                <!-- 条形码 -->
-                <div v-if="item.sku?.barcode" class="item-info">
-                  <span class="label">条形码：</span>
-                  <span class="value">{{ item.sku.barcode }}</span>
-                </div>
-                
-                <!-- 规格信息 -->
-                <div v-if="item.sku?.spec_text" class="item-info">
-                  <span class="label">规格：</span>
-                  <span class="spec-text">{{ item.sku.spec_text }}</span>
-                </div>
-                
-                <!-- 出库信息 -->
-                <div class="item-quantity-price">
-                  <div class="quantity">
-                    <span class="label">出库数量：</span>
-                    <span class="value">{{ item.quantity || 0 }}{{ getUnit(item) }}</span>
+          <div class="product-items">
+            <van-swipe-cell 
+              v-for="(item, index) in returnStockItems" 
+              :key="item.id"
+              class="product-item"
+            >
+              <van-cell class="product-cell">
+                <template #title>
+                  <div class="product-title">
+                    <span class="product-name">{{ item.product?.name || `商品${item.product_id}` }}</span>
+                    <span class="sku-code" v-if="item.sku?.sku_code">{{ item.sku.sku_code }}</span>
                   </div>
-                  <div class="price">
-                    <span class="label">出库单价：</span>
-                    <span class="value">¥{{ formatPrice(item.price) }}</span>
+                </template>
+                <template #label>
+                  <div class="product-label">
+                    <div class="spec-text" v-if="item.sku?.spec_text">规格: {{ item.sku.spec_text }}</div>
+                    <div class="stock-text">
+                      商品编号: {{ item.product?.product_no || '--' }}
+                      <span class="barcode-info" v-if="item.sku?.barcode">条形码: {{ item.sku.barcode }}</span>
+                    </div>
                   </div>
-                  <div class="total">
-                    <span class="label">出库金额：</span>
-                    <span class="value amount">¥{{ formatPrice(item.total_amount) }}</span>
+                </template>
+                <template #default>
+                  <div class="item-details">
+                    <div class="quantity-total-column">
+                      <!-- 总金额 -->
+                      <div class="item-total">
+                        <div class="total-amount">¥{{ formatPrice(item.total_amount) }}</div>
+                      </div>
+                      <!-- 出库数量 -->
+                      <div class="quantity-display">
+                        <span class="quantity-text">{{ item.quantity || 0 }}{{ getUnit(item) }}</span>
+                      </div>
+                    </div>
                   </div>
+                </template>
+              </van-cell>
+              <!-- 退货单关联信息 -->
+              <template #right v-if="item.ReturnOrderItem">
+                <div class="return-order-info">
+                  <span class="return-quantity">退货数量: {{ item.ReturnOrderItem.return_quantity || 0 }}{{ getUnit(item) }}</span>
+                  <span class="processed-quantity">已出库: {{ item.ReturnOrderItem.processed_quantity || 0 }}{{ getUnit(item) }}</span>
                 </div>
-
-                <!-- 退货单关联信息 -->
-                <div v-if="item.ReturnOrderItem" class="return-order-info">
-                  <div class="info-row">
-                    <span class="label">关联退货数量：</span>
-                    <span class="value">{{ item.ReturnOrderItem.return_quantity || 0 }}{{ getUnit(item) }}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="label">已出库数量：</span>
-                    <span class="value">{{ item.ReturnOrderItem.processed_quantity || 0 }}{{ getUnit(item) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </template>
+            </van-swipe-cell>
           </div>
           
           <!-- 汇总信息 -->
@@ -258,9 +239,9 @@ const formatDateTime = (dateString) => {
 // 获取状态文本映射
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
   return statusMap[status] || '未知'
 }
@@ -268,9 +249,9 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'success',  // 已审核 - 成功色
-    3: 'danger'    // 已取消 - 危险色
+    0: 'warning',  // 待审核 - 警告色
+    1: 'success',  // 已审核 - 成功色
+    2: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }
@@ -278,10 +259,13 @@ const getStatusTagType = (status) => {
 // 获取退货单状态文本
 const getReturnStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库/出库',
+    3: '已入库/出库',
+    4: '已退款/收款',
+    5: '已完成',
+    6: '已取消'
   }
   return statusMap[status] || '未知'
 }
@@ -289,10 +273,13 @@ const getReturnStatusText = (status) => {
 // 获取退货单状态标签类型
 const getReturnStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
+    0: 'warning',
+    1: 'primary',
+    2: 'warning',
     3: 'success',
-    4: 'danger'
+    4: 'primary',
+    5: 'success',
+    6: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -332,7 +319,7 @@ const handleAudit = async () => {
     
     try {
       // 检查当前状态，避免重复审核
-      if (returnStockDetail.value.status !== 1) {
+      if (returnStockDetail.value.status !== 0) {
         closeToast()
         showFailToast('当前状态无法审核')
         loadDetailData() // 重新加载数据
@@ -388,7 +375,7 @@ const handleCancel = async () => {
     
     try {
       // 检查当前状态，避免重复取消
-      if (returnStockDetail.value.status !== 1) {
+      if (returnStockDetail.value.status !== 0) {
         closeToast()
         showFailToast('当前状态无法取消')
         loadDetailData() // 重新加载数据
@@ -562,147 +549,141 @@ onMounted(() => {
 }
 
 /* 商品明细 */
-.items-list {
-  padding: 12px 16px;
-}
+.product-items {
+  .product-item {
+    margin-bottom: 1px;
 
-.item-row {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 16px 0;
-  
-  &:last-child {
-    border-bottom: none;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .product-cell {
+    padding: 10px 16px;
+    align-items: flex-start;
+
+    &:after {
+      border-bottom: 1px solid #f5f5f5;
+    }
   }
 }
 
-.item-header {
+.product-title {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0; /* 确保flex子元素可以收缩 */
 }
 
-.item-index {
-  width: 24px;
-  height: 24px;
-  background: #f5f5f5;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #969799;
-  margin-right: 8px;
-}
-
-.item-name {
+.product-name {
   font-weight: bold;
   color: #323233;
   font-size: 14px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex: 1;
+  min-width: 0; /* 确保可以收缩 */
 }
 
-.item-details {
-  padding-left: 32px; /* 对齐item-name */
+.sku-code {
+  color: #646566;
+  font-size: 12px;
+  font-weight: normal;
+  background: #f5f5f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止SKU编码被压缩 */
 }
 
-.item-info,
-.item-quantity-price,
-.return-order-info {
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-
-.item-info {
+.product-label {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.item-info .label {
-  color: #969799;
-  min-width: 70px;
-}
-
-.item-info .value {
-  color: #323233;
-  margin-right: 8px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .spec-text {
-  color: #646566;
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
+  color: #969799;
   font-size: 12px;
-  margin-top: 2px;
-  display: inline-block;
+  margin-bottom: 2px;
 }
 
-.item-quantity-price {
+.stock-text {
+  color: #1989fa;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barcode-info {
+  color: #969799;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.item-details {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.quantity-total-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.item-total {
+  margin-bottom: 2px;
+}
+
+.total-amount {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-  margin-bottom: 12px;
-  padding: 12px 0;
-  border-top: 1px dashed #f0f0f0;
-  border-bottom: 1px dashed #f0f0f0;
+  padding: 12px 16px;
+  background-color: #f7f8fa;
+  font-size: 14px;
+  
+  .total-price {
+    color: #f53f3f;
+    font-weight: bold;
+    font-size: 16px;
+  }
 }
 
-.quantity,
-.price,
-.total {
+.quantity-display {
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 100px;
 }
 
-.quantity .label,
-.price .label,
-.total .label {
-  color: #969799;
-  margin-right: 4px;
-  white-space: nowrap;
-}
-
-.quantity .value,
-.price .value,
-.total .value {
+.quantity-text {
   color: #323233;
-  font-weight: 500;
+  font-size: 13px;
 }
 
-.amount {
-  color: #ee0a24 !important;
-  font-weight: bold !important;
-}
-
-/* 退货关联信息 */
 .return-order-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed #f0f0f0;
+  gap: 4px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
-.return-order-info .info-row {
-  display: flex;
-  align-items: center;
-}
-
-.return-order-info .label {
-  color: #969799;
-  min-width: 110px;
-}
-
-.return-order-info .value {
+.return-quantity {
   color: #1989fa;
-  font-weight: 500;
+}
+
+.processed-quantity {
+  color: #07c160;
 }
 
 /* 汇总信息 */

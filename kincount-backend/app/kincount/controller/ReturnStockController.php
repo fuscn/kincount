@@ -59,7 +59,7 @@ class ReturnStockController extends BaseController
                         $q2->whereExists(function ($query) use ($kw) {
                             $query->table('customer')
                                 ->whereRaw('customer.id = return_stock.target_id')
-                                ->where('return_stock.type', 1)
+                                ->where('return_stock.type', 0)
                                 ->whereLike('customer.name', "%{$kw}%");
                         });
                     })
@@ -68,7 +68,7 @@ class ReturnStockController extends BaseController
                         $q2->whereExists(function ($query) use ($kw) {
                             $query->table('supplier')
                                 ->whereRaw('supplier.id = return_stock.target_id')
-                                ->where('return_stock.type', 2)
+                                ->where('return_stock.type', 1)
                                 ->whereLike('supplier.name', "%{$kw}%");
                         });
                     });
@@ -94,9 +94,9 @@ class ReturnStockController extends BaseController
         $supplierIds = [];
 
         foreach ($list as $item) {
-            if ($item->type == 1) {
+            if ($item->type == 0) {
                 $customerIds[] = $item->target_id;
-            } elseif ($item->type == 2) {
+            } elseif ($item->type == 1) {
                 $supplierIds[] = $item->target_id;
             }
         }
@@ -121,10 +121,10 @@ class ReturnStockController extends BaseController
 
         // 处理返回数据
         $list->each(function ($item) use ($customers, $suppliers) {
-            if ($item->type == 1) {
+            if ($item->type == 0) {
                 // 销售退货，从客户表获取
                 $item->target_name = $customers[$item->target_id] ?? '';
-            } elseif ($item->type == 2) {
+            } elseif ($item->type == 1) {
                 // 采购退货，从供应商表获取
                 $item->target_name = $suppliers[$item->target_id] ?? '';
             }
@@ -158,12 +158,12 @@ class ReturnStockController extends BaseController
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
 
         // 根据 type 动态查询目标信息
-        if ($stock->type == 1) {
+        if ($stock->type == 0) {
             // 销售退货，查询客户信息
             $target = Customer::where('id', $stock->target_id)
                 ->field('id, name, contact_person, phone')
                 ->find();
-        } elseif ($stock->type == 2) {
+        } elseif ($stock->type == 1) {
             // 采购退货，查询供应商信息
             $target = Supplier::where('id', $stock->target_id)
                 ->field('id, name, contact_person, phone')
@@ -293,11 +293,11 @@ class ReturnStockController extends BaseController
                 // 获取退货单信息
                 $return = ReturnOrder::findOrFail($post['return_id']);
 
-                // 获取退货单类型（1=销售退货,2=采购退货）
+                // 获取退货单类型（0=销售退货,1=采购退货）
                 $returnType = $return->type;
 
                 // 验证类型
-                if (!in_array($returnType, [1, 2])) {
+                if (!in_array($returnType, [0, 1])) {
                     throw new \Exception("退货单类型无效");
                 }
 
@@ -381,7 +381,7 @@ class ReturnStockController extends BaseController
      */
     public function update($id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以修改');
@@ -484,7 +484,7 @@ class ReturnStockController extends BaseController
      */
     public function delete($id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以删除');
@@ -641,13 +641,13 @@ class ReturnStockController extends BaseController
         // 判断出库状态
         if ($completedItems === $totalItems) {
             // 所有明细都已处理完成
-            $returnOrder->stock_status = 3; // 已完成
+            $returnOrder->stock_status = 2; // 已完成
         } elseif ($completedItems > 0 || $processingItems > 0) {
             // 有部分处理或已完成的项目
-            $returnOrder->stock_status = 2; // 部分处理
+            $returnOrder->stock_status = 1; // 部分处理
         } else {
             // 没有任何处理
-            $returnOrder->stock_status = 1; // 待处理
+            $returnOrder->stock_status = 0; // 待处理
         }
 
         $returnOrder->save();
@@ -657,7 +657,7 @@ class ReturnStockController extends BaseController
      */
     public function cancel($id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以取消');
@@ -731,7 +731,7 @@ class ReturnStockController extends BaseController
      */
     public function addItem($id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以添加明细');
@@ -808,7 +808,7 @@ class ReturnStockController extends BaseController
      */
     public function deleteItem($id, $item_id)
     {
-        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty();
+        $stock = ReturnStock::where('deleted_at', null)->findOrEmpty($id);
         if ($stock->isEmpty()) return $this->error('退货出入库单不存在');
         if ($stock->status != ReturnStock::STATUS_PENDING_AUDIT) {
             return $this->error('只有待审核状态的单据可以删除明细');

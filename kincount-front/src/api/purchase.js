@@ -261,14 +261,14 @@ export function deletePurchaseStockItem(id, itemId) {
 }
 
 /* ===== 采购退货（SKU 维度）===== */
-// 采购退货列表（统一退货模块，通过type=2筛选采购退货）
+// 采购退货列表（统一退货模块，通过type=1筛选采购退货）
 export function getPurchaseReturnList(params) {
   return request({
     url: '/returns',
     method: 'get',
     params: {
       ...params,
-      type: 2 // 采购退货类型
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }
@@ -300,7 +300,7 @@ export function updatePurchaseReturn(id, data) {
     method: 'put',
     data: {
       ...data,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }
@@ -352,7 +352,7 @@ export function addPurchaseReturnItem(id, data) {
     method: 'post',
     data: {
       ...data,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }
@@ -364,7 +364,7 @@ export function updatePurchaseReturnItem(returnId, itemId, data) {
     method: 'put',
     data: {
       ...data,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }
@@ -392,7 +392,7 @@ export function createPurchaseReturnStock(id, data) {
     method: 'post',
     data: {
       ...data,
-      type: 2 // 采购退货类型标识
+      type: 1 // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
     }
   })
 }

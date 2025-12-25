@@ -8,9 +8,9 @@ use think\model\relation\HasMany;
 class ReturnStock extends BaseModel
 {
     // 状态
-    const STATUS_PENDING_AUDIT = 1;  // 待审核
-    const STATUS_AUDITED = 2;        // 已审核
-    const STATUS_CANCELLED = 3;      // 已取消
+    const STATUS_PENDING_AUDIT = 0;  // 待审核
+    const STATUS_AUDITED = 1;        // 已审核
+    const STATUS_CANCELLED = 2;      // 已取消
 
     protected $table = 'return_stocks';
 
@@ -121,7 +121,7 @@ class ReturnStock extends BaseModel
     public function getStatusTextAttr($value, $data): string
     {
         $options = $this->getStatusOptions();
-        return $options[$data['status'] ?? 1] ?? '未知';
+        return $options[$data['status'] ?? 0] ?? '未知';
     }
 
     /**

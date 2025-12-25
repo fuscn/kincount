@@ -192,6 +192,7 @@ export const useReturnStore = defineStore('return', () => {
   // 构建销售退货提交数据
   const buildSaleReturnData = (formData) => {
     return {
+      type: 0, // 销售退货类型标识（数据库定义：0-销售退货 1-采购退货）
       order_id: formData.order_id,
       order_no: formData.order_no,
       warehouse_id: formData.warehouse_id,
@@ -209,7 +210,7 @@ export const useReturnStore = defineStore('return', () => {
   // 构建采购退货提交数据
   const buildPurchaseReturnData = (formData) => {
     return {
-      type: 2, // 采购退货类型标识
+      type: 1, // 采购退货类型标识（数据库定义：0-销售退货 1-采购退货）
       supplier_id: formData.supplier_id,
       supplier_name: formData.supplier_name,
       purchase_order_id: formData.order_id,

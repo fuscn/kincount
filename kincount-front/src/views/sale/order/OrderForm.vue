@@ -76,7 +76,13 @@
         <div class="sku-section">
           <div class="section-title">
             <span>销售商品明细</span>
-            <van-button size="small" type="primary" @click="showSkuSelect = true" icon="plus">
+            <van-button 
+              size="small" 
+              type="primary" 
+              @click="openSkuSelector" 
+              icon="plus"
+              :disabled="!form.warehouse_id"
+            >
               添加商品
             </van-button>
           </div>
@@ -205,28 +211,37 @@
     
     <!-- SKU选择弹窗 -->
     <van-popup v-model:show="showSkuSelect" position="bottom" :style="{ height: '80%' }" :close-on-click-overlay="true">
-      <SkuSelect 
-        ref="skuSelectRef" 
-        v-model="selectedSkuIds" 
-        :show-header="true" 
-        :show-footer="false"
-        :warehouse-id="form.warehouse_id"
-        header-title="选择销售商品" 
-        @confirm="handleSkuSelectConfirm" 
-        @cancel="closeSkuPicker" 
-      />
+      <div class="sku-select-popup">
+        <div class="popup-header">
+          <van-button type="default" size="small" @click="closeSkuPicker">取消</van-button>
+          <div class="popup-title">选择销售商品</div>
+          <van-button type="primary" size="small" @click="confirmSkuSelection">确定</van-button>
+        </div>
+        <div class="popup-content">
+          <SkuStockList 
+            ref="skuStockListRef" 
+            :warehouse-id="form.warehouse_id"
+            :selectable="true"
+            :selected-ids="tempSelectedIds"
+            :show-filters="true"
+            :enable-category-filter="true"
+            :enable-brand-filter="true"
+            @click-card="handleSkuCardClick"
+          />
+        </div>
+      </div>
     </van-popup>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, showSuccessToast, showFailToast } from 'vant'
 import { useSaleStore } from '@/store/modules/sale'
 import CustomerSelect from '@/components/business/CustomerSelect.vue'
 import WarehouseSelect from '@/components/business/WarehouseSelect.vue'
-import { SkuSelect } from '@/components'
+import SkuStockList from '@/components/business/SkuStockList.vue'
 
 // 路由相关
 const route = useRoute()
@@ -240,7 +255,7 @@ const saleStore = useSaleStore()
 const formRef = ref(null)
 const customerSelectRef = ref(null)
 const warehouseSelectRef = ref(null)
-const skuSelectRef = ref(null)
+const skuStockListRef = ref(null)
 const submitting = ref(false)
 
 // 递归更新防护
@@ -292,6 +307,8 @@ const showSkuSelect = ref(false)
 
 // SKU选择相关
 const selectedSkuIds = ref([])
+const tempSelectedIds = ref([]) // 临时选择，用于弹窗中的选择状态
+const selectedSkus = ref([]) // 存储选中的完整SKU数据
 
 // 日期相关
 const currentDate = ref([])
@@ -373,7 +390,7 @@ const initForm = async () => {
     const id = route.params.id
     try {
       const orderDetail = await saleStore.loadOrderDetail(id)
-      console.log('销售订单详情数据:', orderDetail)
+
       
       if (orderDetail) {
         form.customer_id = orderDetail.customer_id
@@ -387,7 +404,7 @@ const initForm = async () => {
         // 处理订单项数据
         form.items = (orderDetail.items || []).map(item => {
           const product = item.product || {}
-          console.log('销售订单项数据:', item)
+
           
           // 构建规格文本
           let specText = ''
@@ -422,8 +439,7 @@ const initForm = async () => {
         
         // 设置选中的SKU ID
         selectedSkuIds.value = form.items.map(item => item.sku_id).filter(Boolean)
-        console.log('销售表单items数据:', form.items)
-        console.log('选中的SKU IDs:', selectedSkuIds.value)
+
         
         // 设置日期选择器的当前值
         if (orderDetail.expected_date) {
@@ -449,21 +465,21 @@ const initForm = async () => {
 
 // 客户选择器事件处理 - 使用 change 事件
 const onCustomerSelect = (value, text) => {
-  console.log('客户选择:', value, text)
+
   if (value) {
     form.customer_id = value
     form.customer_name = text || ''
-    console.log('选择的客户:', text, 'ID:', value)
+
   } else {
     form.customer_id = ''
     form.customer_name = ''
-    console.log('已清空客户选择')
+
   }
 }
 
 // 客户确认事件
 const onCustomerConfirm = (id, customer) => {
-  console.log('客户确认:', id, customer)
+
   if (id) {
     form.customer_id = id
     form.customer_name = customer?.name || ''
@@ -472,21 +488,21 @@ const onCustomerConfirm = (id, customer) => {
 
 // 仓库选择器事件处理
 const onWarehouseSelectChange = (id, name) => {
-  console.log('仓库选择变化:', id, name)
+
   if (id) {
     form.warehouse_id = id
     form.warehouse_name = name
-    console.log('选择的仓库:', name, 'ID:', id)
+
   } else {
     form.warehouse_id = ''
     form.warehouse_name = ''
-    console.log('已清空仓库选择')
+
   }
 }
 
 // 仓库确认事件
 const onWarehouseConfirm = (id, warehouse) => {
-  console.log('仓库确认:', id, warehouse)
+
   if (id) {
     form.warehouse_id = id
     form.warehouse_name = warehouse?.name || ''
@@ -519,12 +535,53 @@ const closeDatePicker = () => {
   })
 }
 
-// SKU选择结果处理
-const handleSkuSelectConfirm = async (result) => {
-  safeUpdate(async () => {
-    const { selectedIds, selectedData } = result
+// 打开SKU选择器
+const openSkuSelector = () => {
+  // 检查是否已选择仓库
+  if (!form.warehouse_id) {
+    showToast('请先选择仓库')
+    return
+  }
+  
+  // 初始化临时选择的ID为当前已选择的SKU
+  tempSelectedIds.value = [...selectedSkuIds.value]
 
-    if (!selectedData || selectedData.length === 0) {
+  
+  // 清空selectedSkus，重新开始选择
+  selectedSkus.value = []
+  
+  // 打开弹窗
+  showSkuSelect.value = true
+  
+  // SkuStockList组件会通过watch监听器自动监听warehouseId变化并刷新数据
+  // 不需要手动调用onRefresh，避免重复请求
+}
+
+// 处理SKU卡片点击
+const handleSkuCardClick = (sku) => {
+  const skuId = sku.id
+  const index = tempSelectedIds.value.indexOf(skuId)
+  
+  if (index > -1) {
+    // 已选择，则取消选择
+    tempSelectedIds.value.splice(index, 1)
+    selectedSkus.value = selectedSkus.value.filter(item => item.id !== skuId)
+  } else {
+    // 未选择，则添加选择
+    tempSelectedIds.value.push(skuId)
+    selectedSkus.value.push(sku)
+  }
+}
+
+// 确认SKU选择
+const confirmSkuSelection = async () => {
+  try {
+    // 使用selectedSkus中存储的完整SKU数据
+    const selectedData = [...selectedSkus.value]
+    
+
+    
+    if (selectedData.length === 0) {
       showToast('未选择任何商品')
       return
     }
@@ -543,17 +600,17 @@ const handleSkuSelectConfirm = async (result) => {
           // 新增SKU
           const newItem = {
             sku_id: sku.id,
-            product_id: sku.product_id,
-            sku_code: sku.sku_code || '',
-            product: sku.product || null,
+            product_id: sku.product_id || sku.sku?.product_id,
+            sku_code: sku.sku_code || sku.sku?.sku_code || '',
+            product: sku.product || sku.sku?.product || null,
             product_name: getSkuProductName(sku),
-            sku_name: sku.name || '',
-            spec_text: sku.spec_text || '',
-            spec: sku.spec || {},
+            sku_name: sku.name || sku.sku?.name || '',
+            spec_text: sku.spec_text || getSpecText(sku),
+            spec: sku.spec || sku.sku?.spec || {},
             unit: sku.unit || '个',
             price: sku.sale_price || 0, // 销售订单使用销售价
             quantity: 1,
-            available_stock: sku.available_stock || 0,
+            available_stock: sku.quantity || 0,
             priceError: '',
             quantityError: ''
           }
@@ -564,9 +621,35 @@ const handleSkuSelectConfirm = async (result) => {
       }
     }
 
+    // 更新已选择的SKU ID
+    selectedSkuIds.value = [...tempSelectedIds.value]
     showSkuSelect.value = false
     showSuccessToast(`已添加 ${selectedData.length} 个商品`)
-  })
+  } catch (error) {
+    console.error('确认SKU选择失败:', error)
+    showFailToast('添加商品失败')
+  }
+}
+
+// 获取规格文本
+const getSpecText = (sku) => {
+  const spec = sku.spec || sku.sku?.spec
+  if (!spec) return '无规格'
+  
+  if (typeof spec === 'string') {
+    try {
+      const parsedSpec = JSON.parse(spec)
+      return Object.values(parsedSpec).join(' / ')
+    } catch {
+      return spec
+    }
+  }
+  
+  if (typeof spec === 'object') {
+    return Object.values(spec).join(' / ')
+  }
+  
+  return '无规格'
 }
 
 // 关闭SKU选择器
@@ -696,7 +779,7 @@ const handleSubmit = async () => {
       })
     }
 
-    console.log('提交销售订单数据:', submitData)
+
 
     let result
     if (isEdit) {
@@ -746,7 +829,7 @@ watch(() => form.warehouse_id, (newWarehouseId) => {
   if (newWarehouseId && form.items.length > 0) {
     // 当仓库变化时，可以重新获取商品的库存信息
     // 这里可以添加重新获取库存的逻辑
-    console.log('仓库已变更，需要重新获取商品库存')
+
   }
 })
 
@@ -1041,6 +1124,34 @@ onMounted(async () => {
   .van-empty__description {
     color: #969799;
     font-size: 13px;
+  }
+}
+
+// SKU选择弹窗样式
+.sku-select-popup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  
+  .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #ebedf0;
+    background-color: #fff;
+    
+    .popup-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #323233;
+    }
+  }
+  
+  .popup-content {
+    flex: 1;
+    overflow: hidden;
+    background-color: #f7f8fa;
   }
 }
 </style>
