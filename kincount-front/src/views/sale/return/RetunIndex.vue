@@ -224,10 +224,13 @@ const formatTime = (time) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库/出库',
+    3: '已入库/出库',
+    4: '已退款/收款',
+    5: '已完成',
+    6: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -235,10 +238,13 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'success',
-    4: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'warning',
+    3: 'primary',
+    4: 'success',
+    5: 'success',
+    6: 'danger'
   }
   return typeMap[status] || 'default'
 }

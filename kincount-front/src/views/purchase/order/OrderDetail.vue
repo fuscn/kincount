@@ -1,5 +1,5 @@
 <template>
-  <div class="purchase-order-detail">
+  <div class="sale-order-detail-page">
     <van-nav-bar title="采购订单详情" left-arrow left-text="返回" @click-left="$router.back()" fixed placeholder>
       <template #right>
         <van-button v-if="hasActions" type="primary" size="small" @click="showActionSheet = true">
@@ -8,141 +8,106 @@
       </template>
     </van-nav-bar>
 
-    <div class="content">
-      <van-loading v-if="loading" class="loading">加载中...</van-loading>
+    <!-- 加载状态 -->
+    <van-loading v-if="loading" class="page-loading" />
 
-      <template v-else-if="orderData">
-        <!-- 订单基本信息 -->
-        <van-card class="info-card">
-          <template #header>
-            <div class="card-header">
-              <div class="order-no">{{ orderData.order_no }}</div>
-              <van-tag :type="getStatusType(orderData.status)">
-                {{ getStatusText(orderData.status) }}
-              </van-tag>
-            </div>
+    <div v-else class="detail-content">
+      <!-- 订单基本信息 -->
+      <van-cell-group title="订单信息">
+        <van-cell title="订单号" :value="orderData.order_no" />
+        <van-cell title="供应商名称" :value="orderData.supplier?.name || '--'" />
+        <van-cell title="仓库名称" :value="orderData.warehouse?.name || '--'" />
+        <van-cell title="预计到货" :value="formatDate(orderData.expected_date)" />
+        <van-cell title="订单状态">
+          <template #value>
+            <van-tag :type="getStatusType(orderData.status)">
+              {{ getStatusText(orderData.status) }}
+            </van-tag>
           </template>
-
-          <template #desc>
-            <div class="info-item">
-              <span class="label">供应商：</span>
-              <span class="value">{{ orderData.supplier?.name || '--' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">仓库：</span>
-              <span class="value">{{ orderData.warehouse?.name || '--' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">预计到货：</span>
-              <span class="value">{{ formatDate(orderData.expected_date) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">总金额：</span>
-              <span class="value amount">¥{{ formatPrice(orderData.total_amount) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">已付金额：</span>
-              <span class="value amount">¥{{ formatPrice(orderData.paid_amount) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">未付金额：</span>
-              <span class="value amount unpaid">
-                ¥{{ formatPrice(orderData.total_amount - orderData.paid_amount) }}
-              </span>
-            </div>
-            <div class="info-item">
-              <span class="label">创建人：</span>
-              <span class="value">{{ orderData.creator?.real_name || '--' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">创建时间：</span>
-              <span class="value">{{ formatDateTime(orderData.created_at) }}</span>
-            </div>
-            <div v-if="orderData.audit_by" class="info-item">
-              <span class="label">审核人：</span>
-              <span class="value">{{ orderData.auditor?.real_name || '--' }}</span>
-            </div>
-            <div v-if="orderData.audit_time" class="info-item">
-              <span class="label">审核时间：</span>
-              <span class="value">{{ formatDateTime(orderData.audit_time) }}</span>
-            </div>
-            <div v-if="orderData.remark" class="info-item">
-              <span class="label">备注：</span>
-              <span class="value">{{ orderData.remark }}</span>
-            </div>
-          </template>
-        </van-card>
+        </van-cell>
+        <van-cell title="总金额" :value="`¥${formatPrice(orderData.total_amount)}`" />
+        <van-cell title="已付金额" :value="`¥${formatPrice(orderData.paid_amount)}`" />
+        <van-cell title="未付金额" :value="`¥${formatPrice(orderData.total_amount - orderData.paid_amount)}`" />
+        <van-cell title="创建人" :value="orderData.creator?.real_name || orderData.creator?.username || '--'" />
+        <van-cell title="创建时间" :value="formatDateTime(orderData.created_at)" />
+        <van-cell v-if="orderData.auditor" title="审核人" :value="orderData.auditor?.real_name || orderData.auditor?.username || '--'" />
+        <van-cell v-if="orderData.audit_time" title="审核时间" :value="formatDateTime(orderData.audit_time)" />
+        <van-cell title="备注信息" :value="orderData.remark || '无'" />
+      </van-cell-group>
 
         <!-- 商品明细 -->
-        <div class="section">
-          <h3 class="section-title">商品明细</h3>
-          <van-empty v-if="!orderData.items || orderData.items.length === 0" description="暂无商品" />
-          <div v-else class="items-list">
-            <div v-for="(item, index) in orderData.items" :key="item.id || index" class="item-card">
-              <div class="item-info">
-                <div class="item-name">{{ getProductName(item) }}&nbsp;&nbsp;&nbsp;&nbsp;#{{ item.product?.product_no || '无编码' }}</div>
-                <div class="item-specs" v-if="getSkuSpecs(item).length > 0">
-                  <van-tag v-for="(spec, specIndex) in getSkuSpecs(item)" :key="specIndex" size="small" type="primary"
-                    plain>
-                    {{ spec }}
-                  </van-tag>
-                </div>
-                <!-- <div class="item-code">{{ item.product?.product_no || '无编码' }}</div> -->
-                <div v-if="item.sku?.sku_code" class="item-sku">
-                  SKU: {{ item.sku.sku_code }}
-                </div>
-              </div>
-              <div class="item-quantity">
-                <div class="quantity">{{ item.quantity }} {{ item.product?.unit || '个' }}</div>
-                <div class="price">¥{{ formatPrice(item.price) }}</div>
-                <div v-if="item.received_quantity !== undefined" class="received">
-                  已入库: {{ item.received_quantity }}/{{ item.quantity }}
-                </div>
-              </div>
-              <div class="item-total">
-                ¥{{ formatPrice(item.total_amount) }}
-              </div>
-            </div>
-
-            <!-- 合计 -->
-            <div class="total-row">
-              <div class="total-label">合计：</div>
-              <div class="total-amount">¥{{ formatPrice(orderData.total_amount) }}</div>
-            </div>
+        <van-cell-group title="商品明细" v-if="orderData.items && orderData.items.length > 0">
+          <div class="product-items">
+            <template v-for="(item, index) in orderData.items" :key="index">
+              <van-swipe-cell class="product-item">
+                <van-cell class="product-cell">
+                  <!-- 商品信息三行显示 -->
+                  <template #title>
+                    <div class="product-info">
+                      <!-- 第一行：商品名称和规格文本、数量 -->
+                      <div class="product-row-first">
+                        <div class="product-name-specs">
+                          <span class="product-name">{{ getProductName(item) }}</span>
+                          <span class="product-specs" v-if="getSkuSpecs(item).length > 0">{{ getSkuSpecs(item).join(' ') }}</span>
+                        </div>
+                        <div class="product-quantity">{{ item.quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                      </div>
+                      
+                      <!-- 第二行：sku编号、单位、单价 -->
+                      <div class="product-row-second">
+                        <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
+                        <div class="product-unit-price">
+                          <span class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }} </span>
+                          <span class="product-price">¥{{ formatPrice(item.price) }}</span>
+                        </div>
+                      </div>
+                      
+                      <!-- 第三行：其他信息、金额小计 -->
+                      <div class="product-row-third">
+                        <div class="product-cost">成本: ¥{{ formatPrice(item.sku?.cost_price) }}</div>
+                        <!-- 已入库数量 -->
+                        <div class="processed-quantity" v-if="item.received_quantity !== undefined">
+                          已入库: {{ item.received_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}
+                        </div>
+                        <div class="product-total">¥{{ formatPrice(item.total_amount) }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </van-cell>
+                <!-- 入库数量信息 -->
+                <template #right v-if="item.received_quantity !== undefined && item.received_quantity < item.quantity">
+                  <div class="stock-info">
+                    <span class="remaining-quantity">待入库: {{ item.quantity - item.received_quantity }}{{ item.product?.unit || item.unit || '个' }}</span>
+                  </div>
+                </template>
+              </van-swipe-cell>
+              <!-- 手动添加分割线 -->
+              <div v-show="index < orderData.items.length - 1" class="product-divider"></div>
+            </template>
           </div>
-        </div>
-
-        <!-- 关联入库单 -->
-        <div v-if="relatedStocks && relatedStocks.length > 0" class="section">
-          <h3 class="section-title">关联入库单</h3>
-          <div class="stock-list">
-            <div v-for="stock in relatedStocks" :key="stock.id" class="stock-card" @click="viewStockDetail(stock.id)">
-              <div class="stock-header">
-                <div class="stock-no">{{ stock.stock_no }}</div>
-                <van-tag :type="getStockStatusType(stock.status)">
-                  {{ getStockStatusText(stock.status) }}
-                </van-tag>
-              </div>
-              <div class="stock-info">
-                <div class="stock-item">
-                  <span>总金额：</span>
-                  <span class="amount">¥{{ formatPrice(stock.total_amount) }}</span>
-                </div>
-                <div class="stock-item">
-                  <span>审核人：</span>
-                  <span>{{ stock.audit_by ? (stock.auditor?.real_name || '--') : '未审核' }}</span>
-                </div>
-                <div class="stock-item">
-                  <span>创建时间：</span>
-                  <span>{{ formatDateTime(stock.created_at) }}</span>
-                </div>
-              </div>
-            </div>
+          <div class="total-amount">
+            <span>合计: {{ orderData.items.length }} 种商品</span>
+            <span class="total-price">总金额: ¥{{ formatPrice(orderData.total_amount) }}</span>
           </div>
-        </div>
-      </template>
+        </van-cell-group>
 
-      <van-empty v-else description="订单不存在" />
+      <!-- 关联入库单 -->
+      <van-cell-group title="关联入库单" v-if="relatedStocks && relatedStocks.length > 0">
+        <van-cell 
+          v-for="stock in relatedStocks" 
+          :key="stock.id" 
+          :title="stock.stock_no" 
+          is-link
+          :value="`¥${formatPrice(stock.total_amount)}`"
+          @click="viewStockDetail(stock.id)"
+        >
+          <template #right-icon>
+            <van-tag :type="getStockStatusType(stock.status)">
+              {{ getStockStatusText(stock.status) }}
+            </van-tag>
+          </template>
+        </van-cell>
+      </van-cell-group>
     </div>
 
     <!-- 操作面板 -->
@@ -661,41 +626,175 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.purchase-order-detail {
+.sale-order-detail-page {
   background-color: #f7f8fa;
   min-height: 100vh;
 }
 
-.content {
-  padding: 16px;
+.detail-content {
+  padding-bottom: 60px;
 }
 
-.loading {
+.page-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+}
+
+.product-items {
+  .product-item {
+    .product-cell {
+      padding: 12px 16px;
+      
+      :deep(.van-cell__title) {
+        width: 100%;
+      }
+    }
+    
+    .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      
+      .product-row-first {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        
+        .product-name-specs {
+          flex: 1;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 8px;
+          margin-right: 12px;
+          
+          .product-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #323233;
+            line-height: 1.4;
+          }
+          
+          .product-specs {
+            font-size: 12px;
+            color: #969799;
+            line-height: 1.4;
+          }
+        }
+        
+        .product-quantity {
+          flex-shrink: 0;
+          font-size: 15px;
+          font-weight: bold;
+          color: #323233;
+        }
+      }
+      
+      .product-row-second {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .product-sku {
+          flex: 1;
+          font-size: 12px;
+          color: #646566;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .product-unit-price {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          
+          .product-unit {
+            font-size: 12px;
+            color: #646566;
+            margin-right: 8px;
+          }
+          
+          .product-price {
+            color: #f53f3f;
+            font-weight: 500;
+            font-size: 13px;
+          }
+        }
+      }
+      
+      .product-row-third {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .product-cost {
+          flex: 1;
+          color: #07c160;
+          font-size: 12px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .processed-quantity {
+          flex: 1;
+          color: #07c160;
+          font-size: 12px;
+          text-align: center;
+        }
+        
+        .product-total {
+          flex: 1;
+          color: #ee0a24;
+          font-weight: bold;
+          font-size: 14px;
+          text-align: right;
+        }
+      }
+    }
+  }
+}
+
+.product-divider {
+  height: 1px;
+  background-color: #ebedf0;
+  margin: 8px 16px;
+}
+
+.stock-info {
   display: flex;
-  justify-content: center;
-  padding: 40px 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
-.info-card {
-  margin-bottom: 16px;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-
-  :deep(.van-card__header) {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f5f5f5;
-  }
-
-  :deep(.van-card__content) {
-    padding: 12px 16px;
-  }
+.processed-quantity {
+  color: #07c160;
 }
 
-.card-header {
+.remaining-quantity {
+  color: #ff976a;
+}
+
+.total-amount {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 16px;
+  background-color: #f7f8fa;
+  font-size: 14px;
+  
+  .total-price {
+    color: #f53f3f;
+    font-weight: bold;
+    font-size: 16px;
+  }
 }
 
 .order-no {
@@ -866,23 +965,6 @@ onMounted(() => {
 
 // 关联入库单样式
 .stock-list {
-  .stock-card {
-    background: #fafafa;
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-
-    &:hover {
-      background: #f0f0f0;
-    }
-  }
-
   .stock-header {
     display: flex;
     justify-content: space-between;
@@ -1010,6 +1092,120 @@ onMounted(() => {
     .max-quantity {
       font-size: 11px;
       color: #969799;
+    }
+  }
+
+  .total-section {
+    border-top: 1px solid #f5f5f5;
+    padding-top: 12px;
+    margin-top: 12px;
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 600;
+
+      .total-amount {
+        color: #ee0a24;
+      }
+    }
+  }
+
+  .no-items-hint {
+    text-align: center;
+    color: #969799;
+    font-size: 14px;
+    padding: 20px 0;
+  }
+}
+
+// 生成入库单对话框样式
+.generate-stock-content {
+  padding: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+
+  .dialog-section {
+    margin-bottom: 16px;
+
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #323233;
+    }
+
+    .info-row {
+      display: flex;
+      margin-bottom: 8px;
+      font-size: 14px;
+
+      span:first-child {
+        width: 80px;
+        color: #646566;
+      }
+
+      span:last-child {
+        flex: 1;
+        color: #323233;
+      }
+    }
+  }
+
+  .stock-items {
+    .stock-item-row {
+      display: flex;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #ebedf0;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .item-info {
+        flex: 1;
+        margin-right: 12px;
+
+        .item-name {
+          font-size: 14px;
+          font-weight: 500;
+          color: #323233;
+          margin-bottom: 4px;
+        }
+
+        .item-specs {
+          margin-bottom: 4px;
+
+          .van-tag {
+            margin-right: 4px;
+            margin-bottom: 4px;
+          }
+        }
+
+        .item-sku {
+          font-size: 11px;
+          color: #646566;
+          background: #f5f5f5;
+          padding: 1px 4px;
+          border-radius: 2px;
+          display: inline-block;
+        }
+      }
+
+      .quantity-control {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        min-width: 120px;
+
+        .max-quantity {
+          font-size: 11px;
+          color: #969799;
+        }
+      }
     }
   }
 

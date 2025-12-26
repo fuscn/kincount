@@ -8,10 +8,10 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeStatus" @change="handleStatusChange" swipeable>
         <van-tab title="全部" name="" />
-        <van-tab title="待审核" name="1" />
-        <van-tab title="已审核" name="2" />
-        <van-tab title="已完成" name="3" />
-        <van-tab title="已取消" name="4" />
+        <van-tab title="待审核" name="0" />
+        <van-tab title="已审核" name="1" />
+        <van-tab title="已完成" name="2" />
+        <van-tab title="已取消" name="3" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->
@@ -78,19 +78,11 @@
                 <div class="info-item">
                   <span class="label">创建时间：</span>
                   <span class="value time">{{ formatDate(item.created_at) }}</span>
-                  <van-button v-if="item.status === 1" size="mini" type="primary" @click.stop="handleAudit(item)"
-                    v-perm="PERM.SALE_AUDIT">
-                    审核
-                  </van-button>
-                  <van-button v-if="item.status === 2" size="mini" type="warning" @click.stop="handleCancelAudit(item)"
-                    v-perm="PERM.SALE_AUDIT_CANCEL">
-                    取消审核
-                  </van-button>
-                  <van-button v-if="item.status === 2" size="mini" type="success" @click.stop="handleComplete(item)"
+                  <van-button v-if="item.status === 1" size="mini" type="success" @click.stop="handleComplete(item)"
                     v-perm="PERM.SALE_COMPLETE">
                     出库
                   </van-button>
-                  <van-button v-if="item.status !== 4 && item.status !== 3" size="mini" type="danger"
+                  <van-button v-if="item.status !== 2" size="mini" type="danger"
                     @click.stop="handleCancel(item)" v-perm="PERM.SALE_CANCEL">
                     取消
                   </van-button>
@@ -182,24 +174,22 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString().slice(0, 5)
 }
 
-// 状态文本映射
+// 状态文本映射 - 更新为匹配数据库
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    0: '待审核',  // 数据库中0-待审核
+    1: '已审核',  // 数据库中1-已审核
+    2: '已取消'   // 数据库中2-已取消
   }
   return statusMap[status] || '未知'
 }
 
-// 状态标签类型
+// 状态标签类型 - 更新为匹配数据库
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'primary',  // 已审核 - 主要色
-    3: 'success',  // 已完成 - 成功色
-    4: 'danger'    // 已取消 - 危险色
+    0: 'warning',  // 待审核 - 警告色
+    1: 'primary',  // 已审核 - 主要色
+    2: 'danger'    // 已取消 - 危险色
   }
   return typeMap[status] || 'default'
 }
@@ -207,42 +197,6 @@ const getStatusTagType = (status) => {
 // 查看详情 - 跳转到详情页面
 const handleViewDetail = (item) => {
   router.push(`/sale/stock/detail/${item.id}`)
-}
-
-// 审核操作
-const handleAudit = (item) => {
-  showConfirmDialog({
-    title: '确认审核',
-    message: `确定要审核出库单 ${item.stock_no} 吗？审核后将允许出库操作。`
-  }).then(async () => {
-    try {
-      await saleStore.auditStock(item.id)
-      showToast('审核成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      showToast('审核失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
-}
-
-// 取消审核操作
-const handleCancelAudit = (item) => {
-  showConfirmDialog({
-    title: '确认取消审核',
-    message: `确定要取消审核出库单 ${item.stock_no} 吗？`
-  }).then(async () => {
-    try {
-      await saleStore.cancelAuditStock(item.id)
-      showToast('取消审核成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      showToast('取消审核失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
 }
 
 // 完成出库操作

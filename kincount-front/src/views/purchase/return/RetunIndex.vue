@@ -150,9 +150,9 @@ const getStatusText = (status) => {
   const statusMap = {
     0: '待审核',
     1: '已审核',
-    2: '部分入库',
-    3: '已入库',
-    4: '已退款',
+    2: '部分入库/出库',
+    3: '已入库/出库',
+    4: '已退款/收款',
     5: '已完成',
     6: '已取消'
   }
@@ -164,9 +164,9 @@ const getStatusType = (status) => {
   const typeMap = {
     0: 'warning',  // 待审核 - 警告色
     1: 'primary',  // 已审核 - 主要色
-    2: 'warning',  // 部分入库 - 警告色
-    3: 'success',  // 已入库 - 成功色
-    4: 'success',  // 已退款 - 成功色
+    2: 'warning',  // 部分入库/出库 - 警告色
+    3: 'primary',  // 已入库/出库 - 主要色
+    4: 'success',  // 已退款/收款 - 成功色
     5: 'success',  // 已完成 - 成功色
     6: 'danger'    // 已取消 - 危险色
   }

@@ -92,52 +92,58 @@
           <van-cell-group v-else class="sku-list">
             <van-swipe-cell v-for="(item, index) in form.items" :key="item.sku_id + '_' + index" class="sku-item">
               <van-cell class="sku-cell">
-                <template #title>
-                  <div class="product-title">
-                    <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code">{{ item.sku_code }}</span>
-                  </div>
-                </template>
-                <template #label>
-                  <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
-                    <div class="unit-text">单位: {{ item.unit || '个' }}</div>
-                    <div class="stock-info" v-if="item.available_stock !== undefined">
-                      可用库存: {{ item.available_stock }} {{ item.unit || '个' }}
+                <div class="product-grid">
+                  <!-- 第一行：商品名,规格文本     数量 -->
+                  <div class="grid-row first-row">
+                    <div class="left-column">
+                      <span class="product-name">{{ getProductDisplayName(item) }}</span>
+                      <span class="spec-text-inline" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</span>
                     </div>
-                  </div>
-                </template>
-                <template #default>
-                  <div class="item-details">
-                    <div class="price-quantity">
-                      <!-- 价格输入框 -->
-                      <div class="input-field price-field">
-                        <van-field 
-                          v-model.number="item.price" 
-                          type="number" 
-                          placeholder="0.00" 
-                          class="editable-field compact-field"
-                          @blur="validatePrice(item)" 
-                          :error-message="item.priceError"
-                        >
-                          <template #extra>元</template>
-                        </van-field>
-                      </div>
+                    <div class="right-column">
                       <!-- 数量输入框 -->
-                      <div class="input-field quantity-field">
-                        <van-field 
-                          v-model.number="item.quantity" 
-                          type="number" 
-                          placeholder="0" 
-                          class="editable-field compact-field"
-                          @blur="validateQuantity(item)" 
-                          :error-message="item.quantityError"
-                        >
-                          <template #extra>{{ item.unit || '个' }}</template>
-                        </van-field>
-                      </div>
+                      <van-field 
+                        v-model.number="item.quantity" 
+                        type="number" 
+                        placeholder="0" 
+                        class="editable-field compact-field quantity-field"
+                        @blur="validateQuantity(item)" 
+                        :error-message="item.quantityError"
+                      >
+                        <template #extra>{{ item.unit || '个' }}</template>
+                      </van-field>
                     </div>
-                    <div class="item-total">
+                  </div>
+                  
+                  <!-- 第二行：sku编码  单位        单价 -->
+                  <div class="grid-row second-row">
+                    <div class="left-column">
+                      <span class="sku-code">{{ item.sku_code }}</span>
+                      <span class="unit-text">单位: {{ item.unit || '个' }}</span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 价格输入框 -->
+                      <van-field 
+                        v-model.number="item.price" 
+                        type="number" 
+                        placeholder="0.00" 
+                        class="editable-field compact-field price-field"
+                        @blur="validatePrice(item)" 
+                        :error-message="item.priceError"
+                      >
+                        <template #extra>元</template>
+                      </van-field>
+                    </div>
+                  </div>
+                  
+                  <!-- 第三行：可用库存               金额小计 -->
+                  <div class="grid-row third-row">
+                    <div class="left-column">
+                      <span class="stock-info" v-if="item.available_stock !== undefined">
+                        可用库存: {{ item.available_stock }} {{ item.unit || '个' }}
+                      </span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 总价显示 -->
                       <div class="total-amount">¥{{ ((item.price || 0) * (item.quantity || 0)).toFixed(2) }}</div>
                       <div class="stock-warning" v-if="showStockWarning(item)">
                         <van-icon name="warning" color="#f53f3f" size="12" />
@@ -145,7 +151,7 @@
                       </div>
                     </div>
                   </div>
-                </template>
+                </div>
               </van-cell>
               <template #right>
                 <van-button square type="danger" text="删除" class="delete-btn" @click="deleteSku(index)" />
@@ -544,7 +550,10 @@ const openSkuSelector = () => {
   }
   
   // 初始化临时选择的ID为当前已选择的SKU
-  tempSelectedIds.value = [...selectedSkuIds.value]
+  // 将selectedSkuIds转换为组合键格式
+  tempSelectedIds.value = form.items
+    .filter(item => item.sku_id && item.warehouse_id)
+    .map(item => `${item.warehouse_id}-${item.sku_id}`)
 
   
   // 清空selectedSkus，重新开始选择
@@ -559,18 +568,32 @@ const openSkuSelector = () => {
 
 // 处理SKU卡片点击
 const handleSkuCardClick = (sku) => {
-  const skuId = sku.id
-  const index = tempSelectedIds.value.indexOf(skuId)
+  console.log('点击SKU卡片:', sku)
+  console.log('sku.warehouse_id:', sku.warehouse_id)
+  console.log('sku.sku_id:', sku.sku_id)
+  console.log('sku.sku.sale_price:', sku.sku?.sale_price)
+  
+  // 使用组合键作为唯一标识：仓库ID + SKU_ID
+  const uniqueKey = `${sku.warehouse_id}-${sku.sku_id}`
+  console.log('当前选中的ID列表:', tempSelectedIds.value)
+  console.log('当前点击的唯一键:', uniqueKey)
+  
+  const index = tempSelectedIds.value.indexOf(uniqueKey)
   
   if (index > -1) {
     // 已选择，则取消选择
+    console.log('取消选择SKU:', uniqueKey)
     tempSelectedIds.value.splice(index, 1)
-    selectedSkus.value = selectedSkus.value.filter(item => item.id !== skuId)
+    selectedSkus.value = selectedSkus.value.filter(item => `${item.warehouse_id}-${item.sku_id}` !== uniqueKey)
   } else {
     // 未选择，则添加选择
-    tempSelectedIds.value.push(skuId)
+    console.log('添加选择SKU:', uniqueKey)
+    tempSelectedIds.value.push(uniqueKey)
     selectedSkus.value.push(sku)
   }
+  
+  console.log('更新后的选中ID列表:', tempSelectedIds.value)
+  console.log('更新后的选中SKU列表:', selectedSkus.value)
 }
 
 // 确认SKU选择
@@ -592,14 +615,18 @@ const confirmSkuSelection = async () => {
 
       try {
         // 检查是否已存在相同SKU
-        const existingIndex = form.items.findIndex(item => item.sku_id === sku.id)
+        const existingIndex = form.items.findIndex(item => item.sku_id === sku.sku_id)
         if (existingIndex > -1) {
           // 已存在，更新数量（+1）
           form.items[existingIndex].quantity = (Number(form.items[existingIndex].quantity) || 0) + 1
         } else {
           // 新增SKU
+          console.log('添加的SKU数据:', sku)
+          console.log('SKU.sale_price:', sku.sku?.sale_price)
+          console.log('SKU.sale_price类型:', typeof sku.sku?.sale_price)
+          
           const newItem = {
-            sku_id: sku.id,
+            sku_id: sku.sku_id,
             product_id: sku.product_id || sku.sku?.product_id,
             sku_code: sku.sku_code || sku.sku?.sku_code || '',
             product: sku.product || sku.sku?.product || null,
@@ -608,12 +635,15 @@ const confirmSkuSelection = async () => {
             spec_text: sku.spec_text || getSpecText(sku),
             spec: sku.spec || sku.sku?.spec || {},
             unit: sku.unit || '个',
-            price: sku.sale_price || 0, // 销售订单使用销售价
+            price: Number(sku.sku?.sale_price) || 0, // 销售订单使用销售价，确保转换为数字
             quantity: 1,
             available_stock: sku.quantity || 0,
             priceError: '',
             quantityError: ''
           }
+          
+          console.log('新创建的订单项:', newItem)
+          console.log('新项的价格:', newItem.price)
           form.items.push(newItem)
         }
       } catch (error) {
@@ -621,8 +651,11 @@ const confirmSkuSelection = async () => {
       }
     }
 
-    // 更新已选择的SKU ID
-    selectedSkuIds.value = [...tempSelectedIds.value]
+    // 更新已选择的SKU ID（从组合键中提取sku_id）
+    selectedSkuIds.value = tempSelectedIds.value.map(key => {
+      const parts = key.split('-')
+      return parts.length > 1 ? parseInt(parts[1]) : null
+    }).filter(Boolean)
     showSkuSelect.value = false
     showSuccessToast(`已添加 ${selectedData.length} 个商品`)
   } catch (error) {
@@ -887,7 +920,10 @@ onMounted(async () => {
 // 商品列表样式优化
 .sku-list {
   .sku-item {
-    margin-bottom: 1px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     
     &:last-child {
       margin-bottom: 0;
@@ -896,155 +932,173 @@ onMounted(async () => {
   
   .sku-cell {
     padding: 10px 16px;
-    align-items: flex-start;
+    background-color: #fff;
     
     &:after {
-      border-bottom: 1px solid #f5f5f5;
+      display: none;
     }
   }
 }
 
-.product-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  flex-wrap: wrap;
-}
-
-.product-name {
-  font-weight: bold;
-  color: #323233;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.sku-code {
-  color: #646566;
-  font-size: 12px;
-  font-weight: normal;
-  background: #f5f5f5;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.product-label {
-  font-size: 12px;
-  color: #969799;
-  
-  .spec-text {
-    margin-bottom: 2px;
-    color: #646566;
-    line-height: 1.3;
-  }
-  
-  .unit-text {
-    color: #969799;
-    line-height: 1.3;
-  }
-  
-  .stock-info {
-    color: #1890ff;
-    line-height: 1.3;
-    margin-top: 2px;
-  }
-}
-
-.item-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  gap: 8px;
-}
-
-.price-quantity {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  
-  .input-field {
-    display: flex;
-    flex-direction: column;
-    
-    .editable-field {
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      background: #fff;
-      transition: all 0.2s;
-      height: 32px;
-      
-      &:deep(.van-field__body) {
-        min-height: auto;
-      }
-      
-      &:deep(.van-field__control) {
-        font-size: 13px;
-        font-weight: 500;
-        color: #323233;
-        text-align: center;
-        padding: 0 4px;
-      }
-      
-      &:deep(.van-field__extra) {
-        color: #969799;
-        font-size: 11px;
-        padding-left: 2px;
-      }
-      
-      &:focus-within {
-        border-color: #1989fa;
-        box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
-      }
-      
-      // 紧凑字段样式
-      &.compact-field {
-        width: 80px;
-        
-        &:deep(.van-field__control) {
-          font-size: 12px;
-        }
-      }
-    }
-    
-    &.price-field {
-      .editable-field {
-        width: 85px;
-      }
-    }
-    
-    &.quantity-field {
-      .editable-field {
-        width: 85px;
-      }
-    }
-  }
-}
-
-.item-total {
+.product-grid {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  min-width: 70px;
+  gap: 4px;
+  width: 100%;
+}
+
+.grid-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   
-  .total-amount {
-    color: #f53f3f;
-    font-weight: bold;
-    font-size: 13px;
-    line-height: 1.3;
-  }
-  
-  .stock-warning {
+  .left-column {
+    flex: 1;
     display: flex;
     align-items: center;
-    gap: 2px;
-    color: #f53f3f;
-    font-size: 10px;
-    margin-top: 2px;
-    
-    .van-icon {
-      margin-right: 1px;
+    gap: 8px;
+    min-width: 0;
+  }
+  
+  .right-column {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 100px;
+  }
+}
+
+.first-row {
+  .left-column {
+    .product-name {
+      font-weight: bold;
+      color: #323233;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
     }
+    
+    .spec-text-inline {
+      font-size: 12px;
+      color: #969799;
+      white-space: nowrap;
+    }
+  }
+}
+
+.second-row {
+  .left-column {
+    .sku-code {
+      color: #646566;
+      font-size: 12px;
+      font-weight: normal;
+      background: #f5f5f5;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    
+    .unit-text {
+      font-size: 12px;
+      color: #969799;
+    }
+  }
+}
+
+.third-row {
+  .left-column {
+    .stock-info {
+      font-size: 12px;
+      color: #1890ff;
+      white-space: nowrap;
+    }
+  }
+  
+  .right-column {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+}
+
+// 紧凑字段样式
+.compact-field {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fff;
+  transition: all 0.2s;
+  height: 22px;
+  width: 85px;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0 !important;
+  box-sizing: border-box;
+  
+  &:deep(.van-field__body) {
+    min-height: auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  
+  &:deep(.van-field__control) {
+    font-size: 12px !important;
+    font-weight: 500;
+    color: #323233;
+    text-align: center;
+    padding: 0 !important;
+    height: 100% !important;
+    line-height: 22px !important;
+    margin: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    display: block;
+    max-height: 22px;
+  }
+  
+  &:deep(.van-field__extra) {
+    color: #969799;
+    font-size: 10px;
+    padding-left: 2px;
+    flex-shrink: 0;
+    line-height: 22px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    margin: 0;
+  }
+  
+  &:focus-within {
+    border-color: #1989fa;
+    box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
+  }
+}
+
+.total-amount {
+  color: #f53f3f;
+  font-weight: bold;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.stock-warning {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #f53f3f;
+  font-size: 11px;
+  
+  span {
+    line-height: 1;
   }
 }
 

@@ -196,6 +196,7 @@
         <van-nav-bar title="选择退货商品" left-text="取消" right-text="确认" @click-left="closeSkuPicker"
           @click-right="handleSkuSelectConfirm" />
         <div class="sku-picker-content">
+          <div>当前选中的商品ID: {{ selectedSourceItemIds }}</div>
           <van-checkbox-group v-model="selectedSourceItemIds">
             <van-cell-group>
               <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable>
@@ -217,6 +218,7 @@
                       最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
                         || 0 }}</span>{{ item.unit }}
                     </div>
+                    <div>商品ID: {{ item.id }}</div>
                   </div>
                 </template>
                 <template #right-icon>
@@ -327,11 +329,25 @@ const returnReasonOptions = ref([
 // 计算属性
 const availableSourceItems = computed(() => {
   if (!sourceForm.items || sourceForm.items.length === 0) return []
+  
+  console.log('计算可用商品，源单商品列表:', sourceForm.items.map(item => ({ id: item.id, product_name: item.product_name })))
 
   return sourceForm.items.filter(item => {
+    // 检查商品是否有ID
+    if (!item.id) {
+      console.warn('商品缺少ID:', item)
+      return false
+    }
+    
     // 只显示还有可退数量的商品
     const maxReturnQuantity = calculateMaxReturnQuantity(item)
-    return maxReturnQuantity > 0
+    const isAvailable = maxReturnQuantity > 0
+    
+    if (!isAvailable) {
+      console.log(`商品 ${item.product_name} 不可退货，最大可退数量: ${maxReturnQuantity}`)
+    }
+    
+    return isAvailable
   })
 })
 
@@ -681,6 +697,8 @@ const loadSourceDetail = async (sourceId, type) => {
     if (type === 'order') {
       // 加载销售订单详情
       detail = await saleStore.loadOrderDetail(sourceId)
+      console.log('加载的销售订单详情:', detail)
+      
       if (detail) {
         sourceForm.source_id = detail.id
         sourceForm.source_name = `销售订单 - ${detail.order_no}`
@@ -696,12 +714,13 @@ const loadSourceDetail = async (sourceId, type) => {
 
         // 处理订单商品明细
         if (detail.items && Array.isArray(detail.items)) {
+          console.log('原始订单商品明细:', detail.items)
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
 
             return {
-              id: item.id,
+              id: item.id, // 确保使用后端返回的ID
               sku_id: item.sku_id,
               product_id: item.product_id,
               product: product,
@@ -718,11 +737,21 @@ const loadSourceDetail = async (sourceId, type) => {
               })
             }
           })
+          console.log('处理后的源单商品列表:', sourceForm.items)
+          
+          // 检查每个商品是否有有效的ID
+          sourceForm.items.forEach((item, index) => {
+            if (!item.id) {
+              console.warn(`商品 ${index} 缺少ID:`, item)
+            }
+          })
         }
       }
     } else {
       // 加载销售出库单详情
       detail = await saleStore.loadStockDetail(sourceId)
+      console.log('加载的销售出库单详情:', detail)
+      
       if (detail) {
         sourceForm.source_id = detail.id
         sourceForm.source_name = `销售出库单 - ${detail.stock_no}`
@@ -738,12 +767,13 @@ const loadSourceDetail = async (sourceId, type) => {
 
         // 处理出库商品明细
         if (detail.items && Array.isArray(detail.items)) {
+          console.log('原始出库单商品明细:', detail.items)
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
 
             return {
-              id: item.id,
+              id: item.id, // 确保使用后端返回的ID
               sku_id: item.sku_id,
               product_id: item.product_id,
               product: product,
@@ -758,6 +788,14 @@ const loadSourceDetail = async (sourceId, type) => {
                 source_quantity: Number(item.quantity) || 0,
                 returned_quantity: Number(item.returned_quantity) || 0
               })
+            }
+          })
+          console.log('处理后的源单商品列表:', sourceForm.items)
+          
+          // 检查每个商品是否有有效的ID
+          sourceForm.items.forEach((item, index) => {
+            if (!item.id) {
+              console.warn(`商品 ${index} 缺少ID:`, item)
             }
           })
         }
@@ -930,6 +968,9 @@ const onReasonSelect = (action) => {
 
 // 商品选择确认
 const handleSkuSelectConfirm = () => {
+  console.log('选中的源单明细ID:', selectedSourceItemIds.value)
+  console.log('源单商品列表:', sourceForm.items.map(item => ({ id: item.id, product_name: item.product_name })))
+  
   if (selectedSourceItemIds.value.length === 0) {
     showToast('请至少选择一个商品')
     return
@@ -939,6 +980,17 @@ const handleSkuSelectConfirm = () => {
   const selectedItems = sourceForm.items.filter(item =>
     selectedSourceItemIds.value.includes(item.id)
   )
+  
+  console.log('过滤后的选中商品:', selectedItems.map(item => ({ id: item.id, product_name: item.product_name })))
+  
+  // 检查是否有匹配的商品
+  if (selectedItems.length === 0 && selectedSourceItemIds.value.length > 0) {
+    console.error('选中了商品但过滤后为空，可能是ID不匹配')
+    console.error('源单商品ID列表:', sourceForm.items.map(item => item.id))
+    console.error('选中的ID列表:', selectedSourceItemIds.value)
+    showToast('商品选择失败，请重试')
+    return
+  }
 
   // 添加到退货商品列表
   selectedItems.forEach(sourceItem => {

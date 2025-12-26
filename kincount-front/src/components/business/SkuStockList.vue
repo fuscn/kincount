@@ -45,15 +45,15 @@
       finished-text="没有更多"
       @load="onLoad"
     >
-      <div class="sku-card-list">
+      <div class="sku-card-list" :key="listKey">
         <div 
           v-for="item in list" 
-          :key="'sku-' + item.id + '-' + (item.sku_id || '')" 
+          :key="`${item.id}-${item.sku_id || ''}-${filters.category_id || 'all'}-${filters.brand_id || 'all'}-${listKey}-${renderKey}`" 
           class="sku-card"
           @click="handleCardClick(item)"
         >
           <!-- 选中状态勾号 -->
-          <div v-if="selectable && selectedIds.includes(item.id)" class="selected-check">
+          <div v-show="selectable && selectedIds.includes(`${item.warehouse_id}-${item.sku_id}`)" class="selected-check">
             <van-icon name="success" size="16" color="#fff" />
           </div>
           
@@ -139,6 +139,8 @@ const list = ref([])
 const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
+const listKey = ref(0) // 用于强制刷新列表
+const renderKey = ref(Date.now()) // 用于确保渲染唯一性
 
 // 图片错误处理记录
 const imageErrorMap = ref(new Map())
@@ -275,7 +277,13 @@ const onFilterChange = () => {
   list.value = []
   finished.value = false
   imageErrorMap.value.clear()
-  onLoad()
+  // 强制刷新列表
+  listKey.value += 1
+  renderKey.value = Date.now()
+  // 强制触发视图更新
+  nextTick(() => {
+    onLoad()
+  })
 }
 
 // 重置筛选条件
