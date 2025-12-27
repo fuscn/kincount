@@ -79,12 +79,12 @@
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code" v-if="item.sku_code">{{ item.sku_code }}</span>
+                    <span class="product-specs" v-if="getItemSpecText(item)">{{ getItemSpecText(item) }}</span>
                   </div>
                 </template>
                 <template #label>
                   <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
+                    <div class="sku-code" v-if="item.sku_code">SKU: {{ item.sku_code }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
@@ -190,16 +190,17 @@
         <div class="sku-picker-content">
           <van-checkbox-group v-model="selectedSourceItemIds">
             <van-cell-group>
-              <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable>
+              <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable 
+                @click="toggleItemSelection(item.id, item.max_return_quantity <= 0)">
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code" v-if="item.sku_code">{{ item.sku_code }}</span>
+                    <span class="product-specs" v-if="getItemSpecText(item)">{{ getItemSpecText(item) }}</span>
                   </div>
                 </template>
                 <template #label>
                   <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
+                    <div class="sku-code" v-if="item.sku_code">SKU: {{ item.sku_code }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
@@ -336,6 +337,20 @@ const totalReturnAmount = computed(() => {
     return sum + (price * quantity)
   }, 0)
 })
+
+// 方法 - 切换商品选中状态
+const toggleItemSelection = (itemId, isDisabled) => {
+  if (isDisabled) return
+  
+  const index = selectedSourceItemIds.value.indexOf(itemId)
+  if (index > -1) {
+    // 如果已选中，则取消选中
+    selectedSourceItemIds.value.splice(index, 1)
+  } else {
+    // 如果未选中，则添加到选中列表
+    selectedSourceItemIds.value.push(itemId)
+  }
+}
 
 // 方法 - 获取商品显示名称
 const getProductDisplayName = (item) => {
@@ -1370,7 +1385,7 @@ onMounted(async () => {
 .product-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -1386,17 +1401,22 @@ onMounted(async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
+  flex-shrink: 1; /* 允许收缩，但不占据所有剩余空间 */
   min-width: 0; /* 确保可以收缩 */
+  max-width: calc(100% - 80px); /* 限制最大宽度，为规格文本留出空间 */
+}
+
+.product-specs {
+  color: #969799;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止规格文本被压缩 */
 }
 
 .sku-code {
   color: #646566;
   font-size: 12px;
   font-weight: normal;
-  background: #f5f5f5;
-  padding: 1px 4px;
-  border-radius: 3px;
   white-space: nowrap;
   flex-shrink: 0; /* 防止SKU编码被压缩 */
 }

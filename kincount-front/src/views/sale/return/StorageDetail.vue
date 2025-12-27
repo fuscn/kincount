@@ -2,31 +2,17 @@
   <div class="return-stock-detail-container">
     <!-- 导航栏 -->
     <van-nav-bar 
-      :title="returnStockDetail.stock_no || '退货入库单详情'" 
+      title="销售退货入库单" 
       left-text="返回" 
       left-arrow 
       @click-left="$router.back()" 
+      fixed
+      placeholder
     >
       <template #right>
-        <van-button 
-          v-if="returnStockDetail.status === 1" 
-          size="small" 
-          type="primary" 
-          @click="handleAudit"
-          v-perm="PERM.RETURN_STOCK_AUDIT"
-        >
-          审核
+        <van-button v-if="hasActions" type="primary" size="small" @click="showActionSheet = true">
+          操作
         </van-button>
-        <van-button 
-          v-if="returnStockDetail.status !== 3 && returnStockDetail.status !== 4" 
-          size="small" 
-          type="danger" 
-          @click="handleCancel"
-          v-perm="PERM.RETURN_STOCK_CANCEL"
-        >
-          取消
-        </van-button>
-
       </template>
     </van-nav-bar>
 
@@ -37,119 +23,108 @@
 
     <!-- 详情内容 -->
     <div v-else class="detail-content">
-      <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-        <!-- 基本信息卡片 -->
-        <div class="info-card">
-          <div class="card-header">
-            <div class="header-title">基本信息</div>
-            <van-tag :type="getStatusTagType(returnStockDetail.status)" size="medium">
+      <!-- 基本信息卡片 -->
+      <van-cell-group title="入库信息">
+        <van-cell title="出入库单号" :value="returnStockDetail.stock_no || '--'" class="no-wrap-value" />
+        <van-cell title="客户" :value="returnStockDetail.target_info?.name || '--'" />
+        <van-cell title="仓库" :value="returnStockDetail.warehouse?.name || '--'" />
+        <van-cell title="状态">
+          <template #value>
+            <van-tag :type="getStatusTagType(returnStockDetail.status)">
               {{ getStatusText(returnStockDetail.status) }}
             </van-tag>
-          </div>
-          
-          <div class="info-list">
-            <van-cell title="出入库单号" :value="returnStockDetail.stock_no || '--'" />
-            <van-cell 
-              title="关联退货单" 
-              :value="returnStockDetail.return?.return_no || '--'" 
-              @click="handleViewReturnDetail"
-              is-link
-              v-perm="PERM.RETURN_VIEW"
-            />
-            <van-cell 
-              title="客户" 
-              :value="returnStockDetail.target_info?.name || '--'" 
-            />
-            <van-cell title="仓库" :value="returnStockDetail.warehouse?.name || '--'" />
-            <van-cell title="总金额" :value="`¥${formatPrice(returnStockDetail.total_amount)}`" />
-            <van-cell title="创建人" :value="returnStockDetail.creator?.real_name || '--'" />
-            <van-cell title="创建时间" :value="formatDateTime(returnStockDetail.created_at)" />
-            
-            <template v-if="returnStockDetail.status === 2">
-              <van-cell title="审核人" :value="returnStockDetail.auditor?.real_name || '--'" />
-              <van-cell title="审核时间" :value="formatDateTime(returnStockDetail.audit_time)" />
+          </template>
+        </van-cell>
+        <van-cell title="总金额" :value="`¥${formatPrice(returnStockDetail.total_amount)}`" />
+        <van-cell title="创建人" :value="returnStockDetail.creator?.real_name || '--'" />
+        <van-cell title="创建时间" :value="formatDateTime(returnStockDetail.created_at)" />
+        
+        <template v-if="returnStockDetail.status === 1">
+          <van-cell title="审核人" :value="returnStockDetail.auditor?.real_name || '--'" />
+          <van-cell title="审核时间" :value="formatDateTime(returnStockDetail.audit_time)" />
+        </template>
+        
+        <van-cell 
+          v-if="returnStockDetail.remark" 
+          title="备注" 
+          :value="returnStockDetail.remark" 
+        />
+      </van-cell-group>
+
+        <!-- 商品明细 -->
+        <van-cell-group title="商品明细" v-if="returnStockItems.length > 0">
+          <div class="product-items">
+            <template v-for="(item, index) in returnStockItems" :key="index">
+              <van-swipe-cell class="product-item">
+                <van-cell class="product-cell">
+                  <!-- 商品信息三行显示 -->
+                  <template #title>
+                    <div class="product-info">
+                      <!-- 第一行：商品名称和规格文本、数量 -->
+                      <div class="product-row-first">
+                        <div class="product-name-specs">
+                          <span class="product-name">{{ item.product?.name || `商品${item.product_id}` }}</span>
+                          <span class="product-specs" v-if="item.sku?.spec_text">{{ item.sku.spec_text }}</span>
+                        </div>
+                        <div class="product-quantity">{{ item.quantity || 0 }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                      </div>
+                      
+                      <!-- 第二行：sku编号、单位、单价 -->
+                      <div class="product-row-second">
+                        <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
+                        <div class="product-unit-price">
+                          <span class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }} </span>
+                          <span class="product-price">¥{{ formatPrice(item.price) }}</span>
+                        </div>
+                      </div>
+                      
+                      <!-- 第三行：其他信息、金额小计 -->
+                      <div class="product-row-third">
+                        <!-- 退货单关联信息 -->
+                        <div class="return-order-info" v-if="item.ReturnOrderItem">
+                          关联退货数量: {{ item.ReturnOrderItem.return_quantity || 0 }}
+                        </div>
+                        <div class="product-total">¥{{ formatPrice(item.total_amount) }}</div>
+                      </div>
+                    </div>
+                  </template>
+                </van-cell>
+              </van-swipe-cell>
+              <!-- 手动添加分割线 -->
+              <div v-show="index < returnStockItems.length - 1" class="product-divider"></div>
             </template>
-            
-            <van-cell 
-              v-if="returnStockDetail.remark" 
-              title="备注" 
-              :value="returnStockDetail.remark" 
-              class="remark-cell"
-            />
           </div>
-        </div>
+          <div class="total-amount">
+            <span>合计: {{ returnStockItems.length }} 种商品</span>
+            <span class="total-price">总金额: ¥{{ formatPrice(returnStockDetail.total_amount) }}</span>
+          </div>
+        </van-cell-group>
 
-        <!-- 商品明细卡片 -->
-        <div class="items-card" v-if="returnStockItems.length > 0">
-          <div class="card-header">
-            <div class="header-title">商品明细</div>
-            <div class="header-count">共 {{ returnStockItems.length }} 项</div>
-          </div>
-          
-          <div class="items-list">
-            <div v-for="(item, index) in returnStockItems" :key="item.id" class="item-row">
-              <div class="item-header">
-                <div class="item-index">#{{ index + 1 }}</div>
-                <div class="item-name">{{ item.product?.name || `商品${item.product_id}` }}</div>
-              </div>
-              
-              <div class="item-details">
-                <!-- SKU信息 -->
-                <div v-if="item.sku" class="item-sku">
-                  <span class="label">SKU：</span>
-                  <span class="value">{{ item.sku.sku_code || '--' }}</span>
-                </div>
-                
-                <!-- 规格信息 -->
-                <div v-if="item.sku?.spec_text" class="item-spec">
-                  <span class="label">规格：</span>
-                  <span class="spec-text">{{ item.sku.spec_text }}</span>
-                </div>
-                
-                <!-- 数量、单价、金额 -->
-                <div class="item-quantity-price">
-                  <div class="quantity">
-                    <span class="label">数量：</span>
-                    <span class="value">{{ item.quantity || 0 }}</span>
-                  </div>
-                  <div class="price">
-                    <span class="label">单价：</span>
-                    <span class="value">¥{{ formatPrice(item.price) }}</span>
-                  </div>
-                  <div class="total">
-                    <span class="label">金额：</span>
-                    <span class="value amount">¥{{ formatPrice(item.total_amount) }}</span>
-                  </div>
-                </div>
-
-                <!-- 退货单关联信息 -->
-                <div v-if="item.ReturnOrderItem" class="return-order-info">
-                  <span class="label">关联退货数量：</span>
-                  <span class="value">{{ item.ReturnOrderItem.return_quantity || 0 }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 汇总信息 -->
-          <div class="items-summary">
-            <div class="summary-row">
-              <span class="label">合计数量：</span>
-              <span class="value">{{ totalQuantity }}</span>
-            </div>
-            <div class="summary-row total">
-              <span class="label">合计金额：</span>
-              <span class="value amount">¥{{ formatPrice(returnStockDetail.total_amount) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 空状态 -->
+        <!-- 商品明细空状态 -->
         <div v-else class="empty-items">
           <van-empty image="search" description="暂无商品明细" />
         </div>
-      </van-pull-refresh>
+
+        <!-- 关联退货单 -->
+        <van-cell-group title="关联退货单" v-if="returnStockDetail.return">
+          <van-cell 
+            :title="returnStockDetail.return.return_no" 
+            is-link
+            :value="`¥${formatPrice(returnStockDetail.return.total_amount)}`"
+            @click="handleViewReturnDetail"
+          >
+            <template #right-icon>
+              <van-tag :type="getStatusTagType(returnStockDetail.return.status)">
+                {{ getStatusText(returnStockDetail.return.status) }}
+              </van-tag>
+            </template>
+          </van-cell>
+        </van-cell-group>
     </div>
+
+    <!-- 操作面板 -->
+    <van-action-sheet v-model:show="showActionSheet" :actions="actions" cancel-text="取消" close-on-click-action
+      @select="onActionSelect" />
   </div>
 </template>
 
@@ -171,6 +146,9 @@ const id = route.params.id
 const loading = ref(true)
 const refreshing = ref(false)
 
+// 操作面板
+const showActionSheet = ref(false)
+
 // 详情数据
 const returnStockDetail = computed(() => stockStore.currentReturnStock || {})
 const returnStockItems = computed(() => returnStockDetail.value.items || [])
@@ -178,6 +156,42 @@ const returnStockItems = computed(() => returnStockDetail.value.items || [])
 // 计算合计数量
 const totalQuantity = computed(() => {
   return returnStockItems.value.reduce((sum, item) => sum + (item.quantity || 0), 0)
+})
+
+// 操作权限判断
+const canAudit = computed(() => {
+  return returnStockDetail.value.status === 0 // 待审核
+})
+
+const canCancel = computed(() => {
+  return returnStockDetail.value.status === 0 // 待审核
+})
+
+const hasActions = computed(() => {
+  return canAudit.value || canCancel.value
+})
+
+// 操作面板选项
+const actions = computed(() => {
+  const actionList = []
+
+  if (canAudit.value) {
+    actionList.push({
+      name: '审核',
+      action: 'audit',
+      color: '#07c160'
+    })
+  }
+
+  if (canCancel.value) {
+    actionList.push({
+      name: '取消',
+      action: 'cancel',
+      color: '#ee0a24'
+    })
+  }
+
+  return actionList
 })
 
 // 格式化金额
@@ -196,22 +210,50 @@ const formatDateTime = (dateString) => {
 
 // 状态文本映射
 const getStatusText = (status) => {
-  const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+  // 退货入库单状态
+  const stockStatusMap = {
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
-  return statusMap[status] || '未知'
+  
+  // 退货单状态
+  const returnStatusMap = {
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库/出库',
+    3: '已入库/出库',
+    4: '已退款/收款',
+    5: '已完成',
+    6: '已取消'
+  }
+  
+  // 默认使用退货入库单状态映射
+  return stockStatusMap[status] || returnStatusMap[status] || '未知'
 }
 
 // 状态标签类型
 const getStatusTagType = (status) => {
-  const typeMap = {
-    1: 'warning',  // 待审核 - 警告色
-    2: 'success',  // 已审核 - 成功色
-    3: 'danger'    // 已取消 - 危险色
+  // 退货入库单状态标签类型
+  const stockTypeMap = {
+    0: 'warning',  // 待审核 - 警告色
+    1: 'success',  // 已审核 - 成功色
+    2: 'danger'    // 已取消 - 危险色
   }
-  return typeMap[status] || 'default'
+  
+  // 退货单状态标签类型
+  const returnTypeMap = {
+    0: 'warning',  // 待审核 - 警告色
+    1: 'primary',  // 已审核 - 主要色
+    2: 'warning',  // 部分入库/出库 - 警告色
+    3: 'primary',  // 已入库/出库 - 主要色
+    4: 'success',  // 已退款/收款 - 成功色
+    5: 'success',  // 已完成 - 成功色
+    6: 'danger'    // 已取消 - 危险色
+  }
+  
+  // 默认使用退货入库单状态标签类型
+  return stockTypeMap[status] || returnTypeMap[status] || 'default'
 }
 
 // 加载详情数据
@@ -229,9 +271,18 @@ const loadDetailData = async () => {
   }
 }
 
-// 下拉刷新
-const onRefresh = () => {
-  loadDetailData()
+// 操作面板选择
+const onActionSelect = (action) => {
+  showActionSheet.value = false
+
+  switch (action.action) {
+    case 'audit':
+      handleAudit()
+      break
+    case 'cancel':
+      handleCancel()
+      break
+  }
 }
 
 // 审核操作
@@ -378,151 +429,135 @@ onMounted(() => {
 }
 
 /* 商品明细 */
-.items-list {
-  padding: 12px 16px;
-}
-
-.item-row {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 12px 0;
-  
-  &:last-child {
-    border-bottom: none;
+.product-items {
+  .product-item {
+    .product-cell {
+      padding: 12px 16px;
+      
+      :deep(.van-cell__title) {
+        width: 100%;
+      }
+    }
+    
+    .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      
+      .product-row-first {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        
+        .product-name-specs {
+          flex: 1;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 8px;
+          margin-right: 12px;
+          
+          .product-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #323233;
+            line-height: 1.4;
+          }
+          
+          .product-specs {
+            font-size: 12px;
+            color: #969799;
+            line-height: 1.4;
+          }
+        }
+        
+        .product-quantity {
+          flex-shrink: 0;
+          font-size: 15px;
+          font-weight: bold;
+          color: #323233;
+        }
+      }
+      
+      .product-row-second {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .product-sku {
+          flex: 1;
+          font-size: 12px;
+          color: #646566;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .product-unit-price {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          
+          .product-unit {
+            font-size: 12px;
+            color: #646566;
+            margin-right: 8px;
+          }
+          
+          .product-price {
+            color: #f53f3f;
+            font-weight: 500;
+            font-size: 13px;
+          }
+        }
+      }
+      
+      .product-row-third {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .return-order-info {
+          flex: 1;
+          color: #07c160;
+          font-size: 12px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .product-total {
+          flex: 1;
+          color: #ee0a24;
+          font-weight: bold;
+          font-size: 14px;
+          text-align: right;
+        }
+      }
+    }
   }
 }
 
-.item-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
+.product-divider {
+  height: 1px;
+  background-color: #ebedf0;
+  margin: 8px 16px;
 }
 
-.item-index {
-  width: 24px;
-  height: 24px;
-  background: #f5f5f5;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #969799;
-  margin-right: 8px;
-}
-
-.item-name {
-  font-weight: bold;
-  color: #323233;
-  font-size: 14px;
-  flex: 1;
-}
-
-.item-details {
-  padding-left: 32px; /* 对齐item-name */
-}
-
-.item-sku,
-.item-spec,
-.item-quantity-price,
-.return-order-info {
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.item-sku,
-.item-spec {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.item-sku .label,
-.item-spec .label,
-.return-order-info .label {
-  color: #969799;
-  min-width: 60px;
-}
-
-.item-sku .value {
-  color: #323233;
-  margin-right: 8px;
-}
-
-.spec-text {
-  color: #646566;
-  background: #f5f5f5;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.item-quantity-price {
+.total-amount {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.quantity,
-.price,
-.total {
-  display: flex;
-  align-items: center;
-}
-
-.quantity .label,
-.price .label,
-.total .label {
-  color: #969799;
-  margin-right: 4px;
-}
-
-.quantity .value,
-.price .value,
-.total .value {
-  color: #323233;
-  font-weight: 500;
-}
-
-.amount {
-  color: #ee0a24 !important;
-  font-weight: bold !important;
-}
-
-/* 汇总信息 */
-.items-summary {
   padding: 12px 16px;
-  background: #fafafa;
-  border-top: 1px solid #f0f0f0;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  background-color: #f7f8fa;
   font-size: 14px;
   
-  &:last-child {
-    margin-bottom: 0;
-  }
-  
-  &.total {
-    font-size: 15px;
+  .total-price {
+    color: #f53f3f;
     font-weight: bold;
-    margin-top: 4px;
-    padding-top: 8px;
-    border-top: 1px solid #e8e8e8;
+    font-size: 16px;
   }
-}
-
-.summary-row .label {
-  color: #323233;
-}
-
-.summary-row .value {
-  color: #323233;
-  font-weight: 500;
 }
 
 /* 空状态 */
@@ -531,6 +566,22 @@ onMounted(() => {
   border-radius: 8px;
   padding: 40px 20px;
   margin-bottom: 12px;
+}
+
+/* 防止单号换行 */
+.no-wrap-value {
+  :deep(.van-cell__value) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    padding-left: 8px;
+  }
+  
+  :deep(.van-cell__title) {
+    flex: 0 0 auto;
+    min-width: auto;
+  }
 }
 
 /* 删除底部的操作按钮区域 */

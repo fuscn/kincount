@@ -18,9 +18,9 @@
       <!-- 状态标签筛选 -->
       <van-tabs v-model="activeStatus" @change="handleStatusChange">
         <van-tab title="全部" name="" />
-        <van-tab title="待审核" name="1" />
-        <van-tab title="已审核" name="2" />
-        <van-tab title="已取消" name="3" />
+        <van-tab title="待审核" name="0" />
+        <van-tab title="已审核" name="1" />
+        <van-tab title="已取消" name="2" />
       </van-tabs>
 
       <!-- 搜索与高级筛选 -->
@@ -104,15 +104,7 @@
                   {{ getStatusText(stockItem.status) }}
                 </van-tag>
                 <div class="amount">¥{{ formatPrice(stockItem.total_amount) }}</div>
-                <div class="action-buttons" v-if="stockItem.status === 1 || stockItem.status === 2">
-                  <van-button 
-                    v-if="stockItem.status === 1" 
-                    size="mini" 
-                    type="primary" 
-                    @click.stop="handleAudit(stockItem)"
-                  >
-                    审核
-                  </van-button>
+                <div class="action-buttons" v-if="stockItem.status === 2">
                   <van-button 
                     v-if="stockItem.status === 2" 
                     size="mini" 
@@ -239,9 +231,9 @@ const formatTime = (time) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -249,9 +241,9 @@ const getStatusText = (status) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'success',
-    3: 'danger'
+    0: 'warning',
+    1: 'success',
+    2: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -341,7 +333,7 @@ const loadStorageList = async (isRefresh = false) => {
       pageSize: pagination.pageSize,
       keyword: keyword.value,
       status: activeStatus.value,
-      type: 1, // 销售退货入库单固定为type=1
+      type: 0, // 销售退货入库单固定为type=0
       date_range: dateRangeParam
     }
     
@@ -395,24 +387,6 @@ const handleAddReturnStock = () => {
 // 查看详情
 const handleViewDetail = (stockItem) => {
   router.push(`/sale/return/storage/detail/${stockItem.id}`)
-}
-
-// 审核操作
-const handleAudit = (stockItem) => {
-  showConfirmDialog({
-    title: '确认审核',
-    message: `确定要审核入库单 ${stockItem.stock_no} 吗？审核后商品将入库。`
-  }).then(async () => {
-    try {
-      await stockStore.auditReturnStockData(stockItem.id)
-      showToast('审核成功')
-      handleRefresh() // 刷新列表
-    } catch (error) {
-      showToast('审核失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
 }
 
 // 取消操作

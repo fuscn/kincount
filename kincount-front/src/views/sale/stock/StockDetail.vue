@@ -1,11 +1,13 @@
 <template>
-  <div class="sale-stock-detail">
+  <div class="sale-order-detail-page">
     <!-- 导航栏 -->
     <van-nav-bar 
       title="销售出库详情"
       left-text="返回"
       left-arrow
       @click-left="$router.back()"
+      fixed
+      placeholder
     >
       <template #right>
         <van-button 
@@ -23,7 +25,7 @@
     <van-loading v-if="loading" class="page-loading" />
 
     <!-- 内容区域 -->
-    <div v-if="!loading" class="detail-content">
+    <div v-if="!loading && stockData" class="detail-content">
       <!-- 出库基本信息 -->
       <van-cell-group title="出库信息">
         <van-cell title="出库单号" :value="stockData.stock_no" />
@@ -45,94 +47,91 @@
         <van-cell v-if="stockData.audit_time" title="审核时间" :value="formatDate(stockData.audit_time)" />
       </van-cell-group>
 
-        <!-- SKU明细 -->
-        <div class="section">
-          <h3 class="section-title">SKU明细</h3>
-          <van-empty v-if="!stockData.items || stockData.items.length === 0" description="暂无明细数据" />
-          <div v-else class="items-list">
-            <template v-for="(item, index) in stockData.items" :key="item.id || index">
-              <van-swipe-cell class="product-item">
-                <van-cell class="product-cell">
-                  <!-- 商品信息三行显示 -->
-                  <template #title>
-                    <div class="product-info">
-                      <!-- 第一行：商品名称、规格文本、数量 -->
-                      <div class="product-row-first">
-                        <div class="product-name-specs">
-                          <span class="product-name">{{ item.product?.name || '未知商品' }}</span>
-                          <span class="product-specs" v-if="getSkuSpecs(item).length > 0">{{ getSkuSpecs(item).join(' ') }}</span>
-                        </div>
-                        <div class="product-quantity">{{ item.quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+      <!-- 商品明细 -->
+      <van-cell-group title="商品明细" v-if="stockData.items && stockData.items.length > 0">
+        <div class="product-items">
+          <template v-for="(item, index) in stockData.items" :key="item.id || index">
+            <van-swipe-cell class="product-item">
+              <van-cell class="product-cell">
+                <!-- 商品信息三行显示 -->
+                <template #title>
+                  <div class="product-info">
+                    <!-- 第一行：商品名称、规格文本、数量 -->
+                    <div class="product-row-first">
+                      <div class="product-name-specs">
+                        <span class="product-name">{{ item.product?.name || '未知商品' }}</span>
+                        <span class="product-specs" v-if="getSkuSpecs(item).length > 0">{{ getSkuSpecs(item).join(' ') }}</span>
                       </div>
-                      
-                      <!-- 第二行：sku编号、单位、单价 -->
-                      <div class="product-row-second">
-                        <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
-                        <div class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }}</div>
-                        <div class="product-price">¥{{ formatPrice(item.price) }}</div>
-                      </div>
-                      
-                      <!-- 第三行：其他信息、金额小计 -->
-                      <div class="product-row-third">
-                        <div class="product-cost">成本: ¥{{ formatPrice(item.sku?.cost_price) }}</div>
-                        <div class="product-total">¥{{ formatPrice(item.total_amount) }}</div>
+                      <div class="product-quantity">{{ item.quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                    </div>
+                    
+                    <!-- 第二行：sku编号、单位、单价 -->
+                    <div class="product-row-second">
+                      <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
+                      <div class="product-unit-price">
+                        <span class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }} </span>
+                        <span class="product-price">¥{{ formatPrice(item.price) }}</span>
                       </div>
                     </div>
-                  </template>
-                </van-cell>
-              </van-swipe-cell>
-              <!-- 手动添加分割线 -->
-              <div v-if="index < stockData.items.length - 1" class="product-divider"></div>
-            </template>
+                    
+                    <!-- 第三行：其他信息、金额小计 -->
+                    <div class="product-row-third">
+                      <div class="product-cost">成本: ¥{{ formatPrice(item.sku?.cost_price) }}</div>
+                      <div class="product-total">¥{{ formatPrice(item.total_amount) }}</div>
+                    </div>
+                  </div>
+                </template>
+              </van-cell>
+            </van-swipe-cell>
+            <!-- 手动添加分割线 -->
+            <div v-show="index < stockData.items.length - 1" class="product-divider"></div>
+          </template>
+        </div>
+        <div class="total-amount">
+          <span>合计: {{ stockData.items.length }} 种商品</span>
+          <span class="total-price">总金额: ¥{{ formatPrice(stockData.total_amount) }}</span>
+        </div>
+      </van-cell-group>
 
-            <!-- 合计 -->
-            <div class="total-row">
-              <div class="total-label">合计：</div>
-              <div class="total-amount">¥{{ formatPrice(stockData.total_amount) }}</div>
+      <!-- 操作记录 -->
+      <van-cell-group title="操作记录">
+        <div class="action-records">
+          <div class="action-record">
+            <div class="action-info">
+              <div class="action-title">创建出库单</div>
+              <div class="action-detail">{{ stockData.creator?.real_name || '系统' }} | {{ formatDateTime(stockData.created_at) }}</div>
             </div>
+            <div class="action-status">已创建</div>
+          </div>
+          
+          <div v-if="stockData.auditor" class="action-record">
+            <div class="action-info">
+              <div class="action-title">审核出库单</div>
+              <div class="action-detail">{{ stockData.auditor.real_name }} | {{ formatDateTime(stockData.audit_time) }}</div>
+            </div>
+            <div class="action-status">已审核</div>
+          </div>
+          
+          <div v-if="stockData.status === 2" class="action-record">
+            <div class="action-info">
+              <div class="action-title">完成出库</div>
+              <div class="action-detail">系统 | {{ formatDateTime(stockData.updated_at) }}</div>
+            </div>
+            <div class="action-status">已完成</div>
+          </div>
+          
+          <div v-if="stockData.status === 3" class="action-record">
+            <div class="action-info">
+              <div class="action-title">取消出库单</div>
+              <div class="action-detail">系统 | {{ formatDateTime(stockData.updated_at) }}</div>
+            </div>
+            <div class="action-status">已取消</div>
           </div>
         </div>
-
-        <!-- 操作记录 -->
-        <div class="section">
-          <h3 class="section-title">操作记录</h3>
-          <div class="action-records">
-            <div class="action-record">
-              <div class="action-info">
-                <div class="action-title">创建出库单</div>
-                <div class="action-detail">{{ stockData.creator?.real_name || '系统' }} | {{ formatDateTime(stockData.created_at) }}</div>
-              </div>
-              <div class="action-status">已创建</div>
-            </div>
-            
-            <div v-if="stockData.auditor" class="action-record">
-              <div class="action-info">
-                <div class="action-title">审核出库单</div>
-                <div class="action-detail">{{ stockData.auditor.real_name }} | {{ formatDateTime(stockData.audit_time) }}</div>
-              </div>
-              <div class="action-status">已审核</div>
-            </div>
-            
-            <div v-if="stockData.status === 2" class="action-record">
-              <div class="action-info">
-                <div class="action-title">完成出库</div>
-                <div class="action-detail">系统 | {{ formatDateTime(stockData.updated_at) }}</div>
-              </div>
-              <div class="action-status">已完成</div>
-            </div>
-            
-            <div v-if="stockData.status === 3" class="action-record">
-              <div class="action-info">
-                <div class="action-title">取消出库单</div>
-                <div class="action-detail">系统 | {{ formatDateTime(stockData.updated_at) }}</div>
-              </div>
-              <div class="action-status">已取消</div>
-            </div>
-          </div>
-        </div>
+      </van-cell-group>
     </div>
       
-    <van-empty v-else description="出库单不存在" />
+    <van-empty v-else-if="!loading" description="出库单不存在" />
 
     <!-- 操作面板 -->
     <van-action-sheet
@@ -416,13 +415,13 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.sale-stock-detail {
-  background: #f7f8fa;
+.sale-order-detail-page {
+  background-color: #f7f8fa;
   min-height: 100vh;
 }
 
 .detail-content {
-  padding: 16px;
+  padding-bottom: 60px;
 }
 
 .page-loading {
@@ -433,65 +432,54 @@ onMounted(() => {
   z-index: 999;
 }
 
-.section {
-  margin-bottom: 16px;
-  background-color: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.section-title {
-  padding: 12px 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #323233;
-  background-color: #f7f8fa;
-  border-bottom: 1px solid #ebedf0;
-}
-
-.items-list {
+.product-items {
   .product-item {
     .product-cell {
-      .product-info {
+      padding: 12px 16px;
+      
+      :deep(.van-cell__title) {
         width: 100%;
       }
+    }
+    
+    .product-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
       
       .product-row-first {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
+        align-items: flex-start;
         
         .product-name-specs {
-          flex: 2;
+          flex: 1;
           display: flex;
+          flex-direction: row;
           align-items: center;
+          gap: 8px;
+          margin-right: 12px;
           
           .product-name {
-            font-weight: bold;
+            font-size: 15px;
+            font-weight: 500;
             color: #323233;
-            font-size: 14px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 70%;
+            line-height: 1.4;
           }
           
           .product-specs {
-            color: #969799;
             font-size: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-left: 6px;
+            color: #969799;
+            line-height: 1.4;
           }
         }
         
         .product-quantity {
-          flex: 1;
-          text-align: right;
+          flex-shrink: 0;
+          font-size: 15px;
+          font-weight: bold;
           color: #323233;
-          font-size: 14px;
         }
       }
       
@@ -499,32 +487,32 @@ onMounted(() => {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 6px;
         
         .product-sku {
           flex: 1;
-          color: #646566;
           font-size: 12px;
-          background: #f5f5f5;
-          padding: 2px 4px;
-          border-radius: 3px;
+          color: #646566;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
         
-        .product-unit {
-          flex: 1;
-          color: #969799;
-          font-size: 12px;
-          text-align: center;
-        }
-        
-        .product-price {
-          flex: 1;
-          color: #323233;
-          font-size: 13px;
-          text-align: right;
+        .product-unit-price {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          
+          .product-unit {
+            font-size: 12px;
+            color: #646566;
+            margin-right: 8px;
+          }
+          
+          .product-price {
+            color: #f53f3f;
+            font-weight: 500;
+            font-size: 13px;
+          }
         }
       }
       
@@ -544,7 +532,7 @@ onMounted(() => {
         
         .product-total {
           flex: 1;
-          color: #f53f3f;
+          color: #ee0a24;
           font-weight: bold;
           font-size: 14px;
           text-align: right;
@@ -552,33 +540,26 @@ onMounted(() => {
       }
     }
   }
+}
+
+.product-divider {
+  height: 1px;
+  background-color: #ebedf0;
+  margin: 8px 16px;
+}
+
+.total-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #f7f8fa;
+  font-size: 14px;
   
-  .product-divider {
-    height: 1px;
-    background-color: #ebedf0;
-    margin-left: 16px;
-    margin-right: 16px;
-  }
-
-  .total-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-top: 1px solid #f5f5f5;
-    margin-top: 8px;
-
-    .total-label {
-      font-weight: 600;
-      color: #323233;
-      font-size: 15px;
-    }
-
-    .total-amount {
-      font-weight: 700;
-      color: #ee0a24;
-      font-size: 16px;
-    }
+  .total-price {
+    color: #f53f3f;
+    font-weight: bold;
+    font-size: 16px;
   }
 }
 

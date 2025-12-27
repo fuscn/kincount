@@ -1,35 +1,16 @@
 <template>
   <div class="sale-return-detail-page">
     <van-nav-bar 
-      :title="`销售退货详情`"
-      left-text="返回"
+      title="销售退货详情"
       left-arrow
+      left-text="返回"
       @click-left="$router.back()"
+      fixed
+      placeholder
     >
       <template #right>
-        <van-button 
-          v-if="returnOrder.status === 0" 
-          size="small" 
-          type="primary" 
-          @click="handleAudit"
-        >
-          审核
-        </van-button>
-        <van-button 
-          v-if="returnOrder.status === 1 && returnOrder.stock_status !== 2" 
-          size="small" 
-          type="success" 
-          @click="handleCreateStock"
-        >
-          创建入库单
-        </van-button>
-        <van-button 
-          v-if="returnOrder.status === 1 && returnOrder.stock_status === 2" 
-          size="small" 
-          type="default"
-          @click="viewStockOrder"
-        >
-          查看入库单
+        <van-button size="small" type="primary" @click="showActionSheet = true">
+          操作
         </van-button>
       </template>
     </van-nav-bar>
@@ -81,29 +62,56 @@
       <!-- 退货商品明细 -->
       <van-cell-group title="退货商品明细" v-if="returnOrder.items && returnOrder.items.length > 0">
         <div class="product-items">
-          <div 
-            v-for="(item, index) in returnOrder.items" 
-            :key="index"
-            class="product-item"
-          >
-            <div class="product-header">
-              <span class="product-name">{{ item.product?.name || '产品' + item.id }}</span>
-              <span class="product-price">-¥{{ formatPrice(item.price) }}</span>
-            </div>
-            <div class="product-info">
-              <span>编号: {{ item.product?.product_no || '--' }}</span>
-              <span>规格: {{ formatSpec(item.sku?.spec) }}</span>
-            </div>
-            <div class="product-quantity">
-              <span>退货数量: {{ item.return_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
-              <span class="amount">金额: -¥{{ formatPrice(item.total_amount) }}</span>
-            </div>
-            <!-- 添加入库数量信息 -->
-            <div v-if="item.processed_quantity !== undefined" class="stock-info">
-              <span>已入库: {{ item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
-              <span>待入库: {{ item.return_quantity - item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</span>
-            </div>
-          </div>
+          <template v-for="(item, index) in returnOrder.items" :key="index">
+            <van-swipe-cell class="product-item">
+              <van-cell class="product-cell">
+                <!-- 商品信息三行显示 -->
+                <template #title>
+                  <div class="product-info">
+                    <!-- 第一行：商品名称和规格文本、数量 -->
+                    <div class="product-row-first">
+                      <div class="product-name-specs">
+                        <span class="product-name">{{ item.product?.name || '产品' + item.id }}</span>
+                        <span class="product-specs" v-if="formatSpec(item.sku?.spec) !== '无'">{{ formatSpec(item.sku?.spec) }}</span>
+                      </div>
+                      <div class="product-quantity">{{ item.return_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                    </div>
+                    
+                    <!-- 第二行：sku编号、单位、单价 -->
+                    <div class="product-row-second">
+                      <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
+                      <div class="product-unit-price">
+                        <span class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }} </span>
+                        <span class="product-price">¥{{ formatPrice(item.price) }}</span>
+                      </div>
+                    </div>
+                    
+                    <!-- 第三行：其他信息、金额小计 -->
+                    <div class="product-row-third">
+                      <div class="product-cost">编号: {{ item.product?.product_no || '--' }}</div>
+                      <!-- 已入库数量 -->
+                      <div class="processed-quantity" v-if="item.processed_quantity !== undefined">
+                        已入库: {{ item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}
+                      </div>
+                      <div class="product-total">-¥{{ formatPrice(item.total_amount) }}</div>
+                    </div>
+                  </div>
+                </template>
+              </van-cell>
+              <!-- 入库数量信息 -->
+              <template #right v-if="item.processed_quantity !== undefined && item.processed_quantity < item.return_quantity">
+                <div class="stock-info">
+                  <span class="remaining-quantity">待入库: {{ item.return_quantity - item.processed_quantity }}{{ item.product?.unit || item.unit || '个' }}</span>
+                </div>
+              </template>
+            </van-swipe-cell>
+            <!-- 手动添加分割线 -->
+            <div v-show="index < returnOrder.items.length - 1" class="product-divider"></div>
+          </template>
+        </div>
+        <div class="total-amount">
+          <span>合计: {{ returnOrder.items.length }} 种商品</span>
+          <span class="total-price">总金额: -¥{{ formatPrice(returnOrder.total_amount) }}</span>
         </div>
       </van-cell-group>
       <van-cell-group title="退货商品明细" v-else>
@@ -123,23 +131,20 @@
       <van-cell-group title="操作记录" v-else>
         <van-empty description="暂无操作记录" image="search" />
       </van-cell-group>
-    </div>
 
-    <!-- 底部操作按钮 -->
-    <div class="action-bar" v-if="returnOrder.status === 0">
-      <van-button 
-        type="danger" 
-        block
-        @click="handleCancel"
-      >
-        取消退货
-      </van-button>
+      <!-- 操作面板 -->
+      <van-action-sheet
+        v-model:show="showActionSheet"
+        :actions="actionSheetActions"
+        @select="onActionSelect"
+        cancel-text="取消"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   showConfirmDialog,
@@ -239,9 +244,9 @@ const getStatusTagType = (status) => {
 // 获取库存状态文本
 const getStockStatusText = (status) => {
   const statusMap = {
-    0: '未入库',
-    1: '部分入库',
-    2: '已入库'
+    0: '待处理',
+    1: '部分处理',
+    2: '已完成'
   }
   return statusMap[status] || '未知'
 }
@@ -549,6 +554,66 @@ const viewStockOrder = () => {
   }
 }
 
+// 操作面板显示状态
+const showActionSheet = ref(false)
+
+// 操作面板选项
+const actionSheetActions = computed(() => {
+  const actions = []
+  
+  // 根据订单状态添加不同的操作选项
+  if (returnOrder.value.status === 0) {
+    actions.push({
+      name: '审核',
+      value: 'audit',
+      color: '#1989fa'
+    })
+    actions.push({
+      name: '取消退货',
+      value: 'cancel',
+      color: '#ee0a24'
+    })
+  }
+  
+  if (returnOrder.value.status === 1) {
+    if (returnOrder.value.stock_status !== 2) {
+      actions.push({
+        name: '创建入库单',
+        value: 'createStock',
+        color: '#07c160'
+      })
+    } else {
+      actions.push({
+        name: '查看入库单',
+        value: 'viewStock',
+        color: '#646566'
+      })
+    }
+  }
+  
+  return actions
+})
+
+// 操作面板选择处理
+const onActionSelect = (action, index) => {
+  showActionSheet.value = false
+  
+  switch (action.value) {
+    case 'audit':
+      handleAudit()
+      break
+    case 'cancel':
+      handleCancel()
+      break
+    case 'createStock':
+      handleCreateStock()
+      break
+    case 'viewStock':
+      viewStockOrder()
+      break
+  }
+}
+
 // 取消退货
 const handleCancel = async () => {
   try {
@@ -606,66 +671,173 @@ watch(
 
 <style scoped lang="scss">
 .sale-return-detail-page {
-  background: #f7f8fa;
+  background-color: #f7f8fa;
   min-height: 100vh;
 }
 
 .detail-content {
-  padding: 16px;
+  padding-bottom: 60px;
+}
+
+.page-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
 }
 
 .product-items {
   .product-item {
-    background: white;
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 8px;
-    
-    .product-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+    .product-cell {
+      padding: 12px 16px;
       
-      .product-name {
-        font-weight: 500;
-        font-size: 14px;
-      }
-      
-      .product-price {
-        color: #f53f3f;
-        font-weight: bold;
+      :deep(.van-cell__title) {
+        width: 100%;
       }
     }
     
     .product-info {
       display: flex;
-      gap: 12px;
-      font-size: 12px;
-      color: #969799;
-      margin-bottom: 8px;
-    }
-    
-    .product-quantity {
-      display: flex;
-      justify-content: space-between;
-      font-size: 13px;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
       
-      .amount {
-        color: #f53f3f;
-        font-weight: 500;
+      .product-row-first {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        
+        .product-name-specs {
+          flex: 1;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 8px;
+          margin-right: 12px;
+          
+          .product-name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #323233;
+            line-height: 1.4;
+          }
+          
+          .product-specs {
+            font-size: 12px;
+            color: #969799;
+            line-height: 1.4;
+          }
+        }
+        
+        .product-quantity {
+          flex-shrink: 0;
+          font-size: 15px;
+          font-weight: bold;
+          color: #323233;
+        }
+      }
+      
+      .product-row-second {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .product-sku {
+          flex: 1;
+          font-size: 12px;
+          color: #646566;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .product-unit-price {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          
+          .product-unit {
+            font-size: 12px;
+            color: #646566;
+            margin-right: 8px;
+          }
+          
+          .product-price {
+            color: #f53f3f;
+            font-weight: 500;
+            font-size: 13px;
+          }
+        }
+      }
+      
+      .product-row-third {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .product-cost {
+          flex: 1;
+          color: #07c160;
+          font-size: 12px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .processed-quantity {
+          flex: 1;
+          color: #07c160;
+          font-size: 12px;
+          text-align: center;
+        }
+        
+        .product-total {
+          flex: 1;
+          color: #ee0a24;
+          font-weight: bold;
+          font-size: 14px;
+          text-align: right;
+        }
       }
     }
-    
-    .stock-info {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #1989fa;
-      margin-top: 4px;
-      padding-top: 4px;
-      border-top: 1px dashed #ebedf0;
-    }
+  }
+}
+
+.product-divider {
+  height: 1px;
+  background-color: #ebedf0;
+  margin: 8px 16px;
+}
+
+.stock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.processed-quantity {
+  color: #07c160;
+}
+
+.remaining-quantity {
+  color: #ff976a;
+}
+
+.total-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #f7f8fa;
+  font-size: 14px;
+  
+  .total-price {
+    color: #f53f3f;
+    font-weight: bold;
+    font-size: 16px;
   }
 }
 
@@ -677,13 +849,5 @@ watch(
   padding: 16px;
   background: white;
   border-top: 1px solid #ebedf0;
-}
-
-.page-loading {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 999;
 }
 </style>

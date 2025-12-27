@@ -75,36 +75,31 @@
           <van-cell-group v-else class="sku-list">
             <van-swipe-cell v-for="(item, index) in form.items" :key="`${item.sku_id}_${item.source_item_id}_${index}`"
               class="sku-item">
-              <van-cell class="sku-cell">
+              <van-cell class="sku-cell" @click="toggleItemSelection(item.id, false)">
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code" v-if="item.sku_code">{{ item.sku_code }}</span>
+                    <span class="product-specs" v-if="getItemSpecText(item)">{{ getItemSpecText(item) }}</span>
                   </div>
                 </template>
                 <template #label>
                   <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
+                    <div class="sku-code" v-if="item.sku_code">SKU: {{ item.sku_code }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
                       }})</span>
-                    </div>
-                    <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
-                        || 0 }}</span>{{ item.unit }}
+                      <span class="max-return-info">最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}</span>
                     </div>
                   </div>
                 </template>
                 <template #default>
                   <div class="item-details">
-                    <div class="price-quantity">
-                      <!-- 单价（只读） -->
-                      <div class="input-field price-field">
-                        <van-field v-model="item.unit_price" type="number" readonly
-                          class="readonly-field compact-field">
-                          <template #extra>元</template>
-                        </van-field>
+                    <div class="quantity-total-column">
+                      <!-- 总金额 -->
+                      <div class="item-total">
+                        <div class="total-amount">¥{{ getItemReturnAmount(item) }}</div>
                       </div>
                       <!-- 退货数量输入框 -->
                       <div class="input-field quantity-field">
@@ -114,9 +109,6 @@
                           <template #extra>{{ item.unit || '个' }}</template>
                         </van-field>
                       </div>
-                    </div>
-                    <div class="item-total">
-                      <div class="total-amount">¥{{ getItemReturnAmount(item) }}</div>
                     </div>
                   </div>
                 </template>
@@ -199,26 +191,24 @@
           <div>当前选中的商品ID: {{ selectedSourceItemIds }}</div>
           <van-checkbox-group v-model="selectedSourceItemIds">
             <van-cell-group>
-              <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable>
+              <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable 
+                @click="toggleItemSelection(item.id, item.max_return_quantity <= 0)">
                 <template #title>
                   <div class="product-title">
                     <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code" v-if="item.sku_code">{{ item.sku_code }}</span>
+                    <span class="product-specs" v-if="getItemSpecText(item)">{{ getItemSpecText(item) }}</span>
                   </div>
                 </template>
                 <template #label>
                   <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
+                    <div class="sku-code" v-if="item.sku_code">SKU: {{ item.sku_code }}</div>
                     <div class="stock-text">
                       源单数量: {{ item.source_quantity || 0 }}{{ item.unit }}
                       <span class="returned-info" v-if="item.returned_quantity">(已退: {{ item.returned_quantity || 0
                       }})</span>
+                      <span class="max-return-info">最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
+                        || 0 }}</span>{{ item.unit }}</span>
                     </div>
-                    <div class="max-return-text">
-                      最多可退: <span :class="{ 'out-of-stock': item.max_return_quantity <= 0 }">{{ item.max_return_quantity
-                        || 0 }}</span>{{ item.unit }}
-                    </div>
-                    <div>商品ID: {{ item.id }}</div>
                   </div>
                 </template>
                 <template #right-icon>
@@ -364,6 +354,20 @@ const totalReturnAmount = computed(() => {
     return sum + (price * quantity)
   }, 0)
 })
+
+// 方法 - 切换商品选中状态
+const toggleItemSelection = (itemId, isDisabled) => {
+  if (isDisabled) return
+  
+  const index = selectedSourceItemIds.value.indexOf(itemId)
+  if (index > -1) {
+    // 如果已选中，则取消选中
+    selectedSourceItemIds.value.splice(index, 1)
+  } else {
+    // 如果未选中，则添加到选中列表
+    selectedSourceItemIds.value.push(itemId)
+  }
+}
 
 // 方法 - 获取商品显示名称
 const getProductDisplayName = (item) => {
@@ -961,8 +965,11 @@ const closeDatePicker = () => {
 
 // 退货原因选择
 const onReasonSelect = (action) => {
+  console.log('选择的退货原因:', action)
   form.return_type = action.value
   form.return_type_text = action.name
+  console.log('设置后的退货原因值:', form.return_type)
+  console.log('设置后的退货原因文本:', form.return_type_text)
   showReasonPicker.value = false
 }
 
@@ -1097,7 +1104,9 @@ const validateForm = () => {
     return false
   }
 
-  if (!form.return_type) {
+  if (form.return_type === '' || form.return_type === null || form.return_type === undefined) {
+    console.log('退货原因验证失败，当前值:', form.return_type)
+    console.log('退货原因文本:', form.return_type_text)
     showToast('请选择退货原因')
     return false
   }
@@ -1433,9 +1442,12 @@ onMounted(async () => {
 .product-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   margin-bottom: 4px;
-  flex-wrap: wrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0; /* 确保flex子元素可以收缩 */
 }
 
 .product-name {
@@ -1443,15 +1455,27 @@ onMounted(async () => {
   color: #323233;
   font-size: 14px;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1; /* 允许收缩，但不占据所有剩余空间 */
+  min-width: 0; /* 确保可以收缩 */
+  max-width: calc(100% - 80px); /* 限制最大宽度，为规格文本留出空间 */
+}
+
+.product-specs {
+  color: #969799;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止规格文本被压缩 */
 }
 
 .sku-code {
   color: #646566;
   font-size: 12px;
   font-weight: normal;
-  background: #f5f5f5;
-  padding: 1px 4px;
-  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0; /* 防止SKU编码被压缩 */
 }
 
 .product-label {
@@ -1468,36 +1492,41 @@ onMounted(async () => {
     color: #1989fa;
     line-height: 1.3;
     margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 
     .returned-info {
       color: #969799;
       margin-left: 4px;
     }
-  }
-
-  .max-return-text {
-    color: #1989fa;
-    line-height: 1.3;
-
-    .out-of-stock {
-      color: #ee0a24;
-      font-weight: bold;
+    
+    .max-return-info {
+      color: #07c160;
+      margin-left: 8px;
+      
+      .out-of-stock {
+        color: #ee0a24;
+        font-weight: bold;
+      }
     }
   }
+
 }
 
 .item-details {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   width: 100%;
   gap: 8px;
 }
 
-.price-quantity {
+.quantity-total-column {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
+  align-items: flex-end;
 
   .input-field {
     display: flex;
@@ -1561,29 +1590,20 @@ onMounted(async () => {
       }
     }
 
-    &.price-field {
-
-      .editable-field,
-      .readonly-field {
-        width: 85px;
-      }
-    }
-
     &.quantity-field {
 
       .editable-field,
       .readonly-field {
-        width: 85px;
+        width: 100px;
       }
     }
   }
 }
 
 .item-total {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 70px;
+    display: flex;
+    flex-direction: column;
+    min-width: 70px;
 
   .total-amount {
     color: #f53f3f;
