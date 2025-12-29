@@ -410,15 +410,32 @@ watch(
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    // 移除 flex-wrap: wrap，禁止换行
+    white-space: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px; // 为滚动条留出空间
+    
+    // 隐藏滚动条但保持滚动功能
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
   
   .filter-item {
-    // 分类和品牌筛选组件固定宽度
+    // 分类和品牌筛选组件使用最小宽度，允许自适应
     &:not(:last-child) {
-      width: 150px;
-      flex: 0 0 150px;
-      max-width: 150px;
+      min-width: 120px;
+      flex: 1;
+      max-width: 180px;
+    }
+    
+    // 重置按钮特殊处理
+    &:last-child {
+      flex: 0 0 auto;
+      min-width: 60px;
+      max-width: 80px;
     }
     
     // 确保所有筛选按钮高度一致
@@ -446,17 +463,6 @@ watch(
     // 确保BrandSelect组件内部按钮宽度一致
     :deep(.brand-select .van-button) {
       width: 100%;
-    }
-    
-    // 重置按钮容器特殊处理
-    &:last-child {
-      flex: 0 0 80px;
-      max-width: 80px;
-      
-      .van-button--small {
-        width: 80px;
-        flex-shrink: 0;
-      }
     }
   }
 }

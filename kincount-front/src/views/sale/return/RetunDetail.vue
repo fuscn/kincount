@@ -41,7 +41,7 @@
             </van-tag>
           </template>
         </van-cell>
-        <van-cell title="退货金额" :value="`-¥${formatPrice(returnOrder.total_amount)}`" />
+        <van-cell title="退货金额" :value="`¥${formatPrice(returnOrder.total_amount)}`" />
         <van-cell title="应退金额" :value="`¥${formatPrice(returnOrder.refund_amount)}`" />
         <van-cell title="已退金额" :value="`¥${formatPrice(returnOrder.refunded_amount)}`" />
         <van-cell title="仓库" :value="returnOrder.warehouse?.name || '--'" />
@@ -93,7 +93,7 @@
                       <div class="processed-quantity" v-if="item.processed_quantity !== undefined">
                         已入库: {{ item.processed_quantity }}{{ item.sku?.unit || item.product?.unit || '个' }}
                       </div>
-                      <div class="product-total">-¥{{ formatPrice(item.total_amount) }}</div>
+                      <div class="product-total">¥{{ formatPrice(item.total_amount) }}</div>
                     </div>
                   </div>
                 </template>
@@ -111,7 +111,7 @@
         </div>
         <div class="total-amount">
           <span>合计: {{ returnOrder.items.length }} 种商品</span>
-          <span class="total-price">总金额: -¥{{ formatPrice(returnOrder.total_amount) }}</span>
+          <span class="total-price">总金额: ¥{{ formatPrice(returnOrder.total_amount) }}</span>
         </div>
       </van-cell-group>
       <van-cell-group title="退货商品明细" v-else>
@@ -485,20 +485,8 @@ const handleCreateStock = async () => {
       if (response.code === 200) {
         showSuccessToast('入库单创建成功')
         
-        // 询问是否跳转到入库单详情页面
-        await showConfirmDialog({
-          title: '入库单创建成功',
-          message: '是否立即查看并处理入库单？',
-          showCancelButton: true,
-          confirmButtonText: '查看入库单',
-          cancelButtonText: '稍后处理'
-        }).then(() => {
-          // 跳转到入库单详情页面
-          router.push(`/stock/storage/detail/${response.data.id}`)
-        }).catch(() => {
-          // 用户选择稍后处理，重新加载退货详情
-          loadReturnDetail()
-        })
+        // 直接跳转到入库单详情页面
+        router.push(`/sale/return/storage/detail/${response.data.id}`)
       } else {
         showFailToast(response.msg || '创建入库单失败')
       }

@@ -823,9 +823,9 @@ const handleSubmit = async () => {
       // 创建新订单
       result = await saleStore.addOrder(submitData)
       showSuccessToast('创建成功')
-      if (result?.id) {
+      if (result?.data?.id) {
         // 创建成功后跳转到详情页
-        router.push(`/sale/order/detail/${result.id}`)
+        router.push(`/sale/order/detail/${result.data.id}`)
         return
       }
     }

@@ -635,6 +635,20 @@ class RoleController extends BaseController
                         'key' => 'config:edit',
                         'name' => '编辑配置',
                         'description' => '修改系统配置参数'
+                    ],
+                    
+                    // 系统信息
+                    [
+                        'key' => 'system:info:view',
+                        'name' => '查看系统信息',
+                        'description' => '查看系统状态和环境信息'
+                    ],
+                    
+                    // 系统日志
+                    [
+                        'key' => 'system:logs:view',
+                        'name' => '查看系统日志',
+                        'description' => '查看系统操作日志'
                     ]
                 ]
             ]

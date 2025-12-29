@@ -65,7 +65,7 @@
           <div class="section-title">
             <span>退货商品明细</span>
             <van-button size="small" type="primary" @click="showSkuSelect = true" icon="plus"
-              :disabled="!sourceForm.source_id || form.items.length >= (sourceForm.items?.length || 0)">
+              :disabled="!sourceForm.source_id || availableSourceItems.length === 0">
               选择商品
             </van-button>
           </div>
@@ -224,7 +224,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, watch, watchEffect, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   showToast,
@@ -660,11 +660,27 @@ const selectSource = async (source) => {
     if (detail) {
       showSourcePicker.value = false
       sourceSearch.value = ''
+      
+      // 确保设置form.source_id，这是表单验证需要的字段
       form.source_id = source.id
+      
+      // 设置sourceForm.source_id，这是选择商品按钮需要的字段
+      sourceForm.source_id = source.id
+
+      // 设置默认退货原因（如果还没有设置）
+      if (!form.return_type) {
+        form.return_type = 0 // 默认为"质量问题"
+        form.return_type_text = '质量问题'
+      }
 
       // 清空之前选择的商品
       form.items = []
       selectedSourceItemIds.value = []
+      
+      // 显示源单名称
+      sourceForm.source_name = sourceType.value === 'order' 
+        ? `采购订单 - ${source.order_no}` 
+        : `采购入库单 - ${source.stock_no}`
     }
   } catch (error) {
     console.error('选择源单失败:', error)
@@ -686,8 +702,8 @@ const loadSourceDetail = async (sourceId, type) => {
       // 加载采购订单详情
       detail = await purchaseStore.loadOrderDetail(sourceId)
       if (detail) {
-        sourceForm.source_id = detail.id
-        sourceForm.source_name = `采购订单 - ${detail.order_no}`
+        // 注意：sourceForm.source_id 已经在 selectSource 中通过 form.source_id 设置
+        // 这里不再重复设置，避免覆盖 form.source_id
         sourceForm.supplier_id = detail.supplier_id
         sourceForm.supplier_name = detail.supplier?.name || detail.supplier_name || ''
         sourceForm.order_no = detail.order_no
@@ -700,6 +716,7 @@ const loadSourceDetail = async (sourceId, type) => {
 
         // 处理订单商品明细
         if (detail.items && Array.isArray(detail.items)) {
+          console.log('处理订单商品明细，原始商品数量:', detail.items.length)
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
@@ -722,14 +739,18 @@ const loadSourceDetail = async (sourceId, type) => {
               })
             }
           })
+          console.log('处理后的sourceForm.items数量:', sourceForm.items.length)
+          console.log('处理后的sourceForm.items内容:', sourceForm.items)
+        } else {
+          console.log('订单没有商品明细或明细不是数组')
         }
       }
     } else {
       // 加载采购入库单详情
       detail = await purchaseStore.loadStockDetail(sourceId)
       if (detail) {
-        sourceForm.source_id = detail.id
-        sourceForm.source_name = `采购入库单 - ${detail.stock_no}`
+        // 注意：sourceForm.source_id 已经在 selectSource 中通过 form.source_id 设置
+        // 这里不再重复设置，避免覆盖 form.source_id
         sourceForm.supplier_id = detail.supplier_id
         sourceForm.supplier_name = detail.supplier?.name || detail.supplier_name || ''
         sourceForm.order_no = detail.stock_no
@@ -742,6 +763,7 @@ const loadSourceDetail = async (sourceId, type) => {
 
         // 处理入库商品明细
         if (detail.items && Array.isArray(detail.items)) {
+          console.log('处理入库商品明细，原始商品数量:', detail.items.length)
           sourceForm.items = detail.items.map(item => {
             const product = item.product || {}
             const sku = item.sku || {}
@@ -764,6 +786,10 @@ const loadSourceDetail = async (sourceId, type) => {
               })
             }
           })
+          console.log('处理后的sourceForm.items数量:', sourceForm.items.length)
+          console.log('处理后的sourceForm.items内容:', sourceForm.items)
+        } else {
+          console.log('入库单没有商品明细或明细不是数组')
         }
       }
     }
@@ -1028,60 +1054,82 @@ const updateItemAmount = (item) => {
 
 // 验证表单
 const validateForm = () => {
+  console.log('验证表单开始，当前表单数据:', {
+    source_id: form.source_id,
+    warehouse_id: form.warehouse_id,
+    return_date: form.return_date,
+    return_type: form.return_type,
+    items_length: form.items.length,
+    supplier_id: sourceForm.supplier_id,
+    sourceForm: sourceForm,
+    sourceType: sourceType.value
+  })
+  
   // 验证必填字段
   if (!form.source_id) {
+    console.log('验证失败: source_id为空')
     showToast('请选择退货源单')
     return false
   }
 
   if (!sourceForm.supplier_id) {
+    console.log('验证失败: supplier_id为空')
     showToast('请选择退货供应商')
     return false
   }
 
   if (!form.warehouse_id) {
+    console.log('验证失败: warehouse_id为空')
     showToast('请选择退货仓库')
     return false
   }
 
   if (!form.return_date) {
+    console.log('验证失败: return_date为空')
     showToast('请选择退货日期')
     return false
   }
 
-  if (!form.return_type) {
+  if (form.return_type === '' || form.return_type === null || form.return_type === undefined) {
+    console.log('验证失败: return_type为空')
     showToast('请选择退货原因')
     return false
   }
 
   if (form.items.length === 0) {
+    console.log('验证失败: items为空')
     showToast('请至少添加一个退货商品')
     return false
   }
 
   // 验证每个商品的退货数量
   for (const item of form.items) {
+    console.log('验证商品:', item)
     const quantity = Number(item.return_quantity) || 0
     const maxQuantity = item.max_return_quantity || 0
 
     if (isNaN(quantity) || quantity <= 0) {
+      console.log('验证失败: 商品退货数量无效', { quantity, item })
       showToast(`请检查商品"${getProductDisplayName(item)}"的退货数量`)
       return false
     }
 
     if (quantity > maxQuantity) {
+      console.log('验证失败: 商品退货数量超过最大可退数量', { quantity, maxQuantity, item })
       showToast(`商品"${getProductDisplayName(item)}"的退货数量不能超过${maxQuantity}`)
       return false
     }
 
     // 验证product_id是否存在
     if (!item.product_id) {
+      console.log('验证失败: 商品缺少product_id', { item })
       showToast(`商品"${getProductDisplayName(item)}"缺少产品ID，请重新选择商品`)
       return false
     }
 
     // 验证sku_id是否存在
     if (!item.sku_id) {
+      console.log('验证失败: 商品缺少sku_id', { item })
       showToast(`商品"${getProductDisplayName(item)}"缺少SKU ID，请重新选择商品`)
       return false
     }

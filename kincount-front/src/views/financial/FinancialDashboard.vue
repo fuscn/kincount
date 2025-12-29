@@ -239,12 +239,10 @@ onMounted(() => initData())
 
 .action-icon { margin-right: 8px; font-size: 16px; }
 
-:deep {
-  .income-amount { color: #07c160; font-weight: bold; }
-  .expense-amount { color: #ee0a24; font-weight: bold; }
-  .profit-positive { color: #07c160; font-weight: bold; }
-  .profit-negative { color: #ee0a24; font-weight: bold; }
-}
+:deep(.income-amount) { color: #07c160; font-weight: bold; }
+:deep(.expense-amount) { color: #ee0a24; font-weight: bold; }
+:deep(.profit-positive) { color: #07c160; font-weight: bold; }
+:deep(.profit-negative) { color: #ee0a24; font-weight: bold; }
 
 @media (max-width: 768px) {
   .dashboard-content { padding: 12px; }

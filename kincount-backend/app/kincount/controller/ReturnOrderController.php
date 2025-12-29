@@ -261,9 +261,7 @@ class ReturnOrderController extends BaseController
                     }
                 }
 
-                // 将SKU信息添加到item中（临时）
-                $post['items'][$index]['sku_info'] = $sku;
-                $post['items'][$index]['source_item'] = $sourceItem;
+                // 不再修改原始数据，避免后续处理出现问题
             }
 
             if (!empty($itemErrors)) {
@@ -278,15 +276,10 @@ class ReturnOrderController extends BaseController
                 $totalAmount = '0';
                 $totalQuantity = 0;
 
-                foreach ($post['items'] as &$item) {
+                foreach ($post['items'] as $item) {
                     // 确保金额为字符串类型并保留2位小数
-                    $item['total_amount'] = number_format($item['return_quantity'] * $item['price'], 2, '.', '');
-                    $totalAmount = bcadd($totalAmount, $item['total_amount'], 2);
+                    $totalAmount = bcadd($totalAmount, number_format($item['return_quantity'] * $item['price'], 2, '.', ''), 2);
                     $totalQuantity += intval($item['return_quantity']);
-
-                    // 移除临时添加的sku_info字段
-                    unset($item['sku_info']);
-                    unset($item['source_item']);
                 }
 
                 // 创建退货单
@@ -331,6 +324,7 @@ class ReturnOrderController extends BaseController
                 $itemDetails = [];
                 foreach ($post['items'] as $item) {
                     $sourceItemId = $item['source_item_id'] ?? 0;
+                    $totalAmount = number_format($item['return_quantity'] * $item['price'], 2, '.', '');
 
                     $itemDetail = [
                         'return_id' => $return->id,
@@ -339,7 +333,7 @@ class ReturnOrderController extends BaseController
                         'return_quantity' => (int)$item['return_quantity'],
                         'processed_quantity' => 0, // 已处理数量初始为0
                         'price' => number_format($item['price'], 2, '.', ''),
-                        'total_amount' => $item['total_amount'],
+                        'total_amount' => $totalAmount,
                         'created_at' => date('Y-m-d H:i:s'),
                     ];
 

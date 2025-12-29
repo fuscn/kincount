@@ -101,7 +101,7 @@
                 <van-tag :type="getStatusTagType(returnOrder.status)">
                   {{ getStatusText(returnOrder.status) }}
                 </van-tag>
-                <div class="amount">-¥{{ formatPrice(returnOrder.total_amount) }}</div>
+                <div class="amount">¥{{ formatPrice(returnOrder.total_amount) }}</div>
               </div>
             </template>
           </van-cell>

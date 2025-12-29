@@ -4,6 +4,12 @@ import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 
 export default defineConfig({
+  // 定义环境变量
+  define: {
+    __APP_BUILD_TIME__: JSON.stringify(new Date().toLocaleString()),
+    'import.meta.env.VITE_APP_BUILD_TIME': JSON.stringify(new Date().toLocaleString())
+  },
+  
   plugins: [
     vue(),
     // 按需引入 Vant 组件 + 自动创建类型声明（可选）

@@ -1170,18 +1170,18 @@ defineExpose({
         
         .amount {
             font-weight: 500;
-            
-            &--danger {
-                color: #f5222d;
-            }
-            
-            &--zero {
-                color: #999;
-            }
-            
-            &--credit {
-                color: #52c41a;
-            }
+        }
+        
+        .amount--danger {
+            color: #f5222d;
+        }
+        
+        .amount--zero {
+            color: #999;
+        }
+        
+        .amount--credit {
+            color: #52c41a;
         }
     }
 }

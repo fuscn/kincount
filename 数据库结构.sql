@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-22 20:11:54
+-- 导出时间: 2025-12-29 21:51:11
 -- 共 31 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -30,7 +30,7 @@ CREATE TABLE `account_records` (
   KEY `idx_related` (`related_type`,`related_id`),
   KEY `idx_status` (`status`),
   KEY `idx_account_records_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
 
 
 -- ==================================================
@@ -173,7 +173,7 @@ CREATE TABLE `product_skus` (
   UNIQUE KEY `idx_sku_code` (`sku_code`),
   UNIQUE KEY `unique_sku_code` (`sku_code`),
   UNIQUE KEY `unique_barcode` (`barcode`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 -- ==================================================
@@ -220,7 +220,7 @@ CREATE TABLE `products` (
   KEY `idx_status` (`status`),
   KEY `idx_products_category` (`category_id`),
   KEY `idx_products_brand` (`brand_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
 
 
 -- ==================================================
@@ -244,7 +244,7 @@ CREATE TABLE `purchase_order_items` (
   KEY `idx_order` (`purchase_order_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
 
 
 -- ==================================================
@@ -273,7 +273,7 @@ CREATE TABLE `purchase_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_order_no` (`order_no`),
   KEY `idx_purchase_orders_supplier` (`supplier_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
 
 
 -- ==================================================
@@ -295,7 +295,7 @@ CREATE TABLE `purchase_stock_items` (
   KEY `idx_stock` (`purchase_stock_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库明细表';
 
 
 -- ==================================================
@@ -321,7 +321,7 @@ CREATE TABLE `purchase_stocks` (
   KEY `idx_supplier` (`supplier_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购入库表';
 
 
 -- ==================================================
@@ -348,7 +348,7 @@ CREATE TABLE `return_order_items` (
   KEY `idx_source_order_item` (`source_order_item_id`),
   KEY `idx_source_stock_item` (`source_stock_item_id`),
   KEY `idx_return_items_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货明细表';
 
 
 -- ==================================================
@@ -386,7 +386,7 @@ CREATE TABLE `return_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_return_type` (`return_type`),
   KEY `idx_returns_type_status` (`type`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货单表';
 
 
 -- ==================================================
@@ -409,7 +409,7 @@ CREATE TABLE `return_stock_items` (
   KEY `idx_return_item` (`return_item_id`),
   KEY `idx_product` (`product_id`),
   KEY `idx_sku` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库明细表';
 
 
 -- ==================================================
@@ -437,7 +437,7 @@ CREATE TABLE `return_stocks` (
   KEY `idx_target` (`target_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='统一退货出入库表';
 
 
 -- ==================================================
@@ -478,7 +478,7 @@ CREATE TABLE `sale_order_items` (
   KEY `idx_order` (`sale_order_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单明细表';
 
 
 -- ==================================================
@@ -509,7 +509,7 @@ CREATE TABLE `sale_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_order_no` (`order_no`),
   KEY `idx_sale_orders_customer` (`customer_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售订单表';
 
 
 -- ==================================================
@@ -531,7 +531,7 @@ CREATE TABLE `sale_stock_items` (
   KEY `idx_stock` (`sale_stock_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库明细表';
 
 
 -- ==================================================
@@ -557,7 +557,7 @@ CREATE TABLE `sale_stocks` (
   KEY `idx_customer` (`customer_id`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='销售出库表';
 
 
 -- ==================================================
@@ -580,7 +580,7 @@ CREATE TABLE `stock_take_items` (
   PRIMARY KEY (`id`),
   KEY `idx_take` (`stock_take_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
 
 
 -- ==================================================
@@ -603,7 +603,7 @@ CREATE TABLE `stock_takes` (
   UNIQUE KEY `take_no` (`take_no`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
 
 
 -- ==================================================
@@ -623,7 +623,7 @@ CREATE TABLE `stock_transfer_items` (
   PRIMARY KEY (`id`),
   KEY `idx_transfer` (`stock_transfer_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨明细表';
 
 
 -- ==================================================
@@ -648,7 +648,7 @@ CREATE TABLE `stock_transfers` (
   KEY `idx_from_warehouse` (`from_warehouse_id`),
   KEY `idx_to_warehouse` (`to_warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存调拨表';
 
 
 -- ==================================================
@@ -669,7 +669,7 @@ CREATE TABLE `stocks` (
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_stocks_product` (`sku_id`),
   KEY `idx_stocks_warehouse` (`warehouse_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存表';
 
 
 -- ==================================================

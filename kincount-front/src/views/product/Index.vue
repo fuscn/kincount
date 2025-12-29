@@ -53,7 +53,7 @@
     </div>
 
     <!-- 商品聚合列表 -->
-    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+    <van-pull-refresh v-model="refreshing" @refresh="onRefresh" :disabled="initialLoading">
       <van-list 
         v-model:loading="listLoading" 
         :finished="finished" 
@@ -61,21 +61,30 @@
         :finished-text="productList.length === 0 ? '暂无商品数据' : '没有更多了'" 
         @load="onLoad"
       >
-        <ProductCard 
-          v-for="product in productList" 
-          :key="product.id"
-          :name="product.name"
-          :productNo="product.product_no" 
-          :unit="product.unit" 
-          :costPrice="product.cost_price"
-          :salePrice="product.sale_price" 
-          :minStock="product.min_stock" 
-          :category="product.category"
-          :brand="product.brand" 
-          :productId="product.id"
-          :totalStock="product.total_stock"
-          @click="handleProductItemClick"
-        />
+        <van-swipe-cell v-for="product in productList" :key="product.id">
+          <ProductCard 
+            :name="product.name"
+            :productNo="product.product_no" 
+            :unit="product.unit" 
+            :costPrice="product.cost_price"
+            :salePrice="product.sale_price" 
+            :minStock="product.min_stock" 
+            :category="product.category"
+            :brand="product.brand" 
+            :productId="product.id"
+            :totalStock="product.total_stock"
+            @click="handleProductItemClick"
+          />
+          <template #right>
+            <van-button 
+              square 
+              type="primary" 
+              text="编辑" 
+              class="edit-button"
+              @click="handleEditProduct(product)"
+            />
+          </template>
+        </van-swipe-cell>
 
         <van-empty 
           v-if="!listLoading && !refreshing && productList.length === 0" 
@@ -161,14 +170,20 @@ const loadProductList = async (isRefresh = false) => {
   if (isRefresh) {
     filters.page = 1
     finished.value = false
-    refreshing.value = true
+    // 如果不是初始加载状态，才显示下拉刷新动画
+    if (!initialLoading.value) {
+      refreshing.value = true
+    }
   } else {
     // 如果已经完成加载，不再请求
     if (finished.value) {
       isLoading.value = false
       return
     }
-    listLoading.value = true
+    // 初始加载期间不显示列表加载动画
+    if (!initialLoading.value) {
+      listLoading.value = true
+    }
   }
 
   try {
@@ -227,6 +242,8 @@ const initLoad = async () => {
     console.error('初始化失败:', error)
     showToast('初始化失败')
   } finally {
+    // 使用nextTick确保状态更新后再关闭初始加载
+    await nextTick()
     initialLoading.value = false
   }
 }
@@ -261,6 +278,10 @@ const handleProductItemClick = (product) => {
 
 const handleCreateProduct = () => {
   router.push('/product/create')
+}
+
+const handleEditProduct = (product) => {
+  router.push(`/product/edit/${product.id}`)
 }
 
 /* -------------------- 监听筛选条件变化 -------------------- */
@@ -339,6 +360,19 @@ onMounted(() => {
 
   .van-list {
     padding: 12px;
+    
+    .van-swipe-cell {
+      margin-bottom: 12px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .edit-button {
+        height: 100%;
+        min-width: 80px;
+      }
+    }
   }
 }
 

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API测试</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>API测试页面</h1>
+    <button onclick="testAPI()">测试API连接</button>
+    <div id="result"></div>
+
+    <script>
+        function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>正在测试API连接...</p>';
+            
+            // 测试系统状态API
+            fetch('/api/system/status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    resultDiv.innerHTML = '<p style="color: green;">API连接成功!</p>' +
+                        '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = '<p style="color: red;">API连接失败: ' + error.message + '</p>' +
+                        '<p>请检查后端服务是否在 http://127.0.0.1:82 上运行</p>';
+                });
+        }
+    </script>
+</body>
+</html>

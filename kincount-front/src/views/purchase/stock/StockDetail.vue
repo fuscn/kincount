@@ -104,15 +104,9 @@
             class="purchase-order-cell"
           >
             <template #right-icon>
-              <div class="status-tag-container">
-                <!-- 使用简单的div显示状态 -->
-                <div 
-                  class="status-tag" 
-                  :class="`status-${stockData.purchaseOrder.status}`"
-                >
-                  {{ getPurchaseStatusText(stockData.purchaseOrder.status) }}
-                </div>
-              </div>
+              <van-tag :type="getPurchaseStatusTagType(stockData.purchaseOrder.status)">
+                {{ getPurchaseStatusText(stockData.purchaseOrder.status) }}
+              </van-tag>
             </template>
           </van-cell>
         </van-cell-group>
@@ -258,11 +252,11 @@ const getStatusTagType = (status) => {
 const getPurchaseStatusText = (status) => {
   console.log('状态值:', status, typeof status)
   const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '部分入库',
-    4: '已完成',
-    5: '已取消'
+    0: '待审核',
+    1: '已审核',
+    2: '部分入库',
+    3: '已完成',
+    4: '已取消'
   }
   return statusMap[status] || `未知状态(${status})`
 }
@@ -270,11 +264,11 @@ const getPurchaseStatusText = (status) => {
 // 采购订单状态标签类型
 const getPurchaseStatusTagType = (status) => {
   const typeMap = {
-    1: 'warning',
-    2: 'primary',
-    3: 'info',
-    4: 'success',
-    5: 'danger'
+    0: 'warning',
+    1: 'primary',
+    2: 'info',
+    3: 'success',
+    4: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -297,7 +291,7 @@ const canCancelAudit = computed(() => {
 
 const canCancel = computed(() => {
   const status = stockData.value?.status
-  return [0, 1].includes(status) // 待审核、已审核
+  return status === 0 // 仅待审核状态可以取消
 })
 
 // 是否有可用操作
@@ -616,43 +610,6 @@ onMounted(() => {
     .van-icon {
       flex-shrink: 0;
     }
-  }
-}
-
-// 全局状态标签样式
-:deep(.status-tag-container) {
-  display: flex;
-  align-items: center;
-}
-
-:deep(.status-tag) {
-  display: inline-block;
-  padding: 2px 6px;
-  font-size: 12px;
-  line-height: 1.2;
-  border-radius: 2px;
-  color: #fff;
-  font-weight: 500;
-  
-  // 不同状态的背景色
-  &.status-1 {
-    background-color: #ff976a;
-  }
-  
-  &.status-2 {
-    background-color: #1989fa;
-  }
-  
-  &.status-3 {
-    background-color: #07c160;
-  }
-  
-  &.status-4 {
-    background-color: #07c160;
-  }
-  
-  &.status-5 {
-    background-color: #ee0a24;
   }
 }
 

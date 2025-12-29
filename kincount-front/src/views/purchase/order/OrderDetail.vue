@@ -349,7 +349,7 @@ const canAudit = computed(() => {
 
 const canCancel = computed(() => {
   const status = orderData.value?.status
-  return [0, 1, 2].includes(status) // 待审核、已审核、部分入库
+  return status === 0 // 仅待审核状态可以取消
 })
 
 const canComplete = computed(() => {

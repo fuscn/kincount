@@ -188,7 +188,6 @@
         <van-nav-bar title="选择退货商品" left-text="取消" right-text="确认" @click-left="closeSkuPicker"
           @click-right="handleSkuSelectConfirm" />
         <div class="sku-picker-content">
-          <div>当前选中的商品ID: {{ selectedSourceItemIds }}</div>
           <van-checkbox-group v-model="selectedSourceItemIds">
             <van-cell-group>
               <van-cell v-for="item in availableSourceItems" :key="`${item.sku_id}_${item.id}`" clickable 
@@ -400,19 +399,33 @@ const getItemSpecText = (item) => {
 const getSourceCellLabel = (source) => {
   const customerName = source.customer_name || source.customer?.name || '无'
   const amount = source.total_amount || 0
-  const statusText = getOrderStatusText(source.status)
+  const statusText = getOrderStatusText(source.status, sourceType.value)
   return `客户: ${customerName} | 金额: ¥${amount} | 状态: ${statusText}`
 }
 
 // 获取订单状态文本
-const getOrderStatusText = (status) => {
-  const statusMap = {
-    1: '待审核',
-    2: '已审核',
-    3: '部分出库',
-    4: '已完成',
-    5: '已取消'
+const getOrderStatusText = (status, type) => {
+  // type: 'order' - 销售订单, 'stock' - 销售出库单
+  let statusMap = {}
+  
+  if (type === 'order') {
+    // 销售订单状态映射
+    statusMap = {
+      0: '待审核',
+      1: '已审核',
+      2: '部分出库',
+      3: '已完成',
+      4: '已取消'
+    }
+  } else if (type === 'stock') {
+    // 销售出库单状态映射
+    statusMap = {
+      0: '待审核',
+      1: '已审核',
+      2: '已取消'
+    }
   }
+  
   return statusMap[status] || `未知(${status})`
 }
 

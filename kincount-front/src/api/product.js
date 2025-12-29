@@ -6,8 +6,15 @@ export function saveProductAggregate(data) {
   return request({ url: '/products/aggregate', method: 'post', data })
 }
 
+// 更新商品基本信息
+export function updateProduct(id, data) {
+  console.log('更新商品基本信息API调用，ID:', id, '数据:', data)
+  return request({ url: `/products/${id}`, method: 'put', data })
+}
+
 // 更新商品聚合
 export function updateProductAggregate(id, data) {
+  console.log('更新商品聚合API调用，ID:', id, '数据:', data)
   return request({ url: `/products/${id}/aggregate`, method: 'put', data })
 }
 
@@ -110,7 +117,14 @@ export function getSkuBySpecs(productId, specs) {
   })
 }
 
-/* ====== 商品聚合：只读信息 ====== */
+// 获取商品详情
+export function getProductDetail(productId) {
+  return request({
+    url: `/products/${productId}`,
+    method: 'get'
+  })
+}
+
 // 商品聚合信息
 export function getProductAggregate(productId) {
   return request({

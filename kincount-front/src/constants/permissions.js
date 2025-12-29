@@ -151,7 +151,11 @@ export const PERM = {
   
   // 系统配置
   CONFIG_VIEW: 'config:view',
-  CONFIG_EDIT: 'config:edit'
+  CONFIG_EDIT: 'config:edit',
+  
+  // 系统信息
+  SYSTEM_INFO_VIEW: 'system:info:view',
+  SYSTEM_LOGS_VIEW: 'system:logs:view'
 }
 
 // ==================================================
@@ -353,7 +357,10 @@ export const PERMISSION_GROUPS = {
       { key: PERM.ROLE_DELETE, name: '删除角色', description: '删除角色记录' },
       
       { key: PERM.CONFIG_VIEW, name: '查看配置', description: '查看系统配置' },
-      { key: PERM.CONFIG_EDIT, name: '编辑配置', description: '编辑系统配置' }
+      { key: PERM.CONFIG_EDIT, name: '编辑配置', description: '编辑系统配置' },
+      
+      { key: PERM.SYSTEM_INFO_VIEW, name: '查看系统信息', description: '查看系统状态和环境信息' },
+      { key: PERM.SYSTEM_LOGS_VIEW, name: '查看系统日志', description: '查看系统操作日志' }
     ]
   }
 }

@@ -132,19 +132,21 @@
       @cancel="showGenerateStockDialog = false">
       <div class="generate-stock-content">
         <div class="dialog-section">
-          <h4>出库信息</h4>
-          <div class="info-row">
-            <span>客户：</span>
-            <span>{{ orderData?.customer?.name || '--' }}</span>
-          </div>
-          <div class="info-row">
-            <span>仓库：</span>
-            <span>{{ orderData?.warehouse?.name || '--' }}</span>
+          <h4 class="section-title">出库信息</h4>
+          <div class="info-card">
+            <div class="info-item">
+              <div class="info-label">客户</div>
+              <div class="info-value">{{ orderData?.customer?.name || '--' }}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">仓库</div>
+              <div class="info-value">{{ orderData?.warehouse?.name || '--' }}</div>
+            </div>
           </div>
         </div>
 
         <div class="dialog-section">
-          <h4>商品明细</h4>
+          <h4 class="section-title">商品明细</h4>
           <div v-if="availableItems.length === 0" class="no-available-items">
             没有可出库的商品
           </div>
@@ -153,33 +155,29 @@
               <van-swipe-cell class="product-item">
                 <van-cell class="product-cell">
                   <template #title>
-                    <div class="product-title">
-                      <span class="product-name">{{ getProductName(item) }}</span>
-                      <span class="sku-code" v-if="item.sku?.sku_code">{{ item.sku?.sku_code }}</span>
-                    </div>
-                  </template>
-                  <template #label>
-                    <div class="product-label">
-                      <div class="spec-text" v-if="getSkuSpecs(item).length > 0">规格: {{ getSkuSpecs(item).join(' ') }}</div>
-                      <div class="stock-text">
-                        商品编号: {{ item.product?.product_no || '--' }}
-                        <span class="barcode-info" v-if="item.sku?.barcode">条形码: {{ item.sku?.barcode }}</span>
+                    <div class="product-info">
+                      <!-- 第一行：商品名称、规格文本、数量 -->
+                      <div class="product-row-first">
+                        <div class="product-name-specs">
+                          <span class="product-name">{{ getProductName(item) }}</span>
+                          <span class="product-specs" v-if="getSkuSpecs(item).length > 0">{{ getSkuSpecs(item).join(' ') }}</span>
+                        </div>
+                        <div class="product-quantity">¥{{ formatPrice(item.price * item.stockQuantity) }}</div>
                       </div>
-                    </div>
-                  </template>
-                  <template #default>
-                    <div class="item-details">
-                      <div class="quantity-total-column">
-                        <!-- 总金额 -->
-                        <div class="item-total">
-                          <div class="total-amount">¥{{ formatPrice(item.price * item.stockQuantity) }}</div>
+                      
+                      <!-- 第二行：sku编号、单位、单价 -->
+                      <div class="product-row-second">
+                        <div class="product-sku">SKU: {{ item.sku?.sku_code || '--' }}</div>
+                        <div class="product-unit-price">
+                          <span class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }} </span>
+                          <span class="product-price">¥{{ formatPrice(item.price) }}</span>
                         </div>
-                        <!-- 数量 -->
-                        <div class="quantity-display">
-                          <span class="quantity-text">可出库: {{ getAvailableQuantity(item) }}{{ item.product?.unit || item.unit || '个' }}</span>
-                        </div>
-                        <!-- 数量选择器 -->
-                        <div class="quantity-display">
+                      </div>
+                      
+                      <!-- 第三行：其他信息、金额小计 -->
+                      <div class="product-row-third">
+                        <div class="product-stock">库存: {{ getAvailableQuantity(item) }}{{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                        <div class="product-stepper">
                           <van-stepper v-model="item.stockQuantity" :max="getAvailableQuantity(item)" :min="0" integer
                             @change="updateStockTotal" />
                         </div>
@@ -188,13 +186,15 @@
                   </template>
                 </van-cell>
               </van-swipe-cell>
+              <!-- 手动添加分割线 -->
+              <div v-if="index < availableItems.length - 1" class="product-divider"></div>
             </template>
           </div>
         </div>
 
         <div v-if="stockTotalAmount > 0" class="total-section">
           <div class="total-row">
-            <span>出库总金额：</span>
+            <span class="total-label">出库总金额：</span>
             <span class="total-amount">¥{{ formatPrice(stockTotalAmount) }}</span>
           </div>
         </div>
@@ -378,7 +378,7 @@ const canAudit = computed(() => {
 
 const canCancel = computed(() => {
   const status = orderData.value?.status
-  return [0, 1, 2].includes(status) // 待审核、已审核、部分出库
+  return status === 0 // 仅待审核状态可以取消
 })
 
 const canComplete = computed(() => {
@@ -388,12 +388,12 @@ const canComplete = computed(() => {
 
 const canEdit = computed(() => {
   const status = orderData.value?.status
-  return [1].includes(status) // 仅待审核状态可编辑
+  return status === 0 // 仅待审核状态可编辑
 })
 
 const canDelete = computed(() => {
   const status = orderData.value?.status
-  return [1, 5].includes(status) // 待审核、已取消
+  return status === 0 // 仅待审核状态可删除
 })
 
 const canGenerateStock = computed(() => {
@@ -888,5 +888,229 @@ onMounted(() => {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 999;
+}
+
+// 生成出库单对话框样式
+// 生成出库单对话框样式
+.generate-stock-content {
+  padding: 0;
+  
+  .dialog-section {
+    margin-bottom: 16px;
+    
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #323233;
+      margin: 0 0 12px 0;
+      padding: 0 16px;
+      position: relative;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 16px;
+        background-color: #1989fa;
+        border-radius: 2px;
+      }
+    }
+    
+    .info-card {
+      margin: 0 16px;
+      background-color: #f7f8fa;
+      border-radius: 8px;
+      padding: 12px;
+      
+      .info-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+        
+        .info-label {
+          width: 60px;
+          font-size: 14px;
+          color: #969799;
+          flex-shrink: 0;
+        }
+        
+        .info-value {
+          flex: 1;
+          font-size: 14px;
+          color: #323233;
+          font-weight: 500;
+        }
+      }
+    }
+    
+    .no-available-items {
+      text-align: center;
+      padding: 40px 16px;
+      color: #969799;
+      font-size: 14px;
+      background-color: #f7f8fa;
+      margin: 0 16px;
+      border-radius: 8px;
+    }
+  }
+}
+
+.stock-items {
+  flex: 1;
+  overflow-y: auto;
+  background: #fff;
+  padding: 0 16px 8px;
+  
+  .product-item {
+    background: #fff;
+    margin-bottom: 0;
+    
+    .product-cell {
+      padding: 6px 12px;
+      
+      .product-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        
+        .product-row-first {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          
+          .product-name-specs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0; // 允许内容截断
+            
+            .product-name {
+              font-size: 15px;
+              font-weight: 500;
+              color: #323233;
+              line-height: 18px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              flex-shrink: 1;
+              min-width: 60px; // 确保商品名称至少有一部分可见
+            }
+            
+            .product-specs {
+              font-size: 13px;
+              color: #969799;
+              line-height: 16px;
+              white-space: nowrap;
+              flex-shrink: 0;
+              // 移除最大宽度限制，让规格文本完整显示
+            }
+          }
+          
+          .product-quantity {
+            font-size: 15px;
+            font-weight: 600;
+            color: #ee0a24;
+            white-space: nowrap;
+          }
+        }
+        
+        .product-row-second {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          
+          .product-sku {
+            font-size: 13px;
+            color: #969799;
+            white-space: nowrap;
+          }
+          
+          .product-unit-price {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            white-space: nowrap;
+            
+            .product-unit {
+              font-size: 13px;
+              color: #969799;
+            }
+            
+            .product-price {
+              font-size: 15px;
+              font-weight: 600;
+              color: #323233;
+            }
+          }
+        }
+        
+        .product-row-third {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          
+          .product-stock {
+            font-size: 13px;
+            color: #07c160;
+            font-weight: 500;
+          }
+          
+          .product-stepper {
+            display: flex;
+            align-items: center;
+          }
+        }
+      }
+    }
+  }
+  
+  .product-divider {
+    height: 1px;
+    background-color: #ebedf0;
+    margin: 0;
+  }
+}
+
+// 生成出库单对话框底部样式
+.total-section {
+  padding: 16px;
+  border-top: 1px solid #ebedf0;
+  background: #fff;
+  
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .total-label {
+      font-size: 15px;
+      font-weight: 500;
+      color: #323233;
+    }
+    
+    .total-amount {
+      font-size: 18px;
+      font-weight: 600;
+      color: #ee0a24;
+    }
+  }
+}
+
+// 确认对话框内容样式
+.confirm-content {
+  text-align: center;
+  padding: 16px;
+  font-size: 14px;
+  color: #646566;
 }
 </style>

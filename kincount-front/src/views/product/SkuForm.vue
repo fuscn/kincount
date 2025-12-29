@@ -174,7 +174,7 @@ const selectedColors = ref([])
 // 规格维度 - 新增SKU时默认只有颜色
 const defaultSpecDimensions = () => [{
   name: '颜色',
-  values: '' // 默认为空
+  values: '无颜色' // 默认为无颜色
 }]
 
 const specDimensions = ref(defaultSpecDimensions())
@@ -271,7 +271,7 @@ const getColorClass = (color) => {
 const openColorPicker = (dimension) => {
   currentColorDimension.value = dimension
   // 如果有已选的颜色值，初始化选中状态
-  if (dimension.values) {
+  if (dimension.values && dimension.values !== '无颜色') {
     selectedColors.value = dimension.values.split(',').map(v => v.trim()).filter(v => v)
   } else {
     selectedColors.value = []
@@ -417,19 +417,21 @@ const clearColorSelection = () => {
 
 // 确认颜色选择
 const confirmColorSelection = () => {
-  if (selectedColors.value.length === 0) {
-    showToast('请至少选择一个颜色')
-    return
-  }
-
   // 更新当前颜色维度的值
   if (currentColorDimension.value) {
-    currentColorDimension.value.values = selectedColors.value.join(',')
+    if (selectedColors.value.length === 0) {
+      // 没有选择任何颜色，设置为无颜色
+      currentColorDimension.value.values = '无颜色'
+      showToast('已设置为无颜色')
+    } else {
+      // 有选择颜色，使用选择的颜色
+      currentColorDimension.value.values = selectedColors.value.join(',')
+      showToast(`已选择 ${selectedColors.value.length} 个颜色`)
+    }
     generateSkuCombinations()
   }
 
   showColorPicker.value = false
-  showToast(`已选择 ${selectedColors.value.length} 个颜色`)
 }
 
 // 改进的SKU组合生成函数
@@ -502,6 +504,7 @@ const generateSkuCombinations = () => {
     }
     
     // 3. 如果仍然没有，尝试使用组合键前缀匹配（用于维度变化的情况）
+    // 但是只匹配价格和单位，不匹配条码和ID
     if (!existingData) {
       const keyPrefix = getCombinationKeyPrefix(spec, currentDimensionNames)
       
@@ -509,7 +512,14 @@ const generateSkuCombinations = () => {
       for (const [key, data] of Object.entries(skuDataStore.value.modified)) {
         if (key.includes(keyPrefix) || keyPrefix.includes(key)) {
           console.log('🔗 找到前缀匹配:', key, '->', keyPrefix)
-          existingData = data
+          // 只复制价格和单位信息，不复制条码和ID
+          existingData = {
+            cost_price: data.cost_price,
+            sale_price: data.sale_price,
+            unit: data.unit,
+            status: data.status
+            // 不复制 barcode, id, sku_code
+          }
           break
         }
       }
@@ -948,6 +958,18 @@ onMounted(async () => {
 .multi-sku-page {
   background-color: #f7f8fa;
   min-height: 100vh;
+  padding-top: 46px; // 为固定导航栏预留空间
+}
+
+// 固定导航栏样式
+:deep(.van-nav-bar) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background-color: white;
+  box-shadow: 0 2px 12px rgba(100, 101, 102, 0.08);
 }
 
 .form-container {

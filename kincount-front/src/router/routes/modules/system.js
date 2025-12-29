@@ -68,8 +68,20 @@ export default [
   {
     path: '/system/config',
     name: 'SystemConfig',
-    component: () => import('@/views/Placeholder.vue'),
+    component: () => import('@/views/system/config/Index.vue'),
     meta: { title: '系统配置', showTabbar: false }
+  },
+  {
+    path: '/system/config/info',
+    name: 'SystemInfo',
+    component: () => import('@/views/system/config/SystemInfo.vue'),
+    meta: { title: '系统信息', showTabbar: false, requireAuth: true, perm: 'system:info:view' }
+  },
+  {
+    path: '/system/logs',
+    name: 'SystemLogs',
+    component: () => import('@/views/system/config/SystemLogs.vue'),
+    meta: { title: '系统日志', showTabbar: false, requireAuth: true, perm: 'system:logs:view' }
   },
   {
     path: '/system/operationflowguide',

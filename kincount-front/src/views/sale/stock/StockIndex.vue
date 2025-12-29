@@ -78,14 +78,6 @@
                 <div class="info-item">
                   <span class="label">创建时间：</span>
                   <span class="value time">{{ formatDate(item.created_at) }}</span>
-                  <van-button v-if="item.status === 1" size="mini" type="success" @click.stop="handleComplete(item)"
-                    v-perm="PERM.SALE_COMPLETE">
-                    出库
-                  </van-button>
-                  <van-button v-if="item.status !== 2" size="mini" type="danger"
-                    @click.stop="handleCancel(item)" v-perm="PERM.SALE_CANCEL">
-                    取消
-                  </van-button>
                 </div>
               </div>
             </div>
@@ -109,9 +101,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useSaleStore } from '@/store/modules/sale'
 import { useCustomerStore } from '@/store/modules/customer'
 import { useWarehouseStore } from '@/store/modules/warehouse'
-import { showConfirmDialog, showToast } from 'vant'
+import { showToast } from 'vant'
 import { useRouter } from 'vue-router'
-import { PERM } from '@/constants/permissions'
 
 const saleStore = useSaleStore()
 const customerStore = useCustomerStore()
@@ -197,42 +188,6 @@ const getStatusTagType = (status) => {
 // 查看详情 - 跳转到详情页面
 const handleViewDetail = (item) => {
   router.push(`/sale/stock/detail/${item.id}`)
-}
-
-// 完成出库操作
-const handleComplete = (item) => {
-  showConfirmDialog({
-    title: '确认出库',
-    message: `确定要完成出库单 ${item.stock_no} 的出库操作吗？此操作将更新库存数量。`
-  }).then(async () => {
-    try {
-      await saleStore.completeStock(item.id)
-      showToast('出库成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      showToast('出库失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
-}
-
-// 取消操作
-const handleCancel = (item) => {
-  showConfirmDialog({
-    title: '确认取消',
-    message: `确定要取消出库单 ${item.stock_no} 吗？此操作不可恢复。`
-  }).then(async () => {
-    try {
-      await saleStore.cancelStock(item.id)
-      showToast('取消成功')
-      onRefresh() // 刷新列表
-    } catch (error) {
-      showToast('取消失败: ' + (error.message || '未知错误'))
-    }
-  }).catch(() => {
-    // 用户取消
-  })
 }
 
 // 状态标签变化
@@ -523,12 +478,5 @@ onMounted(async () => {
 
 .info-item .time {
   color: #646566;
-}
-
-:deep(.van-button--mini) {
-  height: 24px;
-  padding: 0 8px;
-  font-size: 11px;
-  margin-left: 8px;
 }
 </style>

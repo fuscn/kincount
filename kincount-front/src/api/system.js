@@ -101,6 +101,11 @@ export function getSystemInfo() {
   return request.get('/system/info')
 }
 
+// 系统状态
+export function getSystemStatus() {
+  return request.get('/system/status')
+}
+
 // 系统日志
 export function getSystemLogs() {
   return request.get('/system/logs')

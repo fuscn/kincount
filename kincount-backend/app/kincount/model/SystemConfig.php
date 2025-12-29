@@ -4,6 +4,9 @@ namespace app\kincount\model;
 
 class SystemConfig extends BaseModel
 {
+    // 禁用软删除
+    protected $deleteTime = false;
+    
     /**
      * 获取配置值 - 重命名避免冲突
      */

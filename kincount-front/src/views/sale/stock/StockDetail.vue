@@ -164,7 +164,7 @@ import {
 } from 'vant'
 import { PERM } from '@/constants/permissions'
 import { useSaleStore } from '@/store/modules/sale'
-import { auditSaleStock, cancelSaleStock, completeSaleStock } from '@/api/sale'
+import { auditSaleStock, cancelSaleStock } from '@/api/sale'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -280,18 +280,14 @@ const canAudit = computed(() => {
   return stockData.value?.status === 0 // 待审核（数据库中0-待审核）
 })
 
-const canComplete = computed(() => {
-  return stockData.value?.status === 1 // 已审核（数据库中1-已审核）
-})
-
 const canCancel = computed(() => {
   const status = stockData.value?.status
-  return [0, 1].includes(status) // 待审核、已审核（数据库中0-待审核，1-已审核）
+  return status === 0 // 仅待审核状态（数据库中0-待审核）可以取消
 })
 
 // 是否有可用操作
 const hasActions = computed(() => {
-  return canAudit.value || canComplete.value || canCancel.value
+  return canAudit.value || canCancel.value
 })
 
 // 操作面板选项
@@ -303,14 +299,6 @@ const actions = computed(() => {
       name: '审核通过',
       action: 'audit',
       color: '#07c160'
-    })
-  }
-  
-  if (canComplete.value) {
-    actionList.push({
-      name: '完成出库',
-      action: 'complete',
-      color: '#1989fa'
     })
   }
   
@@ -354,15 +342,10 @@ const onActionSelect = (action) => {
     case 'audit':
       showConfirm('审核出库单', '确定要审核通过此出库单吗？审核通过后，出库单将标记为已审核状态。', 'audit')
       break
-    case 'complete':
-      showConfirm('完成出库', '确定要完成此出库单吗？完成操作将实际扣减库存并更新销售订单状态。', 'complete')
-      break
     case 'cancel':
-        const message = stockData.value.status === 1 
-          ? '此出库单已审核，确定要取消吗？这会影响库存扣减和销售订单状态。'
-          : '确定要取消这个销售出库单吗？此操作不可恢复。'
-        showConfirm('取消出库单', message, 'cancel')
-        break
+      const message = '确定要取消这个销售出库单吗？此操作不可恢复。'
+      showConfirm('取消出库单', message, 'cancel')
+      break
   }
 }
 
@@ -382,10 +365,6 @@ const confirmAction = async () => {
       case 'audit':
         result = await auditSaleStock(stockData.value.id)
         if (result) showSuccessToast('审核成功')
-        break
-      case 'complete':
-        result = await completeSaleStock(stockData.value.id)
-        if (result) showSuccessToast('完成成功')
         break
       case 'cancel':
         result = await cancelSaleStock(stockData.value.id)

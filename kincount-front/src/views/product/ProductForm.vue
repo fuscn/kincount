@@ -5,6 +5,8 @@
       left-text="取消" 
       right-text="保存" 
       left-arrow 
+      fixed
+      placeholder
       @click-left="onCancel"
       @click-right="onSubmit" 
     />
@@ -122,9 +124,9 @@ import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
 import {
-  getProductAggregate,
+  getProductDetail,
   saveProductAggregate,
-  updateProductAggregate
+  updateProduct
 } from '@/api/product'
 import CategorySelect from '@/components/business/CategorySelect.vue'
 import BrandSelect from '@/components/business/BrandSelect.vue'
@@ -149,6 +151,7 @@ const form = reactive({
   unit: '',
   category_id: '',
   brand_id: '',
+  brand: null, // 用于存储品牌对象
   images: [],
   description: ''
 })
@@ -187,9 +190,15 @@ const selectedCategory = computed(() => {
 // 获取选中的品牌对象
 const selectedBrand = computed(() => {
   if (!form.brand_id) return null
+  // 如果form.brand是对象，优先使用它
+  if (form.brand && typeof form.brand === 'object') {
+    return form.brand
+  }
+  // 如果form.brand_id是对象，使用它
   if (typeof form.brand_id === 'object') {
     return form.brand_id
   }
+  // 否则从品牌选择组件中获取
   return brandSelectRef.value?.getSelectedBrand?.() || null
 })
 
@@ -214,20 +223,52 @@ onMounted(async () => {
 /* ===== 数据加载 ===== */
 async function loadAggregate() {
   try {
-    const data = await getProductAggregate(route.params.id)
-    Object.assign(form, data)
+    const response = await getProductDetail(route.params.id)
     
+    // 处理响应数据结构
+    let data = response
+    if (response && response.data) {
+      data = response.data
+    }
+    
+    // 确保images是数组格式
+    if (data.images && typeof data.images === 'object' && !Array.isArray(data.images)) {
+      data.images = []
+    }
+    
+    // 处理图片数据，确保是数组格式
+    if (data.images && Array.isArray(data.images)) {
+      // 过滤掉无效的图片数据
+      data.images = data.images.filter(img => img && (typeof img === 'string' || img.url))
+    } else if (!data.images) {
+      data.images = []
+    }
+    
+    // 处理品牌数据 - 如果API返回了brand对象，则使用它
+    if (data.brand && typeof data.brand === 'object') {
+      // 保留brand_id的原始值，但将brand对象保存起来用于显示
+      form.brand_id = data.brand_id
+      form.brand = data.brand
+    }
+    
+    Object.assign(form, data)
     // 等待DOM更新后刷新选择器显示
     nextTick(() => {
       if (form.category_id) {
         categorySelectRef.value?.reload?.()
         // 如果编辑时需要获取分类路径，可以在这里处理
         setTimeout(() => {
-          console.log('当前分类显示文本:', categoryDisplayText.value)
+          // 分类显示文本已更新
         }, 500)
       }
       if (form.brand_id) {
         brandSelectRef.value?.refreshBrands?.()
+        // 如果brand_id是数字，需要等待品牌数据加载完成后再处理
+        if (typeof form.brand_id === 'number') {
+          setTimeout(() => {
+            // 品牌ID处理完成
+          }, 1000)
+        }
       }
     })
   } catch (error) {
@@ -239,42 +280,36 @@ async function loadAggregate() {
 /* ===== 事件处理 ===== */
 // 分类选择确认事件 - 更新显示文本
 const onCategorySelectConfirm = (id, node) => {
-  console.log('分类选择确认:', id, node)
   form.category_id = id
   formErrors.category_id = ''
   
   // 记录选择的分类路径信息
   if (node) {
-    console.log('选择的分类节点:', node)
-    console.log('完整路径:', categoryDisplayText.value)
+    // 分类节点已选择
   }
 }
 
 // 分类选择取消事件
 const onCategorySelectCancel = () => {
-  console.log('分类选择取消')
   // 可以忽略这个事件，因为点击遮罩层关闭时也会触发
 }
 
 // 分类选择变化事件
 const onCategorySelectChange = (id) => {
-  console.log('分类变化:', id)
   formErrors.category_id = ''
   
+  // 如果没有选择分类，清空显示文本
   if (!id) {
-    console.log('已清空分类选择')
+    // 已清空分类选择
   }
 }
 
 // 品牌选择变化事件
 const onBrandSelectChange = (brand) => {
-  console.log('品牌选择变化:', brand)
   if (brand && typeof brand === 'object') {
     form.brand_id = brand
-    console.log('选择的品牌:', brand.name, 'ID:', brand.id)
   } else if (brand === null) {
     form.brand_id = null
-    console.log('已清空品牌选择')
   }
 }
 
@@ -345,20 +380,13 @@ const onSubmit = async () => {
       description: form.description?.trim() || ''
     }
 
-    console.log('提交的分类ID:', payload.category_id)
-    console.log('分类显示文本:', categoryDisplayText.value)
-
     // 调用 API
     let response
     if (isEdit.value) {
-      payload.id = form.id
-      response = await updateProductAggregate(payload)
+      response = await updateProduct(form.id, payload)
     } else {
       response = await saveProductAggregate(payload)
     }
-
-    // 调试：打印完整响应
-    console.log('API完整响应:', response)
     
     // 根据实际API响应结构处理
     let responseData
@@ -386,20 +414,16 @@ const onSubmit = async () => {
       showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
       
       const idStr = String(productId)
-      console.log('获取到productId:', idStr, 'isEdit:', isEdit.value)
       
       if (!isEdit.value) {
         // 新增商品后跳转到SKU创建页面
-        console.log('跳转到SKU创建页面:', `/product/${idStr}/skus`)
         await router.replace(`/product/${idStr}/skus`)
       } else {
         // 编辑商品后跳转到SKU列表页面
-        console.log('跳转到SKU列表页面:', `/product/${idStr}/skus`)
         await router.replace(`/product/${idStr}/skus`)
       }
     } else {
       // 如果没有productId，显示成功但跳转到商品列表
-      console.warn('未获取到productId，完整响应:', response)
       showSuccessToast(isEdit.value ? '更新成功' : '创建成功')
       setTimeout(() => {
         router.replace('/product')
@@ -432,6 +456,7 @@ const resetForm = () => {
     unit: '',
     category_id: '',
     brand_id: null,
+    brand: null, // 重置品牌对象
     images: [],
     description: ''
   })

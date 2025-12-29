@@ -9,6 +9,17 @@ use think\facade\Log;
 
 class SystemController extends BaseController
 {
+    protected $middleware = [
+        'app\kincount\middleware\JwtAuth',
+        'app\kincount\middleware\CheckPermission' => [
+            'only' => ['info', 'logs', 'clearLogs'],
+            'params' => [
+                'info' => 'system:info:view',
+                'logs' => 'system:logs:view',
+                'clearLogs' => 'system:logs:view'
+            ]
+        ]
+    ];
     /** 系统健康检查 */
     public function status()
     {
@@ -33,14 +44,14 @@ class SystemController extends BaseController
         if (!isset($post['group']) || !isset($post['items'])) {
             return $this->error('参数缺失');
         }
-        SystemConfig::setGroup($post['items'], $post['group']);
+        SystemConfig::setConfigs($post['items'], $post['group']);
         return $this->success([], '保存成功');
     }
 
     /** 某分组配置 */
     public function configGroup($group)
     {
-        return $this->success(SystemConfig::getGroup($group));
+        return $this->success(SystemConfig::getGroupConfigs($group));
     }
 
     /** 系统信息 */
@@ -51,7 +62,7 @@ class SystemController extends BaseController
             'thinkphp_version'=> app()::VERSION,
             'mysql_version'   => $this->mysqlVersion(),
             'upload_max_size' => ini_get('upload_max_filesize'),
-            'company_name'    => SystemConfig::companyName(),
+            'company_name'    => SystemConfig::getCompanyName(),
         ]);
     }
 

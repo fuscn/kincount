@@ -178,7 +178,7 @@ const canComplete = computed(() => {
 })
 
 const canCancel = computed(() => {
-  return [1, 2, 3].includes(detail.value.status) // 待调拨、已审核、调拨中可取消
+  return detail.value.status === 0 // 仅待审核状态可以取消
 })
 
 const showActions = computed(() => {

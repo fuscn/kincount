@@ -473,66 +473,64 @@ onMounted(() => {
   }
 
   // 组件样式覆盖
-  :deep {
-    .van-nav-bar {
-      background: #fff;
-      
-      &__text, .van-icon {
-        color: #1989fa;
-      }
-    }
-
-    .van-cell-group__title {
-      font-size: 14px;
-      color: #323233;
-      font-weight: 500;
-      padding: 16px 16px 8px;
-      background: #f7f8fa;
-    }
-
-    .van-cell {
-      padding: 12px 16px;
-      
-      &__title {
-        flex: 2;
-        color: #646566;
-      }
-      
-      &__value {
-        flex: 3;
-        text-align: right;
-        color: #323233;
-      }
-      
-      &__label {
-        font-size: 12px;
-        color: #969799;
-        margin-top: 2px;
-      }
-    }
-
-    .van-button {
-      border-radius: 6px;
-      
-      &--small {
-        height: 32px;
-        font-size: 14px;
-        padding: 0 12px;
-      }
-    }
-
-    .van-empty {
-      padding: 60px 0;
-    }
-
-    .van-dropdown-menu {
-      background: white;
-    }
-
-    .van-search {
-      padding: 8px 16px;
-    }
+:deep(.van-nav-bar) {
+  background: #fff;
+  
+  &__text, .van-icon {
+    color: #1989fa;
   }
+}
+
+:deep(.van-cell-group__title) {
+  font-size: 14px;
+  color: #323233;
+  font-weight: 500;
+  padding: 16px 16px 8px;
+  background: #f7f8fa;
+}
+
+:deep(.van-cell) {
+  padding: 12px 16px;
+  
+  &__title {
+    flex: 2;
+    color: #646566;
+  }
+  
+  &__value {
+    flex: 3;
+    text-align: right;
+    color: #323233;
+  }
+  
+  &__label {
+    font-size: 12px;
+    color: #969799;
+    margin-top: 2px;
+  }
+}
+
+:deep(.van-button) {
+  border-radius: 6px;
+}
+
+:deep(.van-button--small) {
+  height: 32px;
+  font-size: 14px;
+  padding: 0 12px;
+}
+
+:deep(.van-empty) {
+  padding: 60px 0;
+}
+
+:deep(.van-dropdown-menu) {
+  background: white;
+}
+
+:deep(.van-search) {
+  padding: 8px 16px;
+}
 
   // 响应式设计
   @media (max-width: 768px) {
