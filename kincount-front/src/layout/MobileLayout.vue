@@ -117,13 +117,13 @@ function onUserAction(action) {
 
 .main-content {
   min-height: calc(100vh - 100px);
-  padding: 16px;
+  padding: 0;
   box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
   .main-content {
-    padding: 12px;
+    padding: 0;
   }
 }
 </style>

@@ -103,7 +103,7 @@
                       </div>
                       <!-- 退货数量输入框 -->
                       <div class="input-field quantity-field">
-                        <van-field v-model.number="item.return_quantity" type="number" placeholder="0"
+                        <van-field v-model="item.return_quantity" type="number" placeholder="0"
                           class="editable-field compact-field" @blur="validateReturnQuantity(item, index)"
                           @input="updateItemAmount(item)" :error-message="item.quantityError">
                           <template #extra>{{ item.unit || '个' }}</template>
@@ -1074,8 +1074,8 @@ const validateReturnQuantity = (item, index) => {
   const quantity = Number(item.return_quantity) || 0
   const maxQuantity = item.max_return_quantity || 0
 
-  if (isNaN(quantity) || quantity <= 0) {
-    item.quantityError = '退货数量必须大于0'
+  if (isNaN(quantity) || quantity < 0) {
+    item.quantityError = '退货数量必须大于等于0'
     return false
   }
 
@@ -1134,7 +1134,7 @@ const validateForm = () => {
     const quantity = Number(item.return_quantity) || 0
     const maxQuantity = item.max_return_quantity || 0
 
-    if (isNaN(quantity) || quantity <= 0) {
+    if (isNaN(quantity) || quantity < 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的退货数量`)
       return false
     }

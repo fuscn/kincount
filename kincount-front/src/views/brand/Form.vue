@@ -16,7 +16,6 @@
           label="品牌名称"
           placeholder="请输入品牌名称"
           maxlength="20"
-          show-word-limit
           required
           :rules="[{ required: true, message: '请输入品牌名称' }]"
         />

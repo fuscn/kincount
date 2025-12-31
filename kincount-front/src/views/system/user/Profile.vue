@@ -54,7 +54,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const avatarInput = ref()
-const defaultAvatar = new URL('@/assets/avatar-default.png', import.meta.url).href
+import defaultAvatar from '@/assets/avatar-default.svg'
 
 const user = computed(() => authStore.user)
 

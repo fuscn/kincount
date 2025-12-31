@@ -19,7 +19,7 @@
         finished-text="没有更多了"
         @load="loadList"
       >
-        <van-swipe-cell v-for="item in list" :key="item.id">
+        <van-swipe-cell v-for="item in brandStore.list" :key="item.id">
           <van-cell
             :title="item.name"
             :label="`英文名: ${item.code || '无'} | 排序: ${item.sort}`"
@@ -42,7 +42,7 @@
           </template>
         </van-swipe-cell>
 
-        <van-empty v-if="!listLoading && !refreshing && list.length === 0" description="暂无品牌数据" />
+        <van-empty v-if="!listLoading && !refreshing && brandStore.list.length === 0" description="暂无品牌数据" />
       </van-list>
     </van-pull-refresh>
   </div>
@@ -59,7 +59,6 @@ import SearchBar from '@/components/common/SearchBar.vue'
 const router = useRouter()
 const brandStore = useBrandStore()
 
-const list = ref([])
 const refreshing = ref(false)
 const listLoading = ref(false)
 const finished = ref(false)
@@ -81,20 +80,8 @@ const loadList = async (isRefresh = false) => {
     const params = { page: pagination.page, limit: pagination.pageSize, keyword: filters.keyword }
     const res = await brandStore.loadList(params)
 
-    // 根据实际API响应结构调整数据提取
-    const data = res.data?.list || res.list || []
-    const total = res.data?.total || res.total || 0
-
-    if (isRefresh) {
-      // 刷新时，确保完全替换列表数据
-      list.value = data
-    } else {
-      // 加载更多时，追加数据
-      list.value.push(...data)
-    }
-
-    pagination.total = total
-    finished.value = list.value.length >= pagination.total
+    pagination.total = brandStore.total
+    finished.value = brandStore.list.length >= pagination.total
     
     // 只有在加载更多时才增加页码
     if (!isRefresh && !finished.value) {
@@ -126,9 +113,6 @@ const toggleStatus = async (item) => {
   try {
     await brandStore.toggleStatus(item.id, item.status === 1 ? 0 : 1)
     showSuccessToast('操作成功')
-    
-    // 直接更新本地状态，避免重新加载
-    item.status = item.status === 1 ? 0 : 1
   } catch {
     showToast('操作失败')
   }
@@ -146,18 +130,13 @@ const handleDelete = async (item) => {
     await brandStore.deleteRow(item.id)
     showSuccessToast('已删除')
     
-    // 直接从前端移除该条数据
-    const index = list.value.findIndex(brand => brand.id === item.id)
-    if (index !== -1) {
-      list.value.splice(index, 1)
-      // 更新总条数
-      pagination.total -= 1
-      
-      // 如果删除后列表为空且不是第一页，返回上一页
-      if (list.value.length === 0 && pagination.page > 1) {
-        pagination.page -= 1
-        loadList(true)
-      }
+    // 更新本地分页信息
+    pagination.total -= 1
+    
+    // 如果删除后列表为空且不是第一页，返回上一页
+    if (brandStore.list.length === 0 && pagination.page > 1) {
+      pagination.page -= 1
+      loadList(true)
     }
   } catch (e) {
     // 只有当错误不是用户取消时才显示错误提示

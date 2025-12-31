@@ -1,6 +1,6 @@
 <template>
   <!-- 悬浮气泡 -->
-  <van-floating-bubble v-model:offset="offset" axis="xy" magnetic="x" :gap="0" teleport="body" @click="toggleMenu">
+  <van-floating-bubble v-model:offset="offset" axis="xy" :gap="0" teleport="body" @click="toggleMenu">
     <van-icon :name="isExpanded ? 'cross' : 'apps-o'" />
   </van-floating-bubble>
 

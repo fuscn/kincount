@@ -101,12 +101,12 @@
                     </div>
                     <div class="right-column">
                       <!-- 数量输入框 -->
-                      <van-field 
-                        v-model.number="item.quantity" 
-                        type="number" 
-                        placeholder="0" 
+                      <van-field
+                        v-model="item.quantity"
+                        type="number"
+                        placeholder="0"
                         class="editable-field compact-field quantity-field"
-                        @blur="validateQuantity(item)" 
+                        @blur="validateQuantity(item)"
                         :error-message="item.quantityError"
                       >
                         <template #extra>{{ item.unit || '个' }}</template>
@@ -122,12 +122,12 @@
                     </div>
                     <div class="right-column">
                       <!-- 价格输入框 -->
-                      <van-field 
-                        v-model.number="item.price" 
-                        type="number" 
-                        placeholder="0.00" 
+                      <van-field
+                        v-model="item.price"
+                        type="number"
+                        placeholder="0.00"
                         class="editable-field compact-field price-field"
-                        @blur="validatePrice(item)" 
+                        @blur="validatePrice(item)"
                         :error-message="item.priceError"
                       >
                         <template #extra>元</template>
@@ -705,8 +705,8 @@ const deleteSku = (index) => {
 const validatePrice = (item) => {
   setTimeout(() => {
     const price = Number(item.price)
-    if (isNaN(price) || price <= 0) {
-      item.priceError = '单价必须大于0'
+    if (isNaN(price) || price < 0) {
+      item.priceError = '单价必须大于等于0'
       return false
     }
     item.priceError = ''
@@ -718,8 +718,8 @@ const validatePrice = (item) => {
 const validateQuantity = (item) => {
   setTimeout(() => {
     const quantity = Number(item.quantity)
-    if (isNaN(quantity) || quantity <= 0) {
-      item.quantityError = '数量必须大于0'
+    if (isNaN(quantity) || quantity < 0) {
+      item.quantityError = '数量必须大于等于0'
       return false
     }
     

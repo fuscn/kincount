@@ -69,53 +69,54 @@
           </div>
           
           <!-- 盘点商品列表 -->
-          <div class="sku-stock-take-list">
-            <van-swipe-cell v-for="(item, index) in form.items" :key="index" :right-width="60">
-              <div class="sku-take-card">
-                <!-- 信息区域 -->
-                <div class="sku-info">
-                  <!-- 第一行：商品名称 + 差异显示 -->
-                  <div class="row product-row">
-                    <div class="product-name">{{ item.product_name }}</div>
-                    <div class="difference-compact" :class="{ 
-                      'positive': item.difference > 0, 
-                      'negative': item.difference < 0,
-                      'zero': item.difference === 0
-                    }" v-if="item.difference !== undefined">
-                      {{ item.difference > 0 ? '+' : '' }}{{ item.difference || 0 }}
+          <div class="sku-list">
+            <van-swipe-cell v-for="(item, index) in form.items" :key="item.sku_id + '_' + index" class="sku-item">
+              <van-cell class="sku-cell">
+                <div class="product-grid">
+                  <!-- 第一行：商品名,规格文本 -->
+                  <div class="grid-row first-row">
+                    <div class="left-column">
+                      <span class="product-name">{{ item.product_name || '未知商品' }}</span>
+                      <span class="spec-text-inline" v-if="item.spec">{{ item.spec }}</span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 实际库存输入框 -->
+                      <van-field
+                        v-model="item.actual_stock"
+                        type="number"
+                        placeholder="实际库存"
+                        class="compact-field"
+                        :error-message="item.actualStockError"
+                        @blur="validateActualStock(item, index)"
+                        @input="calculateDifference(item, index)"
+                        :suffix="item.unit"
+                      />
                     </div>
                   </div>
                   
-                  <!-- 第二行：SKU编码 + 规格 -->
-                  <div class="row sku-row">
-                    <div class="sku-code">{{ item.product_no }}</div>
-                    <div class="sku-spec">{{ item.spec }}</div>
+                  <!-- 第二行：sku编码  单位 -->
+                  <div class="grid-row second-row">
+                    <div class="left-column">
+                      <span class="sku-code">{{ item.product_no }}</span>
+                      <span class="unit-text">单位: {{ item.unit || '个' }}</span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 差异显示 -->
+                      <div class="difference-amount" :class="{ positive: item.difference > 0, negative: item.difference < 0 }">
+                        {{ item.difference > 0 ? '+' : '' }}{{ item.difference }}
+                      </div>
+                      <div class="difference-label">差异</div>
+                    </div>
                   </div>
                   
-                  <!-- 第三行：库存对比 - 水平布局 -->
-                  <div class="row stock-row">
-                    <div class="stock-comparison-horizontal">
-                      <div class="stock-item-compact">
-                        <span class="stock-label">系统:</span>
-                        <span class="stock-value system">{{ item.current_stock }}</span>
-                      </div>
-                      <div class="stock-separator">→</div>
-                      <div class="stock-item-compact">
-                        <span class="stock-label">实际:</span>
-                        <van-field 
-                          v-model="item.actual_stock" 
-                          type="number" 
-                          placeholder="" 
-                          class="actual-stock-input-compact"
-                          :error-message="item.actualStockError"
-                          @blur="validateActualStock(item, index)" 
-                          @input="calculateDifference(item, index)"
-                        />
-                      </div>
+                  <!-- 第三行：当前库存 -->
+                  <div class="grid-row third-row">
+                    <div class="left-column">
+                      <span class="stock-info">当前库存: {{ item.current_stock }} {{ item.unit || '个' }}</span>
                     </div>
                   </div>
                 </div>
-              </div>
+              </van-cell>
               
               <!-- 删除按钮 -->
               <template #right>
@@ -176,22 +177,15 @@
     <!-- 商品选择器 -->
     <van-popup v-model:show="showProductPicker" position="bottom" :style="{ height: '70%' }">
       <div class="product-picker-container">
-        <van-nav-bar 
-          title="选择盘点商品" 
-          left-text="取消" 
-          right-text="确定"
-          @click-left="showProductPicker = false"
-          @click-right="handleProductConfirm"
+        <SkuSelect
+          v-model="selectedSkuIds"
+          show-header
+          show-footer
+          show-filters
+          header-title="选择盘点商品"
+          @confirm="handleProductConfirm"
+          @cancel="showProductPicker = false"
         />
-        <div class="picker-content">
-          <SkuStockList 
-            mode="list"
-            :warehouse-id="form.warehouse_id"
-            :selectable="true"
-            :selected-ids="selectedSkus.map(sku => sku.id)"
-            @click-card="handleSkuSelect"
-          />
-        </div>
       </div>
     </van-popup>
   </div>
@@ -204,7 +198,7 @@ import { showToast, showConfirmDialog } from 'vant'
 import dayjs from 'dayjs'
 import { useStockStore } from '@/store/modules/stock'
 import WarehouseSelect from '@/components/business/WarehouseSelect.vue'
-import SkuStockList from '@/components/business/SkuStockList.vue'
+import SkuSelect from '@/components/business/SkuSelect.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -235,6 +229,7 @@ const maxDate = new Date(2030, 12, 31)
 
 // 商品选择相关
 const selectedSkus = ref([]) // 存储选中的商品
+const selectedSkuIds = ref([]) // 存储选中的商品ID
 
 // 计算属性
 const isEditMode = computed(() => !!form.id)
@@ -274,7 +269,8 @@ const onWarehouseSelectChange = (id, name) => {
       }).then(() => {
         // 用户确认，清空数据并切换仓库
         console.log('=== 用户确认切换仓库 ===')
-        form.warehouse_name = name
+        form.warehouse_id = id // 更新仓库ID
+        form.warehouse_name = name // 更新仓库名称
         form.items = [] // 清空盘点项
         selectedSkus.value = [] // 清空选择列表
         console.log('=== 数据已清空 ===')
@@ -296,7 +292,8 @@ const onWarehouseSelectChange = (id, name) => {
     } else {
       // 没有盘点商品，直接切换
       console.log('=== 没有盘点商品，直接切换仓库 ===')
-      form.warehouse_name = name
+      form.warehouse_id = id // 更新仓库ID
+      form.warehouse_name = name // 更新仓库名称
       console.log('选择的仓库:', name, 'ID:', id)
     }
   } else {
@@ -415,19 +412,18 @@ const handleSkuSelect = (sku) => {
 }
 
 // 处理商品选择确认
-const handleProductConfirm = () => {
+const handleProductConfirm = (confirmData) => {
   try {
-    const addedCount = selectedSkus.value.length // 先记录要添加的数量
+    const selectedData = confirmData?.selectedData || [] // 从SkuSelect的confirm事件获取选中数据
+    const addedCount = selectedData.length
     
     // 添加选中的商品到盘点项，避免重复添加
-    for (const sku of selectedSkus.value) {
+    for (const sku of selectedData) {
       const exists = form.items.find(item => item.sku_id === sku.id)
       if (!exists) {
         // 更灵活地获取商品名称，适配不同的数据结构
         let productName = '未知商品'
-        if (sku.sku?.product?.name) {
-          productName = sku.sku.product.name
-        } else if (sku.product?.name) {
+        if (sku.product?.name) {
           productName = sku.product.name
         } else if (sku.product_name) {
           productName = sku.product_name
@@ -437,9 +433,7 @@ const handleProductConfirm = () => {
 
         // 获取商品编码
         let productNo = ''
-        if (sku.sku?.sku_code) {
-          productNo = sku.sku.sku_code
-        } else if (sku.sku_code) {
+        if (sku.sku_code) {
           productNo = sku.sku_code
         } else if (sku.product_no) {
           productNo = sku.product_no
@@ -449,14 +443,8 @@ const handleProductConfirm = () => {
 
         // 获取规格
         let spec = ''
-        if (sku.sku?.spec_text) {
-          spec = sku.sku.spec_text
-        } else if (sku.spec_text) {
+        if (sku.spec_text) {
           spec = sku.spec_text
-        } else if (sku.sku?.spec && typeof sku.sku.spec === 'string') {
-          spec = sku.sku.spec
-        } else if (sku.sku?.spec && typeof sku.sku.spec === 'object') {
-          spec = Object.entries(sku.sku.spec).map(([key, value]) => `${key}:${value}`).join(' ')
         } else if (sku.spec && typeof sku.spec === 'string') {
           spec = sku.spec
         } else if (sku.spec && typeof sku.spec === 'object') {
@@ -467,7 +455,7 @@ const handleProductConfirm = () => {
         const actualStock = currentStock // 默认实际库存为当前库存，用户可以修改
         
         const newItem = {
-          product_id: sku.sku?.product?.id || sku.product_id || sku.product?.id, // 商品ID
+          product_id: sku.product?.id || sku.product_id,
           sku_id: sku.id, // SKU ID
           product_name: productName,
           product_no: productNo,
@@ -484,7 +472,7 @@ const handleProductConfirm = () => {
     }
 
     // 清空选择列表并关闭弹窗
-    selectedSkus.value = []
+    selectedSkuIds.value = [] // 清空选中ID数组
     showProductPicker.value = false
     showToast(`成功添加 ${addedCount} 个商品`)
   } catch (error) {
@@ -750,7 +738,7 @@ onMounted(() => {
 }
 
 .form-container {
-  padding: 0 16px;
+  padding: 0;
 }
 
 .sku-section {
@@ -1009,146 +997,193 @@ onMounted(() => {
 // 响应式设计
 @media (max-width: 375px) {
   .form-container {
-    padding: 0 12px;
+    padding: 0;
   }
 }
 
-/* 盘点模式样式 */
-.sku-stock-take-list {
-  padding: 4px;
-  
-  .sku-take-card {
-    background: #fff;
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin-bottom: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+// 商品列表样式优化
+.sku-list {
+  .sku-item {
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    background-color: #fff;
+    border-bottom: none; // 移除原有的边框
     
-    .sku-info {
-      flex: 1;
-      min-width: 0;
-      
-      .row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 3px;
-        
-        &:last-child {
-          margin-bottom: 0;
-        }
-      }
-      
-      .product-row {
-        .product-name {
-          font-size: 13px;
-          font-weight: 600;
-          color: #222;
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          margin-right: 8px;
-        }
-        
-        .difference-compact {
-          font-size: 11px;
-          font-weight: 700;
-          flex-shrink: 0;
-          padding: 1px 4px;
-          border-radius: 2px;
-          background: #f5f5f5;
-          
-          &.positive {
-            color: #06a561;
-            background: #f0f9ff;
-          }
-          
-          &.negative {
-            color: #d6081f;
-            background: #fef2f2;
-          }
-          
-          &.zero {
-            color: #6b7280;
-            background: #f9fafb;
-          }
-        }
-      }
-      
-      .sku-row {
-        .sku-code {
-          font-size: 10px;
-          color: #6b7280;
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          margin-right: 8px;
-        }
-        
-        .sku-spec {
-          font-size: 10px;
-          color: #9ca3af;
-          flex-shrink: 0;
-        }
-      }
-      
-      .stock-row {
-        .stock-comparison-horizontal {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          width: 100%;
-          
-          .stock-item-compact {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            flex-shrink: 0;
-            
-            .stock-label {
-              font-size: 10px;
-              color: #6b7280;
-              font-weight: 500;
-            }
-            
-            .stock-value {
-              font-size: 11px;
-              font-weight: 600;
-              
-              &.system {
-                color: #1d4ed8;
-              }
-            }
-            
-            .actual-stock-input-compact {
-              width: 80px;
-              
-              :deep(.van-field__control) {
-                font-size: 11px;
-                font-weight: 600;
-                text-align: center;
-                padding: 1px 3px;
-                height: 18px;
-                background: #ffffff;
-                border: 1px solid #d1d5db;
-                border-radius: 2px;
-                color: #1f2937;
-              }
-            }
-          }
-          
-          .stock-separator {
-            font-size: 11px;
-            color: #9ca3af;
-            margin: 0 1px;
-            font-weight: 600;
-          }
-        }
-      }
+    &:last-child {
+      margin-bottom: 0;
     }
   }
+  
+  .sku-cell {
+    padding: 12px 16px;
+    background-color: #fff;
+    
+    &:after {
+      display: none;
+    }
+  }
+}
+
+.product-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.grid-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  
+  .left-column {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  
+  .right-column {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 100px;
+  }
+}
+
+.first-row {
+  .left-column {
+    .product-name {
+      font-weight: bold;
+      color: #323233;
+      font-size: 14px; // 参考OrderForm
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+    
+    .spec-text-inline {
+      font-size: 12px; // 参考OrderForm
+      color: #969799;
+      white-space: nowrap;
+    }
+  }
+}
+
+.second-row {
+  .left-column {
+    .sku-code {
+      color: #646566;
+      font-size: 12px; // 参考OrderForm
+      font-weight: normal;
+      background: #f5f5f5;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    
+    .unit-text {
+      font-size: 12px; // 参考OrderForm
+      color: #969799;
+    }
+  }
+}
+
+.third-row {
+  .left-column {
+    .stock-info {
+      font-size: 12px; // 参考OrderForm
+      color: #1890ff;
+      white-space: nowrap;
+    }
+  }
+  
+  .right-column {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+}
+
+// 紧凑字段样式
+.compact-field {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fff;
+  transition: all 0.2s;
+  height: 22px;
+  width: 85px;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0 !important;
+  box-sizing: border-box;
+  
+  :deep(.van-field__body) {
+    min-height: auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  
+  :deep(.van-field__control) {
+    font-size: 12px !important; // 参考OrderForm
+    font-weight: 500;
+    color: #323233;
+    text-align: center;
+    padding: 0 !important;
+    height: 100% !important;
+    line-height: 22px !important;
+    margin: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    display: block;
+    max-height: 22px;
+  }
+  
+  :deep(.van-field__extra) {
+    color: #969799;
+    font-size: 10px; // 参考OrderForm
+    padding-left: 2px;
+    flex-shrink: 0;
+    line-height: 22px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    margin: 0;
+  }
+  
+  &:focus-within {
+    border-color: #1989fa;
+    box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
+  }
+}
+
+.difference-amount {
+  font-size: 14px; // 参考OrderForm
+  font-weight: 600;
+  
+  &.positive {
+    color: #07c160;
+  }
+  
+  &.negative {
+    color: #ee0a24;
+  }
+}
+
+.difference-label {
+  font-size: 12px; // 参考OrderForm
+  color: #969799;
 }
 
 .delete-btn {

@@ -84,55 +84,69 @@
           <!-- SKU列表 -->
           <van-empty v-if="form.items.length === 0" description="请添加采购商品" />
           <van-cell-group v-else class="sku-list">
-            <van-swipe-cell v-for="(item, index) in form.items" :key="item.sku_id + '_' + index" class="sku-item">
+              <!-- SKU 明细项 -->
+            <van-swipe-cell
+              v-for="(item, index) in form.items"
+              :key="item.sku_id || index"
+              :disabled="false"
+              class="sku-item"
+            >
               <van-cell class="sku-cell">
-                <template #title>
-                  <div class="product-title">
-                    <span class="product-name">{{ getProductDisplayName(item) }}</span>
-                    <span class="sku-code">{{ item.sku_code }}</span>
-                  </div>
-                </template>
-                <template #label>
-                  <div class="product-label">
-                    <div class="spec-text" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</div>
-                    <div class="unit-text">单位: {{ item.unit || '个' }}</div>
-                  </div>
-                </template>
-                <template #default>
-                  <div class="item-details">
-                    <div class="price-quantity">
-                      <!-- 价格输入框 -->
-                      <div class="input-field price-field">
-                        <van-field 
-                          v-model.number="item.price" 
-                          type="number" 
-                          placeholder="0.00" 
-                          class="editable-field compact-field"
-                          @blur="validatePrice(item)" 
-                          :error-message="item.priceError"
-                        >
-                          <template #extra>元</template>
-                        </van-field>
-                      </div>
-                      <!-- 数量输入框 -->
-                      <div class="input-field quantity-field">
-                        <van-field 
-                          v-model.number="item.quantity" 
-                          type="number" 
-                          placeholder="0" 
-                          class="editable-field compact-field"
-                          @blur="validateQuantity(item)" 
-                          :error-message="item.quantityError"
-                        >
-                          <template #extra>{{ item.unit || '个' }}</template>
-                        </van-field>
-                      </div>
+                <div class="product-grid">
+                  <!-- 第一行：商品名     数量 -->
+                  <div class="grid-row first-row">
+                    <div class="left-column">
+                      <span class="product-name">{{ getProductDisplayName(item) }}</span>
                     </div>
-                    <div class="item-total">
+                    <div class="right-column">
+                      <!-- 数量输入 -->
+                      <van-field
+                        v-model="item.quantity"
+                        type="number"
+                        placeholder="0"
+                        class="editable-field compact-field quantity-field"
+                        @blur="validateQuantity(item)"
+                        :error-message="item.quantityError"
+                      >
+                        <template #extra>{{ item.unit || '个' }}</template>
+                      </van-field>
+                    </div>
+                  </div>
+
+                  <!-- 第二行：规格文本  单位        单价 -->
+                  <div class="grid-row second-row">
+                    <div class="left-column">
+                      <span class="spec-text-inline" v-if="getItemSpecText(item)">规格: {{ getItemSpecText(item) }}</span>
+                      <span class="unit-text">单位: {{ item.unit || '个' }}</span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 价格输入 -->
+                      <van-field
+                        v-model="item.price"
+                        type="number"
+                        placeholder="0.00"
+                        class="editable-field compact-field price-field"
+                        @blur="validatePrice(item)"
+                        :error-message="item.priceError"
+                      >
+                        <template #extra>元</template>
+                      </van-field>
+                    </div>
+                  </div>
+
+                  <!-- 第三行：可用库存               金额小计 -->
+                  <div class="grid-row third-row">
+                    <div class="left-column">
+                      <span class="stock-info" v-if="item.available_stock !== undefined">
+                        可用库存: {{ item.available_stock }} {{ item.unit || '个' }}
+                      </span>
+                    </div>
+                    <div class="right-column">
+                      <!-- 总金额显示 -->
                       <div class="total-amount">¥{{ ((item.price || 0) * (item.quantity || 0)).toFixed(2) }}</div>
                     </div>
                   </div>
-                </template>
+                </div>
               </van-cell>
               <template #right>
                 <van-button square type="danger" text="删除" class="delete-btn" @click="deleteSku(index)" />
@@ -494,42 +508,46 @@ const handleSkuSelectConfirm = async (result) => {
       return
     }
 
+    let addedCount = 0
     // 获取SKU详细信息并添加到表单
     for (const sku of selectedData) {
       if (!sku) continue
 
+      // 检查该SKU是否已经存在于表单中
+      const isExist = form.items.some(item => item.sku_id === sku.id)
+      if (isExist) {
+        continue // 已经存在，跳过，既不累加也不添加
+      }
+
       try {
-        // 检查是否已存在相同SKU
-        const existingIndex = form.items.findIndex(item => item.sku_id === sku.id)
-        if (existingIndex > -1) {
-          // 已存在，更新数量（+1）
-          form.items[existingIndex].quantity = (Number(form.items[existingIndex].quantity) || 0) + 1
-        } else {
-          // 新增SKU
-          const newItem = {
-            sku_id: sku.id,
-            product_id: sku.product_id,
-            sku_code: sku.sku_code || '',
-            product: sku.product || null,
-            product_name: getSkuProductName(sku),
-            sku_name: sku.name || '',
-            spec_text: sku.spec_text || '',
-            spec: sku.spec || {},
-            unit: sku.unit || '个',
-            price: sku.cost_price || 0,
-            quantity: 1,
-            priceError: '',
-            quantityError: ''
-          }
-          form.items.push(newItem)
+        const newItem = {
+          sku_id: sku.id,
+          product_id: sku.product_id,
+          sku_code: sku.sku_code || '',
+          product: sku.product || null,
+          product_name: getSkuProductName(sku),
+          sku_name: sku.name || '',
+          spec_text: sku.spec_text || '',
+          spec: sku.spec || {},
+          unit: sku.unit || '个',
+          price: sku.cost_price || 0,
+          quantity: 1,
+          priceError: '',
+          quantityError: ''
         }
+        form.items.push(newItem)
+        addedCount++
       } catch (error) {
         console.error('添加SKU失败:', error)
       }
     }
 
     showSkuSelect.value = false
-    showSuccessToast(`已添加 ${selectedData.length} 个商品`)
+    if (addedCount > 0) {
+      showSuccessToast(`已添加 ${addedCount} 个商品`)
+    } else {
+      showToast('所选商品已全部存在于列表中')
+    }
   })
 }
 
@@ -553,8 +571,8 @@ const deleteSku = (index) => {
 const validatePrice = (item) => {
   setTimeout(() => {
     const price = Number(item.price)
-    if (isNaN(price) || price <= 0) {
-      item.priceError = '单价必须大于0'
+    if (isNaN(price) || price < 0) {
+      item.priceError = '单价必须大于等于0'
       return false
     }
     item.priceError = ''
@@ -566,8 +584,8 @@ const validatePrice = (item) => {
 const validateQuantity = (item) => {
   setTimeout(() => {
     const quantity = Number(item.quantity)
-    if (isNaN(quantity) || quantity <= 0) {
-      item.quantityError = '数量必须大于0'
+    if (isNaN(quantity) || quantity < 0) {
+      item.quantityError = '数量必须大于等于0'
       return false
     }
     item.quantityError = ''
@@ -597,11 +615,11 @@ const validateForm = () => {
   for (const item of form.items) {
     const price = Number(item.price)
     const quantity = Number(item.quantity)
-    if (isNaN(price) || price <= 0) {
+    if (isNaN(price) || price < 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的单价`)
       return false
     }
-    if (isNaN(quantity) || quantity <= 0) {
+    if (isNaN(quantity) || quantity < 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的数量`)
       return false
     }
@@ -630,7 +648,6 @@ const handleSubmit = async () => {
         if (!item.sku_id) {
           throw new Error(`商品"${getProductDisplayName(item)}"缺少SKU ID`)
         }
-        
         const itemData = {
           product_id: productId,
           sku_id: item.sku_id,
@@ -705,7 +722,7 @@ onMounted(async () => {
 }
 
 .form-container {
-  padding: 16px;
+  padding: 0;
   background-color: #f7f8fa;
 }
 
@@ -746,7 +763,10 @@ onMounted(async () => {
 // 商品列表样式优化
 .sku-list {
   .sku-item {
-    margin-bottom: 1px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     
     &:last-child {
       margin-bottom: 0;
@@ -755,155 +775,224 @@ onMounted(async () => {
   
   .sku-cell {
     padding: 10px 16px;
-    align-items: flex-start;
+    background-color: #fff;
     
     &:after {
-      border-bottom: 1px solid #f5f5f5;
+      display: none;
     }
   }
 }
 
-.product-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  flex-wrap: wrap;
-}
-
-.product-name {
-  font-weight: bold;
-  color: #323233;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.sku-code {
-  color: #646566;
-  font-size: 12px;
-  font-weight: normal;
-  background: #f5f5f5;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.product-label {
-  font-size: 12px;
-  color: #969799;
-  
-  .spec-text {
-    margin-bottom: 2px;
-    color: #646566;
-    line-height: 1.3;
-  }
-  
-  .unit-text {
-    color: #969799;
-    line-height: 1.3;
-  }
-}
-
-.item-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  gap: 8px;
-}
-
-.price-quantity {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  
-  .input-field {
-    display: flex;
-    flex-direction: column;
-    
-    .editable-field {
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      background: #fff;
-      transition: all 0.2s;
-      height: 32px;
-      
-      &:deep(.van-field__body) {
-        min-height: auto;
-      }
-      
-      &:deep(.van-field__control) {
-        font-size: 13px;
-        font-weight: 500;
-        color: #323233;
-        text-align: center;
-        padding: 0 4px;
-      }
-      
-      &:deep(.van-field__extra) {
-        color: #969799;
-        font-size: 11px;
-        padding-left: 2px;
-      }
-      
-      &:focus-within {
-        border-color: #1989fa;
-        box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
-      }
-      
-      // 紧凑字段样式
-      &.compact-field {
-        width: 80px;
-        
-        &:deep(.van-field__control) {
-          font-size: 12px;
-        }
-      }
-    }
-    
-    &.price-field {
-      .editable-field {
-        width: 85px;
-      }
-    }
-    
-    &.quantity-field {
-      .editable-field {
-        width: 85px;
-      }
-    }
-  }
-}
-
-.item-total {
+.product-grid {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  min-width: 70px;
+  gap: 4px;
+  width: 100%;
+}
+
+.grid-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   
-  .total-amount {
-    color: #f53f3f;
-    font-weight: bold;
-    font-size: 13px;
-    line-height: 1.3;
+  .left-column {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  
+  .right-column {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 100px;
+  }
+}
+
+.first-row {
+  .left-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    
+    .product-name {
+      font-weight: bold;
+      color: #323233;
+      font-size: 14px;
+      white-space: normal;
+      word-wrap: break-word;
+      line-height: 1.3;
+    }
+    
+    .spec-text-inline {
+      font-size: 12px;
+      color: #969799;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
+.second-row {
+  .left-column {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    
+    .spec-text-inline {
+      font-size: 12px;
+      color: #969799;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: left;
+    }
+    
+    .unit-text {
+      font-size: 12px;
+      color: #969799;
+    }
+  }
+}
+
+.third-row {
+  .left-column {
+    .stock-info {
+      font-size: 12px;
+      color: #1890ff;
+      white-space: nowrap;
+    }
+  }
+  
+  .right-column {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+}
+
+// 紧凑字段样式
+.compact-field {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fff;
+  transition: all 0.2s;
+  height: 22px;
+  width: 85px;
+  overflow: hidden;
+  vertical-align: top;
+  padding: 0 !important;
+  box-sizing: border-box;
+  
+  &:deep(.van-field__body) {
+    min-height: auto;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  
+  &:deep(.van-field__control) {
+    font-size: 12px !important;
+    font-weight: 500;
+    color: #323233;
+    text-align: center;
+    padding: 0 !important;
+    height: 100% !important;
+    line-height: 22px !important;
+    margin: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    display: block;
+    max-height: 22px;
+  }
+  
+  &:deep(.van-field__extra) {
+    color: #969799;
+    font-size: 10px;
+    padding-left: 2px;
+    flex-shrink: 0;
+    line-height: 22px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    margin: 0;
+  }
+  
+  &:focus-within {
+    border-color: #1989fa;
+    box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.1);
+  }
+}
+
+.total-amount {
+  color: #f53f3f;
+  font-weight: bold;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.stock-warning {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #f53f3f;
+  font-size: 11px;
+  
+  span {
+    line-height: 1;
   }
 }
 
 .total-section {
-  padding: 12px 16px;
-  text-align: right;
-  font-size: 15px;
+  padding: 16px;
   background-color: #f8f9fa;
   border-radius: 8px;
   margin: 16px 0;
   border: 1px solid #e9ecef;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  .amount {
-    color: #f53f3f;
-    font-weight: bold;
-    font-size: 16px;
+  
+  .total-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+    
+    &:last-child {
+      margin-bottom: 0;
+      padding-top: 8px;
+      border-top: 1px solid #e9ecef;
+    }
+    
+    .amount {
+      color: #323233;
+      font-weight: 500;
+      
+      &.discount {
+        color: #52c41a;
+      }
+      
+      &.total {
+        color: #f53f3f;
+        font-weight: bold;
+        font-size: 16px;
+      }
+    }
   }
 }
 

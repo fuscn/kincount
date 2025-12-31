@@ -41,35 +41,38 @@
       </div>
 
       <!-- SKU列表 -->
-      <div class="sku-list-container">
+      <div class="sku-list-container" ref="listContainerRef"
+        @scroll="onScroll"
+        style="height: 600px; overflow-y: auto;">
         <van-checkbox-group v-model="selectedSkuIds">
-          <van-list v-model:loading="loading" :finished="finished"
-            :finished-text="skuList.length === 0 ? '暂无商品数据' : '没有更多商品了'" @load="loadMoreSkus">
-            <van-cell v-for="sku in skuList" :key="sku.id" @click="toggleSkuSelection(sku)">
-              <template #title>
-                <div class="sku-title">
-                  <span class="product-name">{{ getProductName(sku) }}</span>
-                  <span class="sku-code">{{ sku.sku_code }}</span>
+          <van-cell v-for="sku in skuList" :key="sku.id" @click="toggleSkuSelection(sku)">
+            <template #title>
+              <div class="sku-title">
+                <span class="product-name">{{ getProductName(sku) }}</span>
+                <span class="sku-spec-text" v-if="getSpecText(sku)">{{ getSpecText(sku) }}</span>
+              </div>
+            </template>
+            <template #label>
+              <div class="sku-info">
+                <div class="sku-code">{{ sku.sku_code }}</div>
+                <div class="sku-details">
+                  <span class="stock" :class="getStockClass(sku.stock || 0)">
+                    库存: {{ sku.stock_quantity || 0 }}
+                  </span>
+                  <span class="cost-price" v-if="sku.cost_price">成本: ¥{{ sku.cost_price }}</span>
+                  <span class="sale-price" v-if="sku.sale_price">售价: ¥{{ sku.sale_price }}</span>
                 </div>
-              </template>
-              <template #label>
-                <div class="sku-info">
-                  <div class="sku-spec" v-if="getSpecText(sku)">规格: {{ getSpecText(sku) }}</div>
-                  <div class="sku-details">
-                    <span class="stock" :class="getStockClass(sku.stock || 0)">
-                      库存: {{ sku.stock_quantity || 0 }}
-                    </span>
-                    <span class="cost-price" v-if="sku.cost_price">成本: ¥{{ sku.cost_price }}</span>
-                    <span class="sale-price" v-if="sku.sale_price">售价: ¥{{ sku.sale_price }}</span>
-                  </div>
-                </div>
-              </template>
-              <template #right-icon>
-                <van-checkbox :name="sku.id" />
-              </template>
-            </van-cell>
-          </van-list>
+              </div>
+            </template>
+            <template #right-icon>
+              <van-checkbox :name="sku.id" />
+            </template>
+          </van-cell>
         </van-checkbox-group>
+        <!-- 加载状态 -->
+        <div v-if="loading" class="loading-text"><van-loading size="20" /> 正在加载中...</div>
+        <div v-if="finished && skuList.length > 0" class="finished-text">没有更多数据了</div>
+        <div v-if="!loading && !finished && skuList.length === 0" class="finished-text">暂无商品数据</div>
       </div>
 
       <!-- 底部操作区域 -->
@@ -225,6 +228,14 @@ watch(selectedSkuIds, (newVal, oldVal) => {
   })
 }, { deep: true })
 
+// 自定义滚动监听
+const handleScroll = (e) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target
+  if (scrollHeight - scrollTop - clientHeight <= 50 && !loading.value && !finished.value) {
+    loadMoreSkus()
+  }
+}
+
 // 获取商品名称
 const getProductName = (sku) => {
   if (sku.product && sku.product.name) {
@@ -248,6 +259,24 @@ const getSpecText = (sku) => {
   return ''
 }
 
+// 滚动容器引用
+const listContainerRef = ref(null)
+// 滚动防抖定时器
+let lastScrollTime = 0
+// 自定义滚动事件处理
+const onScroll = (event) => {
+  const now = Date.now()
+  if (now - lastScrollTime > 100) { // 防抖间隔100ms
+    const target = event.target
+    const { scrollTop, scrollHeight, clientHeight } = target
+    lastScrollTime = now
+    // 当滚动到底部附近（距离100px）时加载更多
+    if (scrollHeight - scrollTop - clientHeight <= 100 && !loading.value && !finished.value) {
+      loadMoreSkus()
+    }
+  }
+}
+
 // 初始化
 onMounted(() => {
   if (props.autoLoad) {
@@ -266,12 +295,12 @@ const loadInitialData = async () => {
 // 加载SKU列表
 const loadMoreSkus = async (paramsOverride = {}) => {
   // 防止重复请求
-  if (loading.value) return
-  console.log('开始加载 SKU 数据, page:', currentPage.value, 'category_id:', paramsOverride.category_id || filterCategory.value, 'brand_id:', paramsOverride.brand_id || filterBrand.value)
-  console.log('paramsOverride:', paramsOverride)
+  if (loading.value || finished.value) {
+      return
+    }
   loading.value = true
   try {
-    // 明确使用 paramsOverride 中的值，如果没有才使用响应式状态
+    // 构建请求参数
     const params = {
       keyword: searchKeyword.value || '',
       category_id: paramsOverride.category_id !== undefined ? paramsOverride.category_id : (filterCategory.value || ''),
@@ -279,41 +308,36 @@ const loadMoreSkus = async (paramsOverride = {}) => {
       page: currentPage.value,
       limit: 20
     }
-    console.log('请求参数:', params)
+    // 执行API调用
     const res = await searchSkuSelect(params)
-    console.log('API 响应:', res)
     let newData = []
-    // 处理响应数据格式，根据 request.js 的拦截器，res 格式为 {code, msg, data}
+    // 处理响应数据
     if (res && (res.code === 200 || res.code === 0) && res.data) {
       newData = res.data
-    } else {
-      console.error('响应数据格式不符合预期:', res)
     }
-    console.log('解析后的数据:', newData)
-    // 如果是第一页，替换数据；否则追加
+    // 更新数据列表
     if (currentPage.value === 1) {
       productStore.skuSelectOptions = newData
     } else {
       productStore.skuSelectOptions = [...productStore.skuSelectOptions, ...newData]
     }
-    // 重新初始化选中数据，确保新加载的数据也能正确匹配
+    // 初始化选中数据
     initSelectedData()
-    // 更新加载状态和分页
+    // 更新分页状态
     if (newData.length < 20) {
       finished.value = true
     } else {
       currentPage.value++
     }
+    // 触发自定义事件
     emit('load-more', {
       page: currentPage.value,
       list: newData,
       finished: finished.value
     })
   } catch (error) {
-    console.error('加载 SKU 失败:', error)
     showToast('加载商品失败')
   } finally {
-    console.log('设置 loading.value = false')
     loading.value = false
   }
 }
@@ -331,37 +355,30 @@ const handleSearch = () => {
 
 // 分类选择变化
 const handleCategoryChange = (categoryId) => {
-  console.log('分类选择变化:', categoryId)
   filterCategory.value = categoryId || ''
   currentPage.value = 1
   finished.value = false
   productStore.skuSelectOptions = []
   loading.value = false // 强制重置加载状态
-  console.log('更新分类后调用 loadMoreSkus(), category_id:', categoryId)
   loadMoreSkus({ category_id: categoryId })
 }
 
 // 品牌选择变化
 const handleBrandChange = (brandId) => {
-  console.log('品牌选择变化:', brandId)
   filterBrand.value = brandId || ''
   currentPage.value = 1
   finished.value = false
   productStore.skuSelectOptions = []
   loading.value = false // 强制重置加载状态
-  console.log('更新品牌后调用 loadMoreSkus(), brand_id:', brandId)
   loadMoreSkus({ brand_id: brandId })
 }
 
 // 筛选条件变化
 const handleFilterChange = (...args) => {
-  console.log('筛选条件变化事件触发:', args)
-  console.log('当前筛选条件:', { category: filterCategory.value, brand: filterBrand.value })
   safeUpdate(() => {
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []
-    console.log('开始调用 loadMoreSkus()')
     loadMoreSkus()
   })
 }
@@ -514,6 +531,32 @@ defineExpose({
 .sku-select-header {
   background: white;
   margin-bottom: 8px;
+  padding-top: 0;
+  margin-top: 0;
+
+  :deep(.van-search) {
+    --van-search-content-background-color: #f7f8fa;
+    --van-search-padding: 8px 16px;
+    --van-search-input-height: 36px;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+
+    // 确保搜索框所有内部元素都完全铺满宽度
+    .van-search__content,
+    .van-field,
+    .van-field__body,
+    .van-field__control,
+    .van-search__field-wrap {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      flex: 1 !important;
+    }
+  }
 
   .filter-section {
     padding: 8px 12px;
@@ -569,21 +612,18 @@ defineExpose({
   }
 }
 
+/* SKU列表区域 */
 .sku-list-container {
-  flex: 1;
-  position: relative;
-  overflow-y: auto;
-  max-height: 100%;
+    height: 600px;
+    overflow-y: auto;
 }
 
-:deep(.van-list) {
-  height: 100%;
-  overflow-y: auto;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+/* 加载状态样式 */
+.loading-text,
+.finished-text {
+  text-align: center;
+  padding: 1rem;
+  color: #999;
 }
 
 .sku-select-footer {
@@ -622,7 +662,7 @@ defineExpose({
   font-size: 14px;
 }
 
-.sku-code {
+.sku-spec-text {
   color: #646566;
   font-size: 13px;
   font-weight: normal;
@@ -632,8 +672,9 @@ defineExpose({
   font-size: 12px;
 }
 
-.sku-spec {
+.sku-code {
   color: #646566;
+  font-size: 13px;
   margin-bottom: 4px;
 }
 
