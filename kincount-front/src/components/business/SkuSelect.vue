@@ -19,14 +19,14 @@
             <div class="filter-item">
               <CategorySelect v-model="filterCategory" :placeholder="'分类'" :title="'选择分类'" :button-type="'default'"
                 :button-size="'small'" :button-block="false" :show-search="true" :allow-select-parent="false"
-                :auto-close="true" @change="handleFilterChange" />
+                :auto-close="true" @change="handleCategoryChange" />
             </div>
 
             <!-- 品牌选择 -->
             <div class="filter-item">
               <BrandSelect v-model="filterBrand" :placeholder="'品牌'" :popup-title="'选择品牌'"
                 :trigger-button-type="'default'" :trigger-button-size="'small'" :trigger-button-block="false"
-                :return-object="false" @change="handleFilterChange" />
+                :return-object="false" @change="handleBrandChange" />
             </div>
 
             <!-- 重置按钮 -->
@@ -264,62 +264,56 @@ const loadInitialData = async () => {
 }
 
 // 加载SKU列表
-const loadMoreSkus = async () => {
-  if (loading.value || finished.value) return
+const loadMoreSkus = async (paramsOverride = {}) => {
+  // 防止重复请求
+  if (loading.value) return
+  console.log('开始加载 SKU 数据, page:', currentPage.value, 'category_id:', paramsOverride.category_id || filterCategory.value, 'brand_id:', paramsOverride.brand_id || filterBrand.value)
+  console.log('paramsOverride:', paramsOverride)
   loading.value = true
   try {
+    // 明确使用 paramsOverride 中的值，如果没有才使用响应式状态
     const params = {
+      keyword: searchKeyword.value || '',
+      category_id: paramsOverride.category_id !== undefined ? paramsOverride.category_id : (filterCategory.value || ''),
+      brand_id: paramsOverride.brand_id !== undefined ? paramsOverride.brand_id : (filterBrand.value || ''),
       page: currentPage.value,
-      limit: 20,
-      keyword: searchKeyword.value,
-      category_id: filterCategory.value,
-      brand_id: filterBrand.value
+      limit: 20
     }
+    console.log('请求参数:', params)
     const res = await searchSkuSelect(params)
-
-
-    // 适配标准响应结构：从 res.data 中获取数据
-    let list = []
-    if (res && res.code === 200) {
-      // 标准响应结构
-      if (Array.isArray(res.data)) {
-        list = res.data
-      } else if (res.data && res.data.list && Array.isArray(res.data.list)) {
-        // 如果 data 是分页对象
-        list = res.data.list
-      }
-    } else if (Array.isArray(res)) {
-      // 兼容直接返回数组的情况
-      list = res
-    } else if (res && res.list) {
-      // 兼容旧结构
-      list = res.list
-    }
-
-
-    if (currentPage.value === 1) {
-      productStore.skuSelectOptions = list
+    console.log('API 响应:', res)
+    let newData = []
+    // 处理响应数据格式，根据 request.js 的拦截器，res 格式为 {code, msg, data}
+    if (res && (res.code === 200 || res.code === 0) && res.data) {
+      newData = res.data
     } else {
-      productStore.skuSelectOptions = [...productStore.skuSelectOptions, ...list]
+      console.error('响应数据格式不符合预期:', res)
     }
-
+    console.log('解析后的数据:', newData)
+    // 如果是第一页，替换数据；否则追加
+    if (currentPage.value === 1) {
+      productStore.skuSelectOptions = newData
+    } else {
+      productStore.skuSelectOptions = [...productStore.skuSelectOptions, ...newData]
+    }
     // 重新初始化选中数据，确保新加载的数据也能正确匹配
     initSelectedData()
-
-    // 检查是否还有更多数据
-    if (list.length < 20) {
+    // 更新加载状态和分页
+    if (newData.length < 20) {
       finished.value = true
     } else {
       currentPage.value++
     }
     emit('load-more', {
       page: currentPage.value,
-      list: list,
+      list: newData,
       finished: finished.value
     })
   } catch (error) {
+    console.error('加载 SKU 失败:', error)
     showToast('加载商品失败')
   } finally {
+    console.log('设置 loading.value = false')
     loading.value = false
   }
 }
@@ -330,16 +324,44 @@ const handleSearch = () => {
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []
+    loading.value = false // 强制重置加载状态
     loadMoreSkus()
   })
 }
 
+// 分类选择变化
+const handleCategoryChange = (categoryId) => {
+  console.log('分类选择变化:', categoryId)
+  filterCategory.value = categoryId || ''
+  currentPage.value = 1
+  finished.value = false
+  productStore.skuSelectOptions = []
+  loading.value = false // 强制重置加载状态
+  console.log('更新分类后调用 loadMoreSkus(), category_id:', categoryId)
+  loadMoreSkus({ category_id: categoryId })
+}
+
+// 品牌选择变化
+const handleBrandChange = (brandId) => {
+  console.log('品牌选择变化:', brandId)
+  filterBrand.value = brandId || ''
+  currentPage.value = 1
+  finished.value = false
+  productStore.skuSelectOptions = []
+  loading.value = false // 强制重置加载状态
+  console.log('更新品牌后调用 loadMoreSkus(), brand_id:', brandId)
+  loadMoreSkus({ brand_id: brandId })
+}
+
 // 筛选条件变化
-const handleFilterChange = () => {
+const handleFilterChange = (...args) => {
+  console.log('筛选条件变化事件触发:', args)
+  console.log('当前筛选条件:', { category: filterCategory.value, brand: filterBrand.value })
   safeUpdate(() => {
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []
+    console.log('开始调用 loadMoreSkus()')
     loadMoreSkus()
   })
 }
@@ -353,6 +375,7 @@ const handleResetFilters = () => {
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []
+    loading.value = false // 强制重置加载状态
     loadMoreSkus()
   })
 }
@@ -548,7 +571,19 @@ defineExpose({
 
 .sku-list-container {
   flex: 1;
-  overflow: hidden;
+  position: relative;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+:deep(.van-list) {
+  height: 100%;
+  overflow-y: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .sku-select-footer {

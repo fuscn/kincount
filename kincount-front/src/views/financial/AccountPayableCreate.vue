@@ -196,14 +196,12 @@ onMounted(() => loadSuppliers())
 :deep(.van-field__label) { width: 80px; flex: none; }
 :deep(.van-field__value) { text-align: right; }
 :deep(input[type="number"]) { text-align: right; font-size: 16px; }
-:deep(.van-picker) { background: #fff;
-  &__confirm { color: #1989fa; }
-  &__cancel { color: #969799; }
-}
-:deep(.van-uploader) { width: 100%;
-  &__upload, &__preview { width: 80px; height: 80px; margin: 0 8px 8px 0; }
-  &__preview-image { width: 100%; height: 100%; object-fit: cover; }
-}
+:deep(.van-picker) { background: #fff; }
+:deep(.van-picker__confirm) { color: #1989fa; }
+:deep(.van-picker__cancel) { color: #969799; }
+:deep(.van-uploader) { width: 100%; }
+:deep(.van-uploader__upload), :deep(.van-uploader__preview) { width: 80px; height: 80px; margin: 0 8px 8px 0; }
+:deep(.van-uploader__preview-image) { width: 100%; height: 100%; object-fit: cover; }
 :deep(.van-field__body textarea) { min-height: 60px; resize: none; }
 :deep(.expense-amount) { color: #ee0a24; font-weight: bold; }
 </style>

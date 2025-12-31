@@ -10,6 +10,12 @@
 // +----------------------------------------------------------------------
 use think\facade\Route;
 
+// 直接定义 SKU 选择接口路由
+Route::get('skus/select', 'app\\kincount\\controller\\ProductController@skuSelect');
+
+// 加载 kincount 模块的路由文件
+include __DIR__ . '/../app/kincount/route/app.php';
+
 Route::get('think', function () {
     return 'hello,ThinkPHP6!';
 });

@@ -1,6 +1,7 @@
 <template>
-  <div class="multi-sku-page">
-    <van-nav-bar :title="pageTitle" left-text="返回" left-arrow @click-left="handleBack">
+  <div class="product-aggregate-form">
+    <van-nav-bar :title="pageTitle" left-text="取消" left-arrow fixed placeholder
+      @click-left="handleBack">
       <template #right>
         <van-button size="small" type="primary" @click="submitAll" :loading="submitting"
           :disabled="skuList.length === 0 || submitting">
@@ -9,10 +10,9 @@
       </template>
     </van-nav-bar>
 
-    <div class="form-container">
+    <van-form ref="formRef" class="form-wrap">
       <!-- 规格维度定义 -->
-      <div class="section">
-        <div class="section-title">规格维度</div>
+      <van-cell-group title="规格维度">
         <div class="spec-dimensions">
           <div v-for="(dimension, index) in specDimensions" :key="index" class="dimension-item">
             <van-field v-model="dimension.name" :label="`规格${index + 1}`" placeholder="如：颜色、尺寸等"
@@ -47,14 +47,18 @@
             生成SKU组合
           </van-button>
         </div>
-      </div>
+      </van-cell-group>
 
       <!-- SKU列表 -->
-      <div class="section" v-if="skuList.length > 0">
+      <van-cell-group title="SKU列表" v-if="skuList.length > 0">
         <div class="section-title">
-          SKU列表 ({{ skuList.length }}个)
-          <span class="sku-count-info">({{ existingSkuCount }}个已有, {{ newSkuCount }}个新增)</span>
-          <van-button size="mini" type="primary" plain @click="batchSetPrice">
+          <span>SKU列表</span>
+          <span class="sku-count-badge total-count">{{ skuList.length }}个</span>
+          <span class="sku-count-info">
+            <span class="count-tag existing">已有 {{ existingSkuCount }} 个</span>
+            <span class="count-tag new">新增 {{ newSkuCount }} 个</span>
+          </span>
+          <van-button size="mini" type="primary" plain class="batch-set-btn" @click="batchSetPrice">
             批量设置
           </van-button>
         </div>
@@ -80,8 +84,6 @@
                 :rules="[{ required: true, message: '请输入销售价' }]" />
               <van-field v-model="sku.barcode" label="条码" placeholder="留空则自动生成" :readonly="!!sku.id"
                 :tooltip="sku.id ? '已有SKU条码不可修改' : '新增SKU条码自动生成'" />
-              <van-field v-model="sku.unit" label="单位" placeholder="个/件/箱"
-                :rules="[{ required: true, message: '请输入单位' }]" />
             </div>
 
             <van-button size="mini" type="danger" plain @click="removeSku(index)" class="remove-sku-btn">
@@ -89,16 +91,15 @@
             </van-button>
           </div>
         </div>
-      </div>
-    </div>
+      </van-cell-group>
+    </van-form>
 
     <!-- 批量设置弹窗 -->
     <van-popup v-model:show="showBatchDialog" position="bottom" round :style="{ height: '50%' }" closeable>
       <div class="form-title">批量设置</div>
       <van-form @submit="confirmBatchSet">
         <van-field v-model.number="batchData.cost_price" label="成本价" type="number" placeholder="留空则不修改" />
-        <van-field v-model.number="batchData.sale_price" label="销售价" type="number" placeholder="留空则不修改" />
-        <van-field v-model="batchData.unit" label="单位" placeholder="留空则不修改" />
+      <van-field v-model.number="batchData.sale_price" label="销售价" type="number" placeholder="留空则不修改" />
         <van-field name="状态" label="批量设置状态">
           <template #input>
             <van-radio-group v-model="batchData.status" direction="horizontal">
@@ -191,11 +192,10 @@ const skuDataStore = ref({
 
 // 批量设置数据
 const batchData = reactive({
-  cost_price: null,
-  sale_price: null,
-  unit: '',
-  status: null
-})
+    cost_price: null,
+    sale_price: null,
+    status: null
+  })
 
 // 计算属性
 const canGenerateCombinations = computed(() => {
@@ -317,12 +317,11 @@ const saveSkuToStore = (sku) => {
   if (!sku.combinationKey) return
   
   // 只保存已有SKU的数据或用户已修改的数据
-  if (sku.id || sku.cost_price > 0 || sku.sale_price > 0 || sku.barcode || sku.unit !== '个') {
+  if (sku.id || sku.cost_price > 0 || sku.sale_price > 0 || sku.barcode) {
     skuDataStore.value.modified[sku.combinationKey] = {
       cost_price: sku.cost_price,
       sale_price: sku.sale_price,
       barcode: sku.barcode,
-      unit: sku.unit,
       status: sku.status,
       id: sku.id,
       sku_code: sku.sku_code
@@ -538,7 +537,6 @@ const generateSkuCombinations = () => {
       cost_price: costPrice,
       sale_price: salePrice,
       barcode: existingData?.barcode || '',
-      unit: existingData?.unit || '个',
       status: existingData?.status ?? 1,
       id: existingData?.id,
       sku_code: existingData?.sku_code || ''
@@ -633,24 +631,21 @@ const batchSetPrice = () => {
 
 // 确认批量设置
 const confirmBatchSet = () => {
-  skuList.value.forEach(sku => {
-    if (batchData.cost_price !== null) {
-      sku.cost_price = parsePrice(batchData.cost_price)
-    }
-    if (batchData.sale_price !== null) {
-      sku.sale_price = parsePrice(batchData.sale_price)
-    }
-    if (batchData.unit) {
-      sku.unit = batchData.unit
-    }
-    if (batchData.status !== null) {
-      sku.status = batchData.status
-    }
-  })
+    skuList.value.forEach(sku => {
+      if (batchData.cost_price !== null) {
+        sku.cost_price = parsePrice(batchData.cost_price)
+      }
+      if (batchData.sale_price !== null) {
+        sku.sale_price = parsePrice(batchData.sale_price)
+      }
+      if (batchData.status !== null) {
+        sku.status = batchData.status
+      }
+    })
 
-  showBatchDialog.value = false
-  showToast('批量设置成功')
-}
+    showBatchDialog.value = false
+    showToast('批量设置成功')
+  }
 
 // 从spec对象生成组合键
 const generateCombinationKeyFromSpec = (spec) => {
@@ -764,15 +759,14 @@ const loadProductSkus = async (id) => {
           })
           
           // 保存到修改数据
-          skuDataStore.value.modified[combinationKey] = {
-            cost_price: costPrice,
-            sale_price: salePrice,
-            barcode: sku.barcode,
-            unit: sku.unit,
-            status: sku.status,
-            id: sku.id,
-            sku_code: sku.sku_code
-          }
+        skuDataStore.value.modified[combinationKey] = {
+          cost_price: costPrice,
+          sale_price: salePrice,
+          barcode: sku.barcode,
+          status: sku.status,
+          id: sku.id,
+          sku_code: sku.sku_code
+        }
         })
         
         console.log('💾 数据存储初始化完成:', {
@@ -798,65 +792,66 @@ const loadProductSkus = async (id) => {
       isNewSkuMode.value = true
       // 使用默认规格维度（只有颜色）
       specDimensions.value = defaultSpecDimensions()
-      skuList.value = []
       skuDataStore.value = {
         original: [],
         modified: {},
         dimensions: []
       }
-      showToast('暂无SKU数据，请添加')
+      // 自动生成默认SKU组合（无颜色）
+      generateSkuCombinations()
+      showToast('暂无SKU数据，已自动创建默认SKU')
     }
 
   } catch (error) {
-    console.error('❌ 加载商品SKU失败:', error)
-    console.error('错误详情:', error.response || error.message)
-    showToast('加载SKU失败')
-    // 如果加载失败，默认设置为新增SKU模式
-    isNewSkuMode.value = true
-    specDimensions.value = defaultSpecDimensions()
-    skuList.value = []
-    skuDataStore.value = {
-      original: [],
-      modified: {},
-      dimensions: []
-    }
+      console.error('❌ 加载商品SKU失败:', error)
+      console.error('错误详情:', error.response || error.message)
+      showToast('加载SKU失败')
+      // 如果加载失败，默认设置为新增SKU模式
+      isNewSkuMode.value = true
+      specDimensions.value = defaultSpecDimensions()
+      skuDataStore.value = {
+        original: [],
+        modified: {},
+        dimensions: []
+      }
+      // 自动生成默认SKU组合（无颜色）
+      generateSkuCombinations()
   }
 }
 
 // 准备提交数据 - 将数字价格转换为字符串格式
 const prepareSubmitData = () => {
-  // 在提交前保存所有数据到存储
-  saveAllSkuToStore()
-  
-  const skus = skuList.value.map(sku => {
-    const skuData = {
-      spec: sku.spec,
-      // 将数字转换为字符串，保留两位小数
-      cost_price: typeof sku.cost_price === 'number' ? sku.cost_price.toFixed(2) : '0.00',
-      sale_price: typeof sku.sale_price === 'number' ? sku.sale_price.toFixed(2) : '0.00',
-      unit: sku.unit,
-      status: sku.status
+    // 在提交前保存所有数据到存储
+    saveAllSkuToStore()
+    
+    const skus = skuList.value.map(sku => {
+      const skuData = {
+        spec: sku.spec,
+        // 将数字转换为字符串，保留两位小数
+        cost_price: typeof sku.cost_price === 'number' ? sku.cost_price.toFixed(2) : '0.00',
+        sale_price: typeof sku.sale_price === 'number' ? sku.sale_price.toFixed(2) : '0.00',
+        status: sku.status
+      }
+
+      // 关键：如果是已有SKU，必须传递id
+      if (sku.id) {
+        skuData.id = sku.id
+      }
+
+      // 对于已有SKU，如果条码不为空则传递
+      // 对于新增SKU，如果条码不为空则传递，为空则后端自动生成
+      if (sku.barcode && sku.barcode.trim() !== '') {
+        skuData.barcode = sku.barcode
+      }
+
+      return skuData
+    })
+
+    return {
+      product_id: productId.value,
+      skus: skus
     }
-
-    // 关键：如果是已有SKU，必须传递id
-    if (sku.id) {
-      skuData.id = sku.id
-    }
-
-    // 对于已有SKU，如果条码不为空则传递
-    // 对于新增SKU，如果条码不为空则传递，为空则后端自动生成
-    if (sku.barcode && sku.barcode.trim() !== '') {
-      skuData.barcode = sku.barcode
-    }
-
-    return skuData
-  })
-
-  return {
-    product_id: productId.value,
-    skus: skus
   }
-}
 
 // 提交所有数据
 const submitAll = async () => {
@@ -868,10 +863,6 @@ const submitAll = async () => {
     }
     if (sku.sale_price === undefined || sku.sale_price === null || sku.sale_price < 0) {
       showToast(`请填写有效的销售价: ${sku.specText}`)
-      return
-    }
-    if (!sku.unit) {
-      showToast(`请填写单位: ${sku.specText}`)
       return
     }
   }
@@ -955,83 +946,126 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.multi-sku-page {
-  background-color: #f7f8fa;
+.product-aggregate-form {
+  background: #f7f8fa;
   min-height: 100vh;
-  padding-top: 46px; // 为固定导航栏预留空间
+  padding-bottom: 20px;
 }
 
-// 固定导航栏样式
-:deep(.van-nav-bar) {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background-color: white;
-  box-shadow: 0 2px 12px rgba(100, 101, 102, 0.08);
+.form-wrap {
+  :deep(.van-cell-group__title) {
+    padding-top: 16px;
+    padding-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  :deep(.van-field__label) {
+    font-weight: 500;
+  }
+  
+  /* 减少规格维度的行高 */
+  :deep(.van-field) {
+    min-height: auto;
+    line-height: 1.2;
+  }
+  
+  :deep(.van-cell) {
+    padding: 6px 16px;
+    min-height: auto;
+  }
+  
+  :deep(.van-field__body) {
+    line-height: 1.2;
+  }
 }
 
-.form-container {
+/* 规格维度样式 */
+.spec-dimensions {
+  padding: 16px 0;
+}
+
+.dimension-item {
+  padding: 2px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.dimension-item:last-child {
+  border-bottom: none;
+}
+
+.dimension-actions {
+  display: flex;
+  gap: 16px;
   padding: 16px;
 }
 
-.section {
-  background: white;
-  border-radius: 8px;
-  margin-bottom: 16px;
+/* SKU列表样式 */
+.sku-list {
   padding: 16px;
 }
 
 .section-title {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
   font-size: 16px;
   font-weight: 500;
-  color: #323233;
-  border-bottom: 1px solid #ebedf0;
-  margin-bottom: 12px;
-
-  .sku-count-info {
-    font-size: 12px;
-    color: #969799;
-    margin-left: 8px;
-  }
+  color: #333;
 }
 
-.dimension-item {
-  background: #f7f8fa;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
+.sku-count-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.dimension-actions {
+.sku-count-badge.total-count {
+  background: #1989fa;
+  color: #fff;
+}
+
+.sku-count-info {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
+  flex-wrap: wrap;
 }
 
-.sku-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.count-tag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.count-tag.existing {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.count-tag.new {
+  background: #f0f9ff;
+  color: #1989fa;
+}
+
+.batch-set-btn {
+  margin-left: auto;
 }
 
 .sku-item {
-  background: #f7f8fa;
+  margin-bottom: 8px;
+  padding: 10px;
   border-radius: 8px;
-  padding: 12px;
-  border: 1px solid #ebedf0;
-
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  
   &.new-sku {
-    border-left: 4px solid #07c160;
+    border: 2px dashed #1989fa;
   }
 }
 
@@ -1039,14 +1073,12 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e1e2e3;
+  margin-bottom: 10px;
 }
 
 .sku-spec {
   font-weight: 500;
-  color: #323233;
+  color: #333;
 }
 
 .sku-status {
@@ -1056,470 +1088,28 @@ onMounted(async () => {
 }
 
 .sku-type-tag {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  
   &.existing {
-    background: #e8f4fd;
-    color: #1989fa;
+    background: #f0f0f0;
+    color: #666;
   }
-
+  
   &.new {
-    background: #e8f8ef;
-    color: #07c160;
+    background: #f0f9ff;
+    color: #1989fa;
   }
 }
 
 .sku-fields {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .remove-sku-btn {
-  margin-top: 12px;
-  width: 100%;
-}
-
-.form-actions {
-  padding: 16px 0;
-}
-
-.form-title {
-  padding: 16px;
-  font-size: 16px;
-  font-weight: 500;
-  text-align: center;
-  border-bottom: 1px solid #eee;
-}
-
-.color-picker {
-  padding: 16px;
-}
-
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-}
-
-.color-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 6px;
-  background: #f7f8fa;
-}
-
-.color-actions {
-  padding: 16px 0;
-}
-
-:deep(.van-radio-group) {
-  width: 100%;
-  display: flex;
-  justify-content: space-around;
-}
-
-/* 导航栏右侧按钮样式 */
-:deep(.van-nav-bar__right) {
-  padding-right: 8px;
-}
-
-/* 颜色文本样式 */
-:deep(.color-red .van-checkbox__label) {
-  color: #ee0a24 !important;
-}
-
-:deep(.color-blue .van-checkbox__label) {
-  color: #1989fa !important;
-}
-
-:deep(.color-black .van-checkbox__label) {
-  color: #000000 !important;
-}
-
-:deep(.color-white .van-checkbox__label) {
-  color: #ffffff !important;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-}
-
-:deep(.color-pink .van-checkbox__label) {
-  color: #ff69b4 !important;
-}
-
-:deep(.color-yellow .van-checkbox__label) {
-  color: #ffd700 !important;
-}
-
-:deep(.color-green .van-checkbox__label) {
-  color: #07c160 !important;
-}
-
-:deep(.color-purple .van-checkbox__label) {
-  color: #8b00ff !important;
-}
-
-:deep(.color-orange .van-checkbox__label) {
-  color: #ffa500 !important;
-}
-
-:deep(.color-gray .van-checkbox__label) {
-  color: #808080 !important;
-}
-
-:deep(.color-no-color .van-checkbox__label) {
-  color: #969799 !important;
-}
-
-:deep(.color-default .van-checkbox__label) {
-  color: #323233 !important;
-}
-
-/* 价格输入框样式 */
-:deep(.van-field__control) {
-  text-align: right;
-}
-
-:deep(.van-field--disabled .van-field__control) {
-  color: #969799;
-}
-</style>
-
-<style scoped lang="scss">
-.multi-sku-page {
-  background-color: #f7f8fa;
-  min-height: 100vh;
-}
-
-.form-container {
-  padding: 16px;
-}
-
-.section {
-  background: white;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  padding: 16px;
-}
-
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #323233;
-  border-bottom: 1px solid #ebedf0;
-  margin-bottom: 12px;
-
-  .sku-count-info {
-    font-size: 12px;
-    color: #969799;
-    margin-left: 8px;
-  }
-}
-
-.dimension-item {
-  background: #f7f8fa;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.dimension-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.sku-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sku-item {
-  background: #f7f8fa;
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid #ebedf0;
-
-  &.new-sku {
-    border-left: 4px solid #07c160;
-  }
-}
-
-.sku-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e1e2e3;
-}
-
-.sku-spec {
-  font-weight: 500;
-  color: #323233;
-}
-
-.sku-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sku-type-tag {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-
-  &.existing {
-    background: #e8f4fd;
-    color: #1989fa;
-  }
-
-  &.new {
-    background: #e8f8ef;
-    color: #07c160;
-  }
-}
-
-.sku-fields {
-  display: grid;
-  gap: 8px;
-}
-
-.remove-sku-btn {
-  margin-top: 12px;
-  width: 100%;
-}
-
-.form-actions {
-  padding: 16px 0;
-}
-
-.form-title {
-  padding: 16px;
-  font-size: 16px;
-  font-weight: 500;
-  text-align: center;
-  border-bottom: 1px solid #eee;
-}
-
-.color-picker {
-  padding: 16px;
-}
-
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-}
-
-.color-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 6px;
-  background: #f7f8fa;
-}
-
-.color-actions {
-  padding: 16px 0;
-}
-
-:deep(.van-radio-group) {
-  width: 100%;
-  display: flex;
-  justify-content: space-around;
-}
-
-/* 导航栏右侧按钮样式 */
-:deep(.van-nav-bar__right) {
-  padding-right: 8px;
-}
-
-/* 颜色文本样式 */
-:deep(.color-red .van-checkbox__label) {
-  color: #ee0a24 !important;
-}
-
-:deep(.color-blue .van-checkbox__label) {
-  color: #1989fa !important;
-}
-
-:deep(.color-black .van-checkbox__label) {
-  color: #000000 !important;
-}
-
-:deep(.color-white .van-checkbox__label) {
-  color: #ffffff !important;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
-}
-
-:deep(.color-pink .van-checkbox__label) {
-  color: #ff69b4 !important;
-}
-
-:deep(.color-yellow .van-checkbox__label) {
-  color: #ffd700 !important;
-}
-
-:deep(.color-green .van-checkbox__label) {
-  color: #07c160 !important;
-}
-
-:deep(.color-purple .van-checkbox__label) {
-  color: #8b00ff !important;
-}
-
-:deep(.color-orange .van-checkbox__label) {
-  color: #ffa500 !important;
-}
-
-:deep(.color-gray .van-checkbox__label) {
-  color: #808080 !important;
-}
-
-:deep(.color-no-color .van-checkbox__label) {
-  color: #969799 !important;
-}
-
-:deep(.color-default .van-checkbox__label) {
-  color: #323233 !important;
-}
-</style>
-
-<style scoped lang="scss">
-.multi-sku-page {
-  background-color: #f7f8fa;
-  min-height: 100vh;
-}
-
-.form-container {
-  padding: 16px;
-}
-
-.section {
-  background: white;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  padding: 16px;
-}
-
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 12px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #323233;
-  border-bottom: 1px solid #ebedf0;
-  margin-bottom: 12px;
-
-  .sku-count-info {
-    font-size: 12px;
-    color: #969799;
-    margin-left: 8px;
-  }
-}
-
-.dimension-item {
-  background: #f7f8fa;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.dimension-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.sku-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sku-item {
-  background: #f7f8fa;
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid #ebedf0;
-
-  &.new-sku {
-    border-left: 4px solid #07c160;
-  }
-}
-
-.sku-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e1e2e3;
-}
-
-.sku-spec {
-  font-weight: 500;
-  color: #323233;
-}
-
-.sku-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sku-type-tag {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-
-  &.existing {
-    background: #e8f4fd;
-    color: #1989fa;
-  }
-
-  &.new {
-    background: #e8f8ef;
-    color: #07c160;
-  }
-}
-
-.sku-fields {
-  display: grid;
-  gap: 8px;
-}
-
-.remove-sku-btn {
-  margin-top: 12px;
+  margin-top: 8px;
   width: 100%;
 }
 

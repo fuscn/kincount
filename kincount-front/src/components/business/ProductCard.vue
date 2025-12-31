@@ -19,6 +19,11 @@
           {{ brandName }}
         </span>
         
+        <!-- SKU数量标签 -->
+        <span class="meta-tag sku-count">
+          SKU: {{ skuCount }}
+        </span>
+        
         <!-- 库存信息 -->
         <div class="stock-info" :class="stockLevelClass">
           <span class="stock-count">{{ totalStock !== undefined ? totalStock : 0 }}</span>
@@ -74,6 +79,10 @@ const props = defineProps({
   totalStock: { // 新增：从父组件传递的库存数据
     type: [Number, String],
     default: 0 // 改为默认0
+  },
+  skuCount: { // 新增：SKU数量
+    type: [Number, String],
+    default: 0
   }
 })
 
@@ -196,6 +205,12 @@ const handleClick = () => {
         background: #f6ffed;
         color: #52c41a;
         border: 1px solid #b7eb8f;
+      }
+      
+      &.sku-count {
+        background: #fff0f5;
+        color: #eb2f96;
+        border: 1px solid #ffadd2;
       }
     }
 

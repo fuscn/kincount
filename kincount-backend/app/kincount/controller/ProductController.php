@@ -51,8 +51,18 @@ class ProductController extends BaseController
         if (!empty($params['keyword'])) {
             $query->whereLike('sku_code|spec_text', "%{$params['keyword']}%");
         }
-        return $this->paginate($query->order('id', 'desc')
-            ->paginate(['list_rows' => $params['limit'] ?? 15]));
+        
+        $list = $query->order('id', 'desc')
+            ->paginate(['list_rows' => $params['limit'] ?? 15]);
+        
+        // 添加商品单位信息到每个SKU
+        foreach ($list as &$sku) {
+            if ($sku->product) {
+                $sku->unit = $sku->product->unit;
+            }
+        }
+        
+        return $this->paginate($list);
     }
 
     public function skuRead($id)
@@ -61,6 +71,12 @@ class ProductController extends BaseController
             ->where('deleted_at', null)
             ->find($id);
         if (!$sku) return $this->error('SKU不存在');
+        
+        // 添加商品单位信息
+        if ($sku->product) {
+            $sku->unit = $sku->product->unit;
+        }
+        
         return $this->success($sku);
     }
 
@@ -124,66 +140,65 @@ class ProductController extends BaseController
     /*----------  列表 + 搜索 + 分页+品牌过滤+分类过滤  ----------*/
 public function skuSelect()
 {
-    $kw = request()->get('keyword', '');
-    $categoryId = request()->get('category_id', '');
-    $brandId = request()->get('brand_id', '');
-    $limit = (int)request()->get('limit', 20);
-    $page = (int)request()->get('page', 1);
+    try {
+        $kw = request()->get('keyword', '');
+        $categoryId = request()->get('category_id', '');
+        $brandId = request()->get('brand_id', '');
+        $limit = (int)request()->get('limit', 20);
+        $page = (int)request()->get('page', 1);
 
-    $query = ProductSku::with(['product' => function ($q) {
-        $q->field('id,name,category_id,brand_id,product_no,spec,unit');
-    }])
-        ->where('status', 1)
-        ->where('deleted_at', null);
+        // 直接使用 JOIN 方式来处理产品表的关联查询，避免复杂的子查询解析问题
+        $query = ProductSku::alias('sku')
+            ->join('products p', 'sku.product_id = p.id', 'LEFT')
+            ->field('sku.*, p.name as product_name, p.product_no as product_no, p.category_id, p.brand_id, p.unit')
+            ->where('sku.status', 1)
+            ->where('sku.deleted_at', null)
+            ->where('p.deleted_at', null);
 
-    // 关键词搜索
-    if (!empty($kw)) {
-        $query->where(function ($q) use ($kw) {
-            $q->whereLike('sku_code', "%{$kw}%")
-                ->whereOr('spec', 'like', "%{$kw}%");
-        });
+        // 关键词搜索
+        if (!empty($kw)) {
+            $query->where(function ($q) use ($kw) {
+                $q->whereLike('sku.sku_code', "%{$kw}%")
+                    ->whereOr('p.name', 'like', "%{$kw}%")
+                    ->whereOr('p.product_no', 'like', "%{$kw}%");
+            });
+        }
+
+        // 分类过滤
+        if (!empty($categoryId)) {
+            $query->where('p.category_id', $categoryId);
+        }
+
+        // 品牌过滤
+        if (!empty($brandId)) {
+            $query->where('p.brand_id', $brandId);
+        }
+
+        // 分页
+        $list = $query->page($page, $limit)->select();
+
+        // 批量获取所有SKU的库存数量，避免N+1查询
+        $skuIds = $list->column('id');
+        if (!empty($skuIds)) {
+            $stockQuantities = Stock::whereIn('sku_id', $skuIds)
+                ->where('deleted_at', null)
+                ->group('sku_id')
+                ->field('sku_id, SUM(quantity) as total_quantity')
+                ->select()
+                ->column('total_quantity', 'sku_id');
+        } else {
+            $stockQuantities = [];
+        }
+
+        // 为每个SKU添加库存数量
+        foreach ($list as &$sku) {
+            $sku->stock_quantity = isset($stockQuantities[$sku->id]) ? (int)$stockQuantities[$sku->id] : 0;
+        }
+
+        return $this->success($list);
+    } catch (\Exception $e) {
+        return $this->error('查询失败: ' . $e->getMessage());
     }
-
-    // 分类过滤
-    if (!empty($categoryId)) {
-        $query->whereExists(function ($query) use ($categoryId) {
-            $query->table('products')
-                ->whereRaw('products.id = product_skus.product_id')
-                ->where('products.category_id', $categoryId);
-        });
-    }
-
-    // 品牌过滤
-    if (!empty($brandId)) {
-        $query->whereExists(function ($query) use ($brandId) {
-            $query->table('products')
-                ->whereRaw('products.id = product_skus.product_id')
-                ->where('products.brand_id', $brandId);
-        });
-    }
-
-    // 分页
-    $list = $query->page($page, $limit)->select();
-
-    // 批量获取所有SKU的库存数量，避免N+1查询
-    $skuIds = $list->column('id');
-    if (!empty($skuIds)) {
-        $stockQuantities = Stock::whereIn('sku_id', $skuIds)
-            ->where('deleted_at', null)
-            ->group('sku_id')
-            ->field('sku_id, SUM(quantity) as total_quantity')
-            ->select()
-            ->column('total_quantity', 'sku_id');
-    } else {
-        $stockQuantities = [];
-    }
-
-    // 为每个SKU添加库存数量
-    foreach ($list as &$sku) {
-        $sku->stock_quantity = isset($stockQuantities[$sku->id]) ? (int)$stockQuantities[$sku->id] : 0;
-    }
-
-    return $this->success($list);
 }
 
 
@@ -196,6 +211,8 @@ public function skuSelect()
         $cateId    = (int)input('category_id', 0);
         $brandId   = (int)input('brand_id', 0);
         $status    = input('status', '');
+        
+        
 
         $query = Product::with(['category', 'brand'])
             ->where('deleted_at', null);
@@ -210,9 +227,17 @@ public function skuSelect()
         $list = $query->order('id', 'desc')
             ->paginate(['list_rows' => $limit, 'page' => $page]);
 
-        /* 追加总库存 */
+        /* 追加总库存和SKU数量 */
         foreach ($list as &$v) {
-            $v['total_stock'] = Stock::where('sku_id', $v['id'])->sum('quantity');
+            // 正确计算总库存：先获取该商品的所有SKU，再计算这些SKU的库存总和
+            $skuIds = ProductSku::where('product_id', $v['id'])->where('deleted_at', null)->column('id');
+            if (!empty($skuIds)) {
+                $v['total_stock'] = Stock::whereIn('sku_id', $skuIds)->sum('quantity');
+            } else {
+                $v['total_stock'] = 0;
+            }
+            // 添加SKU数量
+            $v['sku_count'] = ProductSku::where('product_id', $v['id'])->where('deleted_at', null)->count();
         }
 
         return $this->paginate($list);
@@ -528,6 +553,9 @@ public function skuSelect()
                 return json(['code' => 404, 'message' => '商品不存在']);
             }
 
+            // 获取商品单位
+            $productUnit = $product->unit;
+
             // 获取请求数据
             $input = json_decode(file_get_contents('php://input'), true);
             $skusData = $input['skus'] ?? [];
@@ -560,9 +588,8 @@ public function skuSelect()
                         throw new Exception("第" . ($index + 1) . "个SKU销售价不能为空");
                     }
 
-                    if (empty($skuData['unit'])) {
-                        throw new Exception("第" . ($index + 1) . "个SKU单位不能为空");
-                    }
+                    // 自动使用商品单位，无需前端提交
+                    $skuData['unit'] = $productUnit;
 
                     $specJson = json_encode($skuData['spec'], JSON_UNESCAPED_UNICODE);
 

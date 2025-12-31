@@ -57,14 +57,17 @@ export const useProductStore = defineStore('product', {
         const { list = [], total = 0 } = res.data || {}
 
         // 刷新则替换，否则追加
-        this.productList = isRefresh ? list : [...this.productList, ...list]
+        const newProductList = isRefresh ? list : [...this.productList, ...list]
+        this.productList = newProductList
         this.productTotal = total
-        this.productFinished = this.productList.length >= total
+        
+        // 只有当确实没有更多数据时，才将 productFinished 设置为 true
+        // 条件：新添加的数据长度为0 或者 总数据长度大于等于总数
+        // 移除list.length < params.limit的条件，因为这可能导致在数据刚好够一页时被错误地认为没有更多数据
+        this.productFinished = list.length === 0 || newProductList.length >= total
 
-        // 移除：不再需要额外加载库存数据
-        // await this.loadProductStocks(this.productList.map(item => item.id))
-
-        return list // 可选：返回列表数据
+        // 返回当前请求的数据
+        return list
       } catch (error) {
         console.error('加载商品列表失败:', error)
         // 注意：store 中不能直接使用 showToast，需要在组件中处理

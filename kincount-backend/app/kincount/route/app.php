@@ -27,6 +27,8 @@ Route::group(function () {
 
     // 系统状态检查
     Route::get('system/status', 'SystemController/status');
+    // SKU 搜索接口 - 公开访问
+    Route::get('skus/select', 'ProductController/skuSelect');
 });
 
 // 需要JWT认证的路由组
@@ -75,7 +77,6 @@ Route::group(function () use ($jwtMiddleware) {
         Route::post('/', 'ProductController/skuSave');          # 新增 SKU
         Route::put('/:id', 'ProductController/skuUpdate');      # 编辑 SKU
         Route::delete('/:id', 'ProductController/skuDelete');   # 删除 SKU
-        Route::get('/select', 'ProductController/skuSelect');   # SKU 下拉/搜索
 
         # 新增批量操作接口
         Route::post('/batch', 'ProductController/skuBatchSave');          # 批量新增 SKU

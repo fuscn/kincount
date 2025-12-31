@@ -56,8 +56,9 @@
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh" :disabled="initialLoading">
       <van-list 
         v-model:loading="listLoading" 
-        :finished="finished" 
+        :finished="productStore.productFinished" 
         :immediate-check="false"
+        :offset="100"
         :finished-text="productList.length === 0 ? '暂无商品数据' : '没有更多了'" 
         @load="onLoad"
       >
@@ -73,6 +74,7 @@
             :brand="product.brand" 
             :productId="product.id"
             :totalStock="product.total_stock"
+            :skuCount="product.sku_count"
             @click="handleProductItemClick"
           />
           <template #right>
@@ -121,6 +123,7 @@ const brandStore = useBrandStore()
 // 使用计算属性获取状态
 const productList = computed(() => productStore.productList)
 const productTotal = computed(() => productStore.productTotal)
+const finished = computed(() => productStore.productFinished)
 
 /* -------------------- 筛选条件 -------------------- */
 const filters = reactive({
@@ -157,36 +160,35 @@ const hasActiveFilters = computed(() => {
 const initialLoading = ref(false)
 const listLoading = ref(false)
 const refreshing = ref(false)
-const finished = ref(false)
 const isLoading = ref(false) // 加载锁，防止重复请求
+const isInitializing = ref(false) // 初始化状态，防止van-list自动触发onLoad
 
 /* -------------------- 商品列表加载 -------------------- */
 const loadProductList = async (isRefresh = false) => {
-  // 加锁，防止重复请求
-  if (isLoading.value) return
-  isLoading.value = true
-  
-  // 设置加载状态
-  if (isRefresh) {
-    filters.page = 1
-    finished.value = false
-    // 如果不是初始加载状态，才显示下拉刷新动画
-    if (!initialLoading.value) {
-      refreshing.value = true
+    // 加锁，防止重复请求
+    if (isLoading.value) return
+    isLoading.value = true
+    
+    // 设置加载状态
+    if (isRefresh) {
+      filters.page = 1
+      productStore.productFinished = false
+      // 如果不是初始加载状态，才显示下拉刷新动画
+      if (!initialLoading.value) {
+        refreshing.value = true
+      }
+    } else {
+      // 如果已经完成加载，不再请求
+      if (finished.value) {
+        isLoading.value = false
+        return
+      }
+      // 初始加载期间不显示列表加载动画
+      if (!initialLoading.value) {
+        listLoading.value = true
+      }
     }
-  } else {
-    // 如果已经完成加载，不再请求
-    if (finished.value) {
-      isLoading.value = false
-      return
-    }
-    // 初始加载期间不显示列表加载动画
-    if (!initialLoading.value) {
-      listLoading.value = true
-    }
-  }
 
-  try {
     // 准备请求参数
     const params = {
       page: filters.page,
@@ -196,31 +198,27 @@ const loadProductList = async (isRefresh = false) => {
       brand_id: filters.brand_id
     }
 
-    // 调用状态管理中的加载方法
-    await productStore.loadProductList(params, isRefresh)
-
-    // 检查是否还有更多数据
-    const currentTotal = productTotal.value
-    const currentList = productList.value
-    
-    // 如果当前列表长度小于限制，或者总条数小于等于当前列表长度，说明没有更多数据了
-    if (currentList.length < filters.limit || currentList.length >= currentTotal) {
-      finished.value = true
-    } else {
-      // 准备下一页
-      if (!isRefresh) {
-        filters.page++
+    try {
+      // 调用状态管理中的加载方法
+      const currentPageData = await productStore.loadProductList(params, isRefresh)
+      
+      // 检查是否有更多数据可以加载
+      const hasMoreData = currentPageData.length === filters.limit
+      
+      // 页码递增逻辑：无论是否刷新，只要有更多数据，就递增页码
+      // 这样确保任何情况下都能正确加载下一页
+      if (hasMoreData) {
+        filters.page += 1
       }
+    } catch (error) {
+      console.error('加载商品列表失败:', error)
+      showToast(error.message || '加载商品列表失败')
+      productStore.productFinished = false // 失败时不要设置为true，允许重试
+    } finally {
+      refreshing.value = false
+      listLoading.value = false
+      isLoading.value = false
     }
-  } catch (error) {
-    console.error('加载商品列表失败:', error)
-    showToast(error.message || '加载商品列表失败')
-    finished.value = true
-  } finally {
-    refreshing.value = false
-    listLoading.value = false
-    isLoading.value = false
-  }
 }
 
 /* -------------------- 分离刷新和加载事件 -------------------- */
@@ -229,11 +227,18 @@ const onRefresh = () => {
 }
 
 const onLoad = () => {
+  // 初始化期间不处理van-list的自动触发
+  if (isInitializing.value || initialLoading.value) {
+    return
+  }
+  
+  // 调用加载函数加载下一页
   loadProductList(false)
 }
 
 /* -------------------- 手动触发初始加载 -------------------- */
 const initLoad = async () => {
+  isInitializing.value = true
   initialLoading.value = true
   try {
     // 只加载商品列表数据，分类和品牌数据由组件自己请求
@@ -245,6 +250,7 @@ const initLoad = async () => {
     // 使用nextTick确保状态更新后再关闭初始加载
     await nextTick()
     initialLoading.value = false
+    isInitializing.value = false
   }
 }
 
