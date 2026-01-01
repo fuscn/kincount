@@ -118,39 +118,56 @@
         :immediate-check="false"
       >
         <!-- 库存项 -->
-        <van-cell-group class="stock-list">
-          <van-cell 
-            v-for="stockItem in stockList" 
-            :key="`${stockItem.sku_id}_${stockItem.warehouse_id}`" 
-            :title="stockItem.sku?.product?.name || '未知产品'" 
-            :label="getStockLabel(stockItem)"
+        <van-cell-group class="sku-list">
+          <van-swipe-cell
+            v-for="stockItem in stockList"
+            :key="`${stockItem.sku_id}_${stockItem.warehouse_id}`"
+            class="sku-item"
           >
-            <template #extra>
-              <div class="stock-extra">
-                <van-tag :type="getStockTagType(stockItem)">
-                  {{ getStockStatusText(stockItem) }}
-                </van-tag>
-                <div class="quantity">{{ stockItem.quantity }}{{ stockItem.sku?.unit || '' }}</div>
-                <div class="amount">¥{{ formatPrice(stockItem.total_amount) }}</div>
-                <div class="action-buttons">
-                  <van-button 
-                    size="mini" 
-                    type="primary" 
-                    @click.stop="handleStockTransfer(stockItem)"
-                  >
-                    调拨
-                  </van-button>
-                  <van-button 
-                    size="mini" 
-                    type="warning" 
-                    @click.stop="handleStockTake(stockItem)"
-                  >
-                    盘点
-                  </van-button>
+            <van-cell class="sku-cell">
+              <div class="product-grid">
+                  <!-- 第一行：商品名,规格文本     库存状态 -->
+                  <div class="grid-row first-row">
+                    <div class="left-column">
+                      <span class="product-name">{{ stockItem.sku?.product?.name || '未知商品' }}</span>
+                      <span class="spec-text-inline" v-if="getItemSpecText(stockItem)">规格: {{ getItemSpecText(stockItem) }}</span>
+                    </div>
+                    <div class="right-column">
+                      <van-tag :type="getStockTagType(stockItem)">{{ getStockStatusText(stockItem) }}</van-tag>
+                    </div>
+                  </div>
+                  
+                  <!-- 第二行：SKU编码  单位        库存数量 -->
+                  <div class="grid-row second-row">
+                    <div class="left-column">
+                      <span class="sku-code" v-if="stockItem.sku?.sku_code">{{ stockItem.sku.sku_code }}</span>
+                      <span class="unit-text">单位: {{ stockItem.sku?.unit || '个' }}</span>
+                    </div>
+                    <div class="right-column">
+                      <div class="quantity-info">{{ stockItem.quantity || 0 }} {{ stockItem.sku?.unit || '个' }}</div>
+                    </div>
+                  </div>
+                  
+                  <!-- 第三行：位置(仓库)信息       库存金额 -->
+                  <div class="grid-row third-row">
+                    <div class="left-column">
+                      <span class="warehouse-info">仓库: {{ stockItem.warehouse?.name || '未知仓库' }}</span>
+                    </div>
+                    <div class="right-column">
+                      <div class="total-amount">¥{{ formatPrice(Number(stockItem.quantity || 0) * Number(stockItem.sku?.price || 0)) }}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+            </van-cell>
+            <template #right>
+              <van-button size="small" type="warning" block @click.stop="handleStockTake(stockItem)">
+                盘点
+              </van-button>
+              <van-button size="small" type="primary" block @click.stop="handleStockTransfer(stockItem)">
+                调拨
+              </van-button>
             </template>
-          </van-cell>
+          </van-swipe-cell>
         </van-cell-group>
 
         <!-- 空状态 -->
@@ -282,6 +299,19 @@ const formatPrice = (price) => {
   return isNaN(num) ? '0.00' : num.toFixed(2)
 }
 
+// 获取商品规格文本
+const getItemSpecText = (stockItem) => {
+  if (stockItem.sku?.spec_text) {
+    return stockItem.sku.spec_text
+  }
+  if (stockItem.sku?.spec && typeof stockItem.sku.spec === 'object') {
+    return Object.entries(stockItem.sku.spec)
+      .map(([key, value]) => `${key}:${value}`)
+      .join(' ')
+  }
+  return ''
+}
+
 // 格式化时间
 const formatTime = (time) => {
   if (!time) return ''
@@ -294,15 +324,23 @@ const formatTime = (time) => {
   }
 }
 
+// 获取库存标题（商品名称 + 规格）
+const getStockTitle = (stockItem) => {
+  let title = stockItem.sku?.product?.name || '未知产品'
+  if (stockItem.sku?.spec) {
+    const specText = Object.entries(stockItem.sku.spec).map(([key, value]) => `${key}:${value}`).join(' ')
+    if (specText) {
+      title += ` (${specText})`
+    }
+  }
+  return title
+}
+
 // 获取库存标签信息
 const getStockLabel = (stockItem) => {
   const labels = []
   if (stockItem.sku?.sku_code) labels.push(`SKU：${stockItem.sku.sku_code}`)
   if (stockItem.warehouse?.name) labels.push(`仓库：${stockItem.warehouse.name}`)
-  if (stockItem.sku?.spec) {
-    const specText = Object.entries(stockItem.sku.spec).map(([key, value]) => `${key}:${value}`).join(' ')
-    if (specText) labels.push(`规格：${specText}`)
-  }
   return labels.join(' | ')
 }
 
@@ -663,38 +701,133 @@ onMounted(() => {
   }
 
   // 库存列表样式
-  .stock-list {
-    .van-cell {
-      padding: 15px 10px;
-      margin-bottom: 10px;
-      background-color: #fff;
+  .sku-list {
+    .sku-item {
+      margin-bottom: 8px;
       border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
-      .stock-extra {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 5px;
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
 
-        .quantity {
-          font-size: 14px;
-          font-weight: 600;
-          color: #323233;
-        }
+    .sku-cell {
+      padding: 10px 16px;
+      background-color: #fff;
 
-        .amount {
-          font-size: 14px;
-          font-weight: 600;
-          color: #ee0a24;
-        }
-
-        .action-buttons {
-          display: flex;
-          gap: 5px;
-        }
+      &:after {
+        display: none;
       }
     }
   }
+
+  .product-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .grid-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+
+    .left-column {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .right-column {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 100px;
+    }
+  }
+
+  .first-row {
+    .left-column {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+
+      .product-name {
+        font-weight: bold;
+        color: #323233;
+        font-size: 14px;
+        white-space: normal;
+        word-wrap: break-word;
+        line-height: 1.3;
+      }
+
+      .spec-text-inline {
+        font-size: 12px;
+        color: #969799;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: left;
+      }
+    }
+  }
+
+  .second-row {
+      .left-column {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+
+        .sku-code,
+        .unit-text {
+          font-size: 12px;
+          color: #969799;
+        }
+      }
+      
+      .right-column {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-width: 100px;
+      }
+    }
+
+    .third-row {
+      .left-column {
+        flex: 1;
+        min-width: 0;
+      }
+      
+      .right-column {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-width: 100px;
+      }
+
+      .quantity-info {
+        font-size: 14px;
+        color: #323233;
+      }
+
+      .value-info {
+        font-size: 14px;
+        font-weight: 600;
+        color: #ee0a24;
+      }
+    }
 
   // 初始加载样式
   .initial-loading {

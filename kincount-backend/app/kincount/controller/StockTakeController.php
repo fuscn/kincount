@@ -117,7 +117,7 @@ class StockTakeController extends BaseController
             $take = StockTake::create([
                 'take_no'     => $takeNo,
                 'warehouse_id'=> $post['warehouse_id'],
-                'status'      => 1,
+                'status'      => 0,
                 'remark'      => $post['remark'] ?? '',
                 'created_by'  => $this->getUserId(),
             ]);
@@ -157,11 +157,17 @@ class StockTakeController extends BaseController
         return $this->success(['id' => $take->id], '盘点单创建成功');
     }
 
+    /**
+     * 更新盘点单
+     */
     public function update($id)
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('只有盘点中可修改');
+        // 已审核、已完成或已取消的盘点单不能修改
+        if ($take->status >= 2) {
+            return $this->error('已审核、已完成或已取消的盘点单不能修改');
+        }
 
         $post = input('post.');
         
@@ -226,16 +232,22 @@ class StockTakeController extends BaseController
         return $this->success([], '盘点单更新成功');
     }
 
+    /**
+     * 删除盘点单
+     */
     public function delete($id)
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('只有盘点中可删除');
+        // 已审核、已完成或已取消的盘点单不能删除
+        if ($take->status >= 2) {
+            return $this->error('已审核、已完成或已取消的盘点单不能删除');
+        }
 
         Db::transaction(function () use ($take) {
-            // 使用硬删除，直接从数据库中删除所有明细记录
-            StockTakeItem::where('stock_take_id', $take->id)->delete();
-            $take->delete();
+            // 使用直接更新方式执行软删除（避免多条数据时delete()报错）
+            Db::table('stock_take_items')->where('stock_take_id', $take->id)->update(['deleted_at' => date('Y-m-d H:i:s')]);
+            $take->update(['deleted_at' => date('Y-m-d H:i:s')]);
         });
         return $this->success([], '盘点单删除成功');
     }
@@ -244,41 +256,74 @@ class StockTakeController extends BaseController
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('当前状态无法审核');
+        // 检查状态：已审核、已完成、已取消的不允许操作
+        if (in_array($take->status, [2, 3, 4])) {
+            return $this->error('该盘点单已审核，不允许重复审核');
+        }
 
-        Db::transaction(function () use ($take) {
+        // 检查是否有盘点明细
+        $hasItems = StockTakeItem::where('stock_take_id', $id)->count() > 0;
+        if (!$hasItems) {
+            return $this->error('请先添加盘点明细');
+        }
+
+        Db::transaction(function () use ($take, $id) {
             /* 状态 */
             $take->save(['status' => 2, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
 
             /* 库存修正 */
-            foreach ($take->items as $v) {
-                Stock::where('sku_id', $v->sku_id)
-                     ->where('warehouse_id', $take->warehouse_id)
-                     ->update(['quantity' => $v->actual_quantity]);
+            // 直接查询明细，不使用关联关系，避免可能的 exists() 方法调用
+            $items = StockTakeItem::where('stock_take_id', $id)->select();
+            foreach ($items as $v) {
+                $stock = Stock::where('sku_id', $v->sku_id)
+                              ->where('warehouse_id', $take->warehouse_id)
+                              ->find();
+                if ($stock) {
+                    // 如果库存记录存在，更新数量
+                    $stock->save(['quantity' => $v->actual_quantity]);
+                } else {
+                    // 如果库存记录不存在，创建新记录
+                    Stock::create([
+                        'sku_id'       => $v->sku_id,
+                        'warehouse_id' => $take->warehouse_id,
+                        'quantity'     => $v->actual_quantity,
+                        'cost_price'   => $v->cost_price,
+                        'total_amount' => $v->actual_quantity * $v->cost_price
+                    ]);
+                }
             }
         });
 
-        return $this->success([], '审核成功');
+        return $this->success([], '盘点单审核成功');
     }
 
     public function complete($id)
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if (!in_array($take->status, [1, 2])) return $this->error('只有盘点中或已审核状态可完成');
+        // 检查状态：已审核、已完成、已取消的不允许操作
+        if (in_array($take->status, [2, 3, 4])) {
+            return $this->error('该盘点单已审核，不允许完成');
+        }
 
         $take->save(['status' => 3]); // 修改为状态3（已完成）
         return $this->success([], '盘点完成');
     }
 
+    /**
+     * 取消盘点
+     */
     public function cancel($id)
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('当前状态不能取消');
+        // 已审核、已完成或已取消的盘点单不能取消
+        if ($take->status >= 2) {
+            return $this->error('已审核、已完成或已取消的盘点单不能取消');
+        }
 
         $take->save(['status' => 4]); // 修改为状态4（已取消）
-        return $this->success([], '已取消');
+        return $this->success([], '盘点单取消成功');
     }
 
     public function items($id)
@@ -292,7 +337,10 @@ class StockTakeController extends BaseController
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('只有盘点中可添加明细');
+        // 检查状态：已审核、已完成、已取消的不允许操作
+        if (in_array($take->status, [2, 3, 4])) {
+            return $this->error('该盘点单已审核，不允许添加商品');
+        }
 
         $post = input('post.');
         $validate = new \think\Validate([
@@ -338,7 +386,10 @@ class StockTakeController extends BaseController
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('只有盘点中可修改明细');
+        // 检查状态：已审核、已完成、已取消的不允许操作
+        if (in_array($take->status, [2, 3, 4])) {
+            return $this->error('该盘点单已审核，不允许更新商品');
+        }
 
         $item = StockTakeItem::where('stock_take_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');
@@ -373,7 +424,10 @@ class StockTakeController extends BaseController
     {
         $take = StockTake::where('deleted_at', null)->find($id);
         if (!$take) return $this->error('盘点单不存在');
-        if ($take->status != 1) return $this->error('只有盘点中可删除明细');
+        // 检查状态：已审核、已完成、已取消的不允许操作
+        if (in_array($take->status, [2, 3, 4])) {
+            return $this->error('该盘点单已审核，不允许删除商品');
+        }
 
         $item = StockTakeItem::where('stock_take_id', $id)->find($item_id);
         if (!$item) return $this->error('明细不存在');

@@ -45,4 +45,14 @@ class StockTakeItem extends BaseModel
         }
         return '正常';
     }
+    // 获取绝对值的差异金额
+    public function getAbsDifferenceAmountAttr()
+    {
+        return abs($this->difference_amount);
+    }
+    // 获取绝对值的差异数量
+    public function getAbsDifferenceQuantityAttr()
+    {
+        return abs($this->difference_quantity);
+    }
 }

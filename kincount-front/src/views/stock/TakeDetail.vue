@@ -11,12 +11,11 @@
       <template #right>
         <van-button 
           size="small" 
-          type="primary" 
-          @click="handleEdit"
-          v-perm="PERM.STOCK_TAKE"
-          v-if="canEdit"
+          type="primary"
+          @click="showActionSheet = true"
+          v-if="showActions || canEdit"
         >
-          编辑
+          操作
         </van-button>
       </template>
     </van-nav-bar>
@@ -46,47 +45,42 @@
         </div>
         
         <div class="items-list">
-          <div 
-            v-for="(item, index) in detail.items" 
-            :key="index" 
-            class="item-card"
-          >
-            <!-- 商品信息区域 -->
-            <div class="item-info">
-              <!-- 第一行：商品名称 -->
-              <div class="row product-row">
-                <div class="product-name">{{ item.product_name }}</div>
-              </div>
-              
-              <!-- 第二行：SKU编码 + 规格 -->
-              <div class="row sku-row">
-                <div class="sku-info">
-                  <div class="sku-code">{{ item.sku?.sku_code || item.product?.product_no }}</div>
+          <div class="list-container">
+            <div 
+              v-for="(item, index) in detail.items" 
+              :key="index" 
+              class="list-item"
+            >
+              <!-- 商品信息区域 -->
+              <div class="item-info">
+                <!-- 第一行：商品名称 + 规格 -->
+                <div class="row product-row">
+                  <div class="product-name">{{ item.product?.name || item.product_name }}</div>
                   <div class="sku-spec">{{ formatSpec(item.sku?.spec) || item.product?.spec || '无规格' }}</div>
                 </div>
-              </div>
-              
-              <!-- 第三行：库存对比 -->
-              <div class="row stock-row">
-                <div class="stock-comparison">
-                  <div class="stock-item">
-                    <span class="stock-label">系统库存</span>
-                    <span class="stock-value system">{{ item.system_quantity }}</span>
-                  </div>
-                  <div class="stock-arrow">→</div>
-                  <div class="stock-item">
-                    <span class="stock-label">实际库存</span>
-                    <span class="stock-value actual">{{ item.actual_quantity }}</span>
-                  </div>
-                  <div class="stock-arrow">→</div>
-                  <div class="stock-item difference-item">
-                    <span class="stock-label">差异数</span>
-                    <div class="difference-badge" :class="{ 
-                      'positive': item.difference_quantity > 0, 
-                      'negative': item.difference_quantity < 0,
-                      'zero': item.difference_quantity === 0
-                    }">
-                      {{ item.difference_quantity > 0 ? '+' : '' }}{{ item.difference_quantity || 0 }}
+                
+                <!-- 第二行：库存对比 -->
+                <div class="row stock-row">
+                  <div class="stock-comparison">
+                    <div class="stock-item">
+                      <span class="stock-label">系统库存</span>
+                      <span class="stock-value system">{{ item.system_quantity }}</span>
+                    </div>
+                    <div class="stock-arrow">→</div>
+                    <div class="stock-item">
+                      <span class="stock-label">实际库存</span>
+                      <span class="stock-value actual">{{ item.actual_quantity }}</span>
+                    </div>
+                    <div class="stock-arrow">→</div>
+                    <div class="stock-item difference-item">
+                      <span class="stock-label">差异数</span>
+                      <div class="difference-badge" :class="{ 
+                        'positive': item.difference_quantity > 0, 
+                        'negative': item.difference_quantity < 0,
+                        'zero': item.difference_quantity === 0
+                      }">
+                        {{ item.difference_quantity > 0 ? '+' : '' }}{{ item.difference_quantity || 0 }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -105,49 +99,75 @@
 
       <!-- 盘点统计 -->
       <div class="statistics-section" v-if="detail.items?.length > 0">
-        <van-cell-group title="盘点统计">
-          <van-cell title="盘点商品数" :value="`${detail.items.length}项`" />
-          <van-cell title="盘盈总数" :value="`+${totalProfit}`" value-class="positive-text" />
-          <van-cell title="盘亏总数" :value="`${totalLoss}`" value-class="negative-text" />
-          <van-cell title="总差异数" :value="`${totalDifference > 0 ? '+' : ''}${totalDifference}`" 
-                    :value-class="totalDifference > 0 ? 'positive-text' : totalDifference < 0 ? 'negative-text' : ''" />
-        </van-cell-group>
-      </div>
-
-      <!-- 操作按钮 -->
-      <div class="action-section" v-if="showActions">
-        <van-button 
-          v-if="canAudit" 
-          type="primary" 
-          block 
-          @click="handleAudit"
-          class="action-btn"
-        >
-          审核通过
-        </van-button>
-        <van-button 
-          v-if="canComplete" 
-          type="success" 
-          block 
-          @click="handleComplete"
-          class="action-btn"
-        >
-          完成盘点
-        </van-button>
-        <van-button 
-          v-if="canCancel" 
-          type="danger" 
-          block 
-          @click="handleCancel"
-          class="action-btn"
-        >
-          取消盘点
-        </van-button>
+        <div class="section-header">
+          <span class="section-title">盘点统计</span>
+        </div>
+        <div class="statistics-row">
+          <div class="stat-item">
+            <span class="stat-label">盘点商品数</span>
+            <span class="stat-value">{{ detail.items.length }}项</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">盘盈总数</span>
+            <span class="stat-value positive-text">+{{ totalProfit }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">盘亏总数</span>
+            <span class="stat-value negative-text">{{ totalLoss }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">总差异数</span>
+            <span class="stat-value" :class="totalDifference > 0 ? 'positive-text' : totalDifference < 0 ? 'negative-text' : ''">
+              {{ totalDifference > 0 ? '+' : '' }}{{ totalDifference }}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- 加载状态 -->
     <van-loading v-if="loading" class="page-loading" />
+
+    <!-- 操作面板 -->
+    <van-action-sheet
+      v-model:show="showActionSheet"
+      cancel-text="取消"
+      title="操作"
+    >
+      <van-button 
+        type="primary" 
+        block 
+        @click="handleEditAction"
+        v-perm="PERM.STOCK_TAKE"
+        v-if="canEdit"
+      >
+        编辑
+      </van-button>
+      <van-button 
+        type="primary" 
+        block 
+        @click="handleAuditAction"
+        v-if="canAudit"
+      >
+        审核通过
+      </van-button>
+      <van-button 
+        type="success" 
+        block 
+        @click="handleCompleteAction"
+        v-if="canComplete"
+      >
+        完成盘点
+      </van-button>
+      <van-button 
+        type="danger" 
+        block 
+        @click="handleCancelAction"
+        v-if="canCancel"
+      >
+        取消盘点
+      </van-button>
+    </van-action-sheet>
   </div>
 </template>
 
@@ -168,6 +188,7 @@ const stockStore = useStockStore()
 // 响应式数据
 const loading = ref(true)
 const detail = ref({})
+const showActionSheet = ref(false)
 
 // 计算属性
 const totalProfit = computed(() => {
@@ -191,17 +212,17 @@ const totalDifference = computed(() => {
   }, 0)
 })
 
-// 权限控制
+// 权限控制（以数据库为准：0-待盘点,1-盘点中,2-已完成,3-已取消）
 const canEdit = computed(() => {
   return [0, 1].includes(detail.value.status) // 待盘点、盘点中可编辑
 })
 
 const canAudit = computed(() => {
-  return detail.value.status === 1 // 盘点中可审核
+  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可审核
 })
 
 const canComplete = computed(() => {
-  return detail.value.status === 2 // 已审核可完成
+  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可完成
 })
 
 const canCancel = computed(() => {
@@ -216,10 +237,9 @@ const showActions = computed(() => {
 const getStatusText = (status) => {
   const statusMap = {
     0: '待盘点',
-    1: '盘点中', 
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    1: '盘点中',
+    2: '已完成',
+    3: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
@@ -229,9 +249,8 @@ const getStatusTagType = (status) => {
   const typeMap = {
     0: 'warning',
     1: 'primary',
-    2: 'success', 
-    3: 'success',
-    4: 'danger'
+    2: 'success',
+    3: 'danger'
   }
   return typeMap[status] || 'default'
 }
@@ -268,11 +287,13 @@ const handleBack = () => {
   router.back()
 }
 
-const handleEdit = () => {
+const handleEditAction = () => {
+  showActionSheet.value = false
   router.push(`/stock/take/edit/${detail.value.id}`)
 }
 
-const handleAudit = async () => {
+const handleAuditAction = async () => {
+  showActionSheet.value = false
   try {
     await showConfirmDialog({
       title: '确认审核',
@@ -290,7 +311,8 @@ const handleAudit = async () => {
   }
 }
 
-const handleComplete = async () => {
+const handleCompleteAction = async () => {
+  showActionSheet.value = false
   try {
     await showConfirmDialog({
       title: '确认完成',
@@ -308,7 +330,8 @@ const handleComplete = async () => {
   }
 }
 
-const handleCancel = async () => {
+const handleCancelAction = async () => {
+  showActionSheet.value = false
   try {
     await showConfirmDialog({
       title: '确认取消',
@@ -335,11 +358,11 @@ onMounted(() => {
 .stock-take-detail {
   background: #f7f8fa;
   min-height: 100vh;
-  padding-bottom: 80px;
+  padding-bottom: 20px;
 }
 
 .detail-container {
-  padding: 16px;
+  padding: 0;
 }
 
 .section-header {
@@ -366,12 +389,25 @@ onMounted(() => {
 }
 
 .items-list {
-  .item-card {
-    background: white;
+  .list-container {
+    background-color: #fff;
     border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+  
+  .list-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    
+    
+    &:last-child {
+      border-bottom: none;
+    }
+    
+    .item-info {
+      width: 100%;
+    }
   }
 }
 
@@ -387,10 +423,19 @@ onMounted(() => {
   }
   
   .product-row {
+    display: flex;
+    width: 100%;
+    
     .product-name {
       font-size: 15px;
       font-weight: 600;
       color: #323233;
+    }
+    
+    .sku-spec {
+      font-size: 13px;
+      color: #999;
+      margin-left: 8px;
     }
   }
   
@@ -440,12 +485,15 @@ onMounted(() => {
   }
   
   .stock-row {
+    width: 100%;
+    
     .stock-comparison {
       display: flex;
       align-items: center;
       background: #fafafa;
       border-radius: 6px;
       padding: 8px 12px;
+      width: 100%;
       
       .stock-item {
         display: flex;
@@ -485,6 +533,34 @@ onMounted(() => {
 
 .statistics-section {
   margin-bottom: 16px;
+  
+  .statistics-row {
+    display: flex;
+    justify-content: space-around;
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      
+      .stat-label {
+        font-size: 12px;
+        color: #999;
+        margin-bottom: 4px;
+      }
+      
+      .stat-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #323233;
+      }
+    }
+  }
 }
 
 .positive-text {
@@ -497,23 +573,7 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.action-section {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: white;
-  padding: 12px 16px;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-  
-  .action-btn {
-    margin-bottom: 8px;
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-}
+
 
 .page-loading {
   display: flex;

@@ -173,7 +173,7 @@ class ReturnOrder extends BaseModel
     /**
      * 获取状态选项
      */
-    public function getStatusOptions(): array
+    public static function getStatusOptions(): array
     {
         return [
             self::STATUS_PENDING_AUDIT => '待审核',

@@ -14,7 +14,7 @@ class SaleOrder extends BaseModel
     const STATUS_CANCELLED = 4;    // 已取消
 
     // 销售订单状态选项
-    public function getStatusOptions()
+    public static function getStatusOptions()
     {
         return [
             self::STATUS_PENDING => '待审核',

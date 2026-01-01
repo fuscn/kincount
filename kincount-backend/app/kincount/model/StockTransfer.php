@@ -50,7 +50,7 @@ class StockTransfer extends BaseModel
     const STATUS_CANCELLED = 3;    // 已取消
 
     // 状态文本映射方法
-    public function getStatusOptions()
+    public static function getStatusOptions()
     {
         return [
             self::STATUS_PENDING => '待调拨',

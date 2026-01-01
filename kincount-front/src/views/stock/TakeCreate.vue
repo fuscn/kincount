@@ -520,33 +520,7 @@ const validateForm = () => {
         }
     }
     
-    // 检查是否有盘点差异
-    const noDifferenceItems = []
-    
-    form.items.forEach((item, index) => {
-        const currentStock = Number(item.current_stock) || 0
-        const actualStock = item.actual_stock === '' ? 0 : (Number(item.actual_stock) || 0)
-        
-        if (currentStock === actualStock) {
-            noDifferenceItems.push({
-                index: index + 1,
-                name: item.product_name || `第${index + 1}个商品`,
-                spec: item.spec || '',
-                currentStock: currentStock,
-                actualStock: actualStock
-            })
-        }
-    })
-    
-    // 只要有任何商品没有差异，就禁止提交
-    if (noDifferenceItems.length > 0) {
-        const itemsList = noDifferenceItems.map(item => {
-            const specInfo = item.spec ? `(${item.spec})` : ''
-            return `${item.name}${specInfo}：系统${item.currentStock}，实际${item.actualStock}`
-        }).join('\n')
-        showToast(`以下商品没有库存变化，请调整后提交：\n${itemsList}`)
-        return false
-    }
+    // 不再检查是否有盘点差异，允许用户提交所有商品（包括没有差异的商品）
     
     return true
 }
@@ -591,8 +565,8 @@ const handleSubmit = async () => {
         }
         
         // 根据后端返回结果跳转
-        if (result.id) {
-            router.push(`/stock/take/detail/${result.id}`)
+        if (result.data?.id) {
+            router.push(`/stock/take/detail/${result.data.id}`)
         } else {
             router.back()
         }

@@ -73,15 +73,6 @@
                   <van-tag :type="getStatusTagType(take.status)" class="status-tag">
                     {{ getStatusText(take.status) }}
                   </van-tag>
-                  <van-button 
-                    size="mini" 
-                    type="primary" 
-                    plain
-                    @click.stop="handleEditTake(take)"
-                    v-perm="PERM.STOCK_TAKE"
-                  >
-                    编辑
-                  </van-button>
                 </div>
               </template>
             </van-cell>
@@ -136,34 +127,31 @@ const statusTabs = ref([
   { title: '全部', value: '' },
   { title: '待盘点', value: '0' },
   { title: '盘点中', value: '1' },
-  { title: '已审核', value: '2' },
-  { title: '已完成', value: '3' },
-  { title: '已取消', value: '4' }
+  { title: '已完成', value: '2' },
+  { title: '已取消', value: '3' }
 ])
 
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
     0: '待盘点',
-    1: '盘点中', 
-    2: '已审核',
-    3: '已完成',
-    4: '已取消'
+    1: '盘点中',
+    2: '已完成',
+    3: '已取消'
   }
   return statusMap[status] || '未知状态'
 }
 
 // 获取状态标签类型
-const getStatusTagType = (status) => {
-  const typeMap = {
-    0: 'warning',
-    1: 'primary',
-    2: 'success', 
-    3: 'success',
-    4: 'danger'
-  }
-  return typeMap[status] || 'default'
-}
+    const getStatusTagType = (status) => {
+      const typeMap = {
+        0: 'warning',
+        1: 'primary',
+        2: 'success',
+        3: 'danger'
+      }
+      return typeMap[status] || 'default'
+    }
 
 // 获取盘点单标签信息
 const getTakeLabel = (take) => {
@@ -274,9 +262,7 @@ const handleViewTake = (take) => {
   router.push(`/stock/take/detail/${take.id}`)
 }
 
-const handleEditTake = (take) => {
-  router.push(`/stock/take/edit/${take.id}`)
-}
+
 
 onMounted(() => {
   loadTakeList(true)

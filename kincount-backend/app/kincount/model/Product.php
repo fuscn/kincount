@@ -59,8 +59,8 @@ class Product extends BaseModel
     const STATUS_DISABLED = 0; // 下架
     const STATUS_ENABLED = 1;  // 上架
 
-    // 状态文本映射方法（替换原getProductStatusOptions）
-    public function getStatusOptions()
+    // 状态文本映射方法
+    public static function getStatusOptions()
     {
         return [
             self::STATUS_DISABLED => '下架',
@@ -68,10 +68,10 @@ class Product extends BaseModel
         ];
     }
 
-    // 获取状态文本 - 重命名以避免冲突
+    // 获取状态文本
     public function getProductStatusTextAttr()
     {
-        $options = $this->getProductStatusOptions();
+        $options = static::getStatusOptions();
         return $options[$this->status] ?? '未知';
     }
 

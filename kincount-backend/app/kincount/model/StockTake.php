@@ -38,54 +38,47 @@ class StockTake extends BaseModel
         return $this->hasMany(StockTakeItem::class, 'stock_take_id');
     }
     
-    // 获取总差异金额（实时计算）
-    public function getTotalDifferenceAttr($value, $data)
+    // 动态属性：总差异绝对值
+    protected function getTotalAbsDifferenceAttr()
     {
-        // 如果有关联的items数据已加载，则使用已加载的数据计算
-        if (isset($this->items) && !empty($this->items)) {
-            $total = 0;
-            foreach ($this->items as $item) {
-                $total += $item->difference_amount;
-            }
-            return $total;
+        $items = StockTakeItem::where('stock_take_id', $this->id)
+            ->where('deleted_at', null)
+            ->select();
+
+        $total = 0;
+        foreach ($items as $v) {
+            $total += abs($v->difference_amount); // 使用绝对值
         }
-        // 否则通过数据库查询实时计算
-        if (isset($this->id)) {
-            return $this->items()->sum('difference_amount');
+        return $total;
+    }
+    // 动态属性：总差异数量绝对值
+    protected function getTotalAbsDifferenceQuantityAttr()
+    {
+        $items = StockTakeItem::where('stock_take_id', $this->id)
+            ->where('deleted_at', null)
+            ->select();
+
+        $total = 0;
+        foreach ($items as $v) {
+            $total += abs($v->difference_quantity); // 使用绝对值
         }
-        // 最后返回数据库中的原始值
-        return $value ?? 0;
+        return $total;
     }
     
-    // 获取总差异数量（实时计算）
-    public function getTotalDifferenceQuantityAttr($value, $data)
+    /**
+     * 状态选项
+     */
+    const STATUS_OPTIONS = [
+        ['value' => 0, 'label' => '待盘点'],
+        ['value' => 1, 'label' => '盘点中'],
+        ['value' => 2, 'label' => '已审核'],
+        ['value' => 3, 'label' => '已完成'],
+        ['value' => 4, 'label' => '已取消']
+    ];
+    // 状态选项获取方法
+    public static function getStatusOptions()
     {
-        // 如果有关联的items数据已加载，则使用已加载的数据计算
-        if (isset($this->items) && !empty($this->items)) {
-            $total = 0;
-            foreach ($this->items as $item) {
-                $total += $item->difference_quantity;
-            }
-            return $total;
-        }
-        // 否则通过数据库查询实时计算
-        if (isset($this->id)) {
-            return $this->items()->sum('difference_quantity');
-        }
-        // 最后返回数据库中的原始值
-        return $value ?? 0;
-    }
-    
-    // 库存盘点状态选项
-    public function getStatusOptions()
-    {
-        return [
-            0 => '待盘点',
-            1 => '盘点中',
-            2 => '已审核',
-            3 => '已完成',
-            4 => '已取消'
-        ];
+        return self::STATUS_OPTIONS;
     }
     
     // 生成盘点单号
@@ -94,11 +87,21 @@ class StockTake extends BaseModel
         return $this->generateUniqueNo('ST');
     }
     
-    // 计算总差异金额
+    // 计算总差异（保留原方法，但确保使用绝对值累加）
     public function calculateTotalDifference()
     {
-        $total = $this->items()->sum('difference_amount');
-        $this->total_difference = $total;
-        return $this->save();
+        $items = $this->items;
+        $totalDifference = 0;
+        $totalDifferenceQuantity = 0;
+
+        foreach ($items as $item) {
+            $totalDifference += abs($item->difference_amount);
+            $totalDifferenceQuantity += abs($item->difference_quantity);
+        }
+
+        return [
+            'total_difference' => $totalDifference,
+            'total_difference_quantity' => $totalDifferenceQuantity
+        ];
     }
 }

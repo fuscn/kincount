@@ -42,62 +42,58 @@
         <van-cell title="备注说明" :value="detail.remark || '无'" />
       </van-cell-group>
 
-      <!-- 调拨商品明细 -->
-      <div class="items-section">
-        <div class="section-header">
-          <span class="section-title">调拨商品明细</span>
-          <span class="item-count">共{{ detail.items?.length || 0 }}项</span>
+      <!-- 商品明细 -->
+      <van-cell-group title="商品明细" v-if="detail.items && detail.items.length > 0">
+        <div class="product-items">
+          <template v-for="(item, index) in detail.items" :key="index">
+            <van-swipe-cell class="product-item">
+              <van-cell class="product-cell">
+                <!-- 商品信息三行显示 -->
+                <template #title>
+                  <div class="product-info">
+                    <!-- 第一行：商品名称、规格文本 -->
+                    <div class="product-row-first">
+                      <div class="product-name-specs">
+                        <span class="product-name">{{ getProductName(item) }}</span>
+                        <span class="product-specs" v-if="getSkuSpecs(item).length > 0">{{ getSkuSpecs(item).join(' ') }}</span>
+                      </div>
+                    </div>
+                    
+                    <!-- 第二行：SKU编号、单位 -->
+                    <div class="product-row-second">
+                      <div class="product-sku">SKU: {{ item.sku?.sku_code || item.product?.product_no || '--' }}</div>
+                      <div class="product-unit">单位: {{ item.sku?.unit || item.product?.unit || '个' }}</div>
+                    </div>
+                    
+                    <!-- 第三行：调拨数量、单价、小计 -->
+                    <div class="product-row-third">
+                      <div class="quantity-info">
+                        <span class="quantity-item">
+                          <span class="quantity-label">数量: {{ item.quantity || 0 }}</span>
+                        </span>
+                        <span class="quantity-item">
+                          <span class="quantity-label">单价: ¥{{ item.cost_price || 0 }}</span>
+                        </span>
+                        <span class="quantity-item total">
+                          <span class="quantity-label">小计: ¥{{ item.total_amount || 0 }}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </van-cell>
+            </van-swipe-cell>
+            <!-- 手动添加分割线 -->
+            <div v-if="index < detail.items.length - 1" class="product-divider"></div>
+          </template>
         </div>
-        
-        <div class="items-list">
-          <div 
-            v-for="(item, index) in detail.items" 
-            :key="index" 
-            class="item-card"
-          >
-            <!-- 商品信息区域 -->
-            <div class="item-info">
-              <!-- 第一行：商品名称 -->
-              <div class="row product-row">
-                <div class="product-name">{{ item.product_name }}</div>
-              </div>
-              
-              <!-- 第二行：SKU编码 + 规格 -->
-              <div class="row sku-row">
-                <div class="sku-info">
-                  <div class="sku-code">{{ item.product?.product_no }}</div>
-                  <div class="sku-spec">{{ item.product?.spec || '无规格' }}</div>
-                </div>
-              </div>
-              
-              <!-- 第三行：调拨数量和金额 -->
-              <div class="row quantity-row">
-                <div class="quantity-info">
-                  <div class="quantity-item">
-                    <span class="quantity-label">调拨数量</span>
-                    <span class="quantity-value">{{ item.quantity || 0 }}</span>
-                  </div>
-                  <div class="quantity-item">
-                    <span class="quantity-label">单价</span>
-                    <span class="quantity-value">¥{{ item.cost_price || 0 }}</span>
-                  </div>
-                  <div class="quantity-item">
-                    <span class="quantity-label">小计</span>
-                    <span class="quantity-value total">¥{{ item.total_amount || 0 }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 空状态 -->
-          <van-empty 
-            v-if="!detail.items?.length" 
-            description="暂无调拨商品" 
-            image="search" 
-          />
+        <div class="total-amount">
+          <span>合计: {{ detail.items.length }} 种商品 总金额: ¥{{ detail.total_amount || 0 }}</span>
         </div>
-      </div>
+      </van-cell-group>
+      <van-cell-group title="商品明细" v-else>
+        <van-empty description="暂无商品明细" image="search" />
+      </van-cell-group>
 
       <!-- 操作按钮区域 -->
               <div class="action-buttons" v-if="showActions">
@@ -205,6 +201,23 @@ const getStatusTagType = (status) => {
     3: 'danger'
   }
   return typeMap[status] || 'default'
+}
+
+// 获取商品名称
+const getProductName = (item) => {
+  return item.product?.name || item.product_name
+}
+
+// 获取SKU规格
+const getSkuSpecs = (item) => {
+  let specs = []
+  if (item.sku?.spec) {
+    const specObj = typeof item.sku.spec === 'string' ? JSON.parse(item.sku.spec) : item.sku.spec
+    Object.entries(specObj).forEach(([attr, val]) => {
+      specs.push(`${attr}:${val}`)
+    })
+  }
+  return specs
 }
 
 // 事件处理

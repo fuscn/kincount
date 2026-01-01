@@ -106,7 +106,7 @@ class ReturnStock extends BaseModel
     /**
      * 获取状态选项
      */
-    public function getStatusOptions(): array
+    public static function getStatusOptions(): array
     {
         return [
             self::STATUS_PENDING_AUDIT => '待审核',
@@ -120,7 +120,7 @@ class ReturnStock extends BaseModel
      */
     public function getStatusTextAttr($value, $data): string
     {
-        $options = $this->getStatusOptions();
+        $options = static::getStatusOptions();
         return $options[$data['status'] ?? 0] ?? '未知';
     }
 

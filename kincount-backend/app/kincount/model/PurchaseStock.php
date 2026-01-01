@@ -55,7 +55,7 @@ class PurchaseStock extends BaseModel
     }
     
     // 采购入库状态选项
-    public function getStatusOptions()
+    public static function getStatusOptions()
     {
         return [
             self::STATUS_PENDING => '待审核',

@@ -1,7 +1,7 @@
 -- MySQL数据库表结构导出
 -- 数据库: kincount
 -- 主机: 127.0.0.1:3306
--- 导出时间: 2025-12-30 20:12:11
+-- 导出时间: 2026-01-01 19:56:42
 -- 共 31 个表
 -- 生成工具: Python MySQL Table Exporter
 ============================================================
@@ -21,15 +21,15 @@ CREATE TABLE `account_records` (
   `balance_amount` decimal(10,2) NOT NULL COMMENT '余额',
   `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0-未结清 1-已结清',
   `due_date` date DEFAULT NULL COMMENT '到期日',
-  `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
+  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_type_target` (`type`,`target_id`),
-  KEY `idx_related` (`related_type`,`related_id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_account_records_status` (`status`)
+  KEY `idx_type_target` (`type`,`target_id`) USING BTREE,
+  KEY `idx_related` (`related_type`,`related_id`) USING BTREE,
+  KEY `idx_status` (`status`) USING BTREE,
+  KEY `idx_account_records_status` (`status`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款记录表';
 
 
@@ -49,9 +49,9 @@ CREATE TABLE `account_settlements` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_account` (`account_type`,`account_id`),
-  KEY `idx_financial` (`financial_id`),
-  KEY `idx_settlement_no` (`settlement_no`)
+  KEY `idx_account` (`account_type`,`account_id`) USING BTREE,
+  KEY `idx_financial` (`financial_id`) USING BTREE,
+  KEY `idx_settlement_no` (`settlement_no`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账款核销表';
 
 
@@ -60,11 +60,11 @@ CREATE TABLE `account_settlements` (
 -- ==================================================
 CREATE TABLE `brands` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '品牌名称',
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '品牌名称',
   `sort` int(11) NOT NULL DEFAULT '0' COMMENT '排序号，越小越靠前',
   `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '一般为英文名称',
-  `logo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '品牌Logo',
-  `description` text COLLATE utf8mb4_unicode_ci COMMENT '品牌描述',
+  `logo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '品牌Logo',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '品牌描述',
   `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-禁用 1-启用',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -78,17 +78,17 @@ CREATE TABLE `brands` (
 -- ==================================================
 CREATE TABLE `categorys` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '分类名称',
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '分类名称',
   `parent_id` bigint(20) unsigned DEFAULT '0' COMMENT '父级ID',
   `sort` int(11) DEFAULT '0' COMMENT '排序',
-  `description` text COLLATE utf8mb4_unicode_ci COMMENT '分类描述',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '分类描述',
   `status` tinyint(4) DEFAULT '1' COMMENT '状态：0-禁用 1-启用',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_parent` (`parent_id`),
-  KEY `idx_sort` (`sort`)
+  KEY `idx_parent` (`parent_id`) USING BTREE,
+  KEY `idx_sort` (`sort`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品分类表';
 
 
@@ -97,12 +97,12 @@ CREATE TABLE `categorys` (
 -- ==================================================
 CREATE TABLE `customers` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '客户名称',
+  `name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '客户名称',
   `type` tinyint(4) DEFAULT '0' COMMENT '客户类型：0-个人 1-公司',
-  `contact_person` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系人',
-  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系电话',
-  `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '邮箱',
-  `address` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '地址',
+  `contact_person` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系人',
+  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '联系电话',
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '邮箱',
+  `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '地址',
   `level` tinyint(4) DEFAULT '0' COMMENT '客户等级：0-普通 1-银牌 2-金牌',
   `discount` decimal(3,2) DEFAULT '1.00' COMMENT '折扣率',
   `credit_amount` decimal(10,2) DEFAULT '0.00' COMMENT '信用额度',
@@ -114,8 +114,8 @@ CREATE TABLE `customers` (
   `credit_days` int(11) DEFAULT '30' COMMENT '信用天数',
   `receivable_balance` decimal(10,2) DEFAULT '0.00' COMMENT '应收账款余额',
   PRIMARY KEY (`id`),
-  KEY `idx_name` (`name`),
-  KEY `idx_phone` (`phone`)
+  KEY `idx_name` (`name`) USING BTREE,
+  KEY `idx_phone` (`phone`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='客户表';
 
 
@@ -124,12 +124,12 @@ CREATE TABLE `customers` (
 -- ==================================================
 CREATE TABLE `financial_records` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `record_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支单号',
+  `record_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支单号',
   `type` tinyint(4) NOT NULL COMMENT '类型：0-收入 1-支出',
-  `category` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支类别',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收支类别',
   `amount` decimal(10,2) NOT NULL COMMENT '金额',
-  `payment_method` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '支付方式',
-  `remark` text COLLATE utf8mb4_unicode_ci COMMENT '备注',
+  `payment_method` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '支付方式',
+  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT '备注',
   `record_date` date NOT NULL COMMENT '收支日期',
   `created_by` bigint(20) unsigned NOT NULL COMMENT '创建人',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -141,14 +141,14 @@ CREATE TABLE `financial_records` (
   `order_id` bigint(20) unsigned DEFAULT NULL COMMENT '关联订单ID',
   `order_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '订单类型',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `record_no` (`record_no`),
-  KEY `idx_type` (`type`),
-  KEY `idx_date` (`record_date`),
-  KEY `idx_category` (`category`),
-  KEY `idx_financial_records_date` (`record_date`),
-  KEY `idx_account_id` (`account_id`),
-  KEY `idx_customer` (`customer_id`),
-  KEY `idx_supplier` (`supplier_id`)
+  UNIQUE KEY `record_no` (`record_no`) USING BTREE,
+  KEY `idx_type` (`type`) USING BTREE,
+  KEY `idx_date` (`record_date`) USING BTREE,
+  KEY `idx_category` (`category`) USING BTREE,
+  KEY `idx_financial_records_date` (`record_date`) USING BTREE,
+  KEY `idx_account_id` (`account_id`) USING BTREE,
+  KEY `idx_customer` (`customer_id`) USING BTREE,
+  KEY `idx_supplier` (`supplier_id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='财务收支表';
 
 
@@ -156,23 +156,23 @@ CREATE TABLE `financial_records` (
 -- 表: product_skus
 -- ==================================================
 CREATE TABLE `product_skus` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `product_id` int(11) NOT NULL,
-  `sku_code` varchar(64) NOT NULL,
+  `sku_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `spec` json NOT NULL COMMENT '{"颜色":"红胡桃","厚度":"18mm"}',
-  `barcode` varchar(64) DEFAULT NULL,
+  `barcode` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `cost_price` decimal(10,2) DEFAULT NULL,
   `sale_price` decimal(10,2) DEFAULT NULL,
-  `unit` varchar(8) DEFAULT '张',
+  `unit` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '张',
   `status` tinyint(1) DEFAULT '1' COMMENT '0-禁用1-启用',
   `deleted_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `sku_code` (`sku_code`),
-  UNIQUE KEY `idx_sku_code` (`sku_code`),
-  UNIQUE KEY `unique_sku_code` (`sku_code`),
-  UNIQUE KEY `unique_barcode` (`barcode`)
+  UNIQUE KEY `sku_code` (`sku_code`) USING BTREE,
+  UNIQUE KEY `idx_sku_code` (`sku_code`) USING BTREE,
+  UNIQUE KEY `unique_sku_code` (`sku_code`) USING BTREE,
+  UNIQUE KEY `unique_barcode` (`barcode`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
@@ -244,7 +244,7 @@ CREATE TABLE `purchase_order_items` (
   KEY `idx_order` (`purchase_order_id`),
   KEY `idx_product` (`product_id`),
   KEY `sku_id` (`sku_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单明细表';
 
 
 -- ==================================================
@@ -273,7 +273,7 @@ CREATE TABLE `purchase_orders` (
   KEY `idx_status` (`status`),
   KEY `idx_order_no` (`order_no`),
   KEY `idx_purchase_orders_supplier` (`supplier_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='采购订单表';
 
 
 -- ==================================================
@@ -580,7 +580,7 @@ CREATE TABLE `stock_take_items` (
   PRIMARY KEY (`id`),
   KEY `idx_take` (`stock_take_id`),
   KEY `idx_product` (`product_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点明细表';
 
 
 -- ==================================================
@@ -603,7 +603,7 @@ CREATE TABLE `stock_takes` (
   UNIQUE KEY `take_no` (`take_no`),
   KEY `idx_warehouse` (`warehouse_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='库存盘点表';
 
 
 -- ==================================================

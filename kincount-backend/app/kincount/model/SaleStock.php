@@ -58,7 +58,7 @@ class SaleStock extends BaseModel
     }
 
     // 销售出库状态选项
-    public function getStatusOptions()
+    public static function getStatusOptions()
     {
         return [
             self::STATUS_PENDING => '待审核',

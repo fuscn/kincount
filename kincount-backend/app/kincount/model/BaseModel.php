@@ -32,7 +32,7 @@ class BaseModel extends Model
     /**
      * 获取状态选项
      */
-    public function getStatusOptions()
+    public static function getStatusOptions()
     {
         return [
             0 => '禁用',
@@ -46,7 +46,7 @@ class BaseModel extends Model
     public function getStatusTextAttr($value, $data)
     {
         $status = $data['status'] ?? 0;
-        $options = $this->getStatusOptions();
+        $options = static::getStatusOptions();
         return $options[$status] ?? '未知';
     }
     /**

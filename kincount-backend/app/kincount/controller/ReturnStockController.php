@@ -758,7 +758,7 @@ class ReturnStockController extends BaseController
                 $exists = ReturnStockItem::where([
                     'return_stock_id' => $stock->id,
                     'return_item_id' => $post['return_item_id']
-                ])->exists();
+                ])->count() > 0;
 
                 if ($exists) {
                     throw new \Exception('该退货明细已添加到出入库单中');
