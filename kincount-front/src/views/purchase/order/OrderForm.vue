@@ -570,7 +570,8 @@ const deleteSku = (index) => {
 // 验证价格
 const validatePrice = (item) => {
   setTimeout(() => {
-    const price = Number(item.price)
+    // 使用 Number() 显式转换，避免 0 被判断为 false
+    const price = item.price === null || item.price === undefined ? NaN : Number(item.price)
     if (isNaN(price) || price < 0) {
       item.priceError = '单价必须大于等于0'
       return false
@@ -583,9 +584,10 @@ const validatePrice = (item) => {
 // 验证数量
 const validateQuantity = (item) => {
   setTimeout(() => {
-    const quantity = Number(item.quantity)
-    if (isNaN(quantity) || quantity < 0) {
-      item.quantityError = '数量必须大于等于0'
+    // 使用 Number() 显式转换，避免 0 被判断为 false
+    const quantity = item.quantity === null || item.quantity === undefined ? NaN : Number(item.quantity)
+    if (isNaN(quantity) || quantity <= 0) {
+      item.quantityError = '数量必须大于0'
       return false
     }
     item.quantityError = ''
@@ -613,13 +615,14 @@ const validateForm = () => {
   }
   // 验证每个SKU的价格和数量
   for (const item of form.items) {
-    const price = Number(item.price)
-    const quantity = Number(item.quantity)
+    // 使用 Number() 显式转换，避免 0 被判断为 false
+    const price = item.price === null || item.price === undefined ? NaN : Number(item.price)
+    const quantity = item.quantity === null || item.quantity === undefined ? NaN : Number(item.quantity)
     if (isNaN(price) || price < 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的单价`)
       return false
     }
-    if (isNaN(quantity) || quantity < 0) {
+    if (isNaN(quantity) || quantity <= 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的数量`)
       return false
     }
@@ -651,8 +654,9 @@ const handleSubmit = async () => {
         const itemData = {
           product_id: productId,
           sku_id: item.sku_id,
-          quantity: Number(item.quantity),
-          price: Number(item.price)
+          // 使用 Number() 显式转换，确保 0 值能正确传递
+          quantity: item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity),
+          price: item.price === null || item.price === undefined ? 0 : Number(item.price)
         }
         
         // 编辑模式下，如果有订单项ID，则包含它
@@ -664,7 +668,9 @@ const handleSubmit = async () => {
       })
     }
 
-    console.log('提交数据:', submitData)
+    console.log('提交数据:', submitData)    
+    console.log('商品明细详情:', form.items)    
+    console.log('处理后的商品明细:', submitData.items)
 
     let result
     if (isEdit) {

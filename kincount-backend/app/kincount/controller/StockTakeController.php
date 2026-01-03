@@ -268,10 +268,28 @@ class StockTakeController extends BaseController
         }
 
         Db::transaction(function () use ($take, $id) {
-            /* 状态 */
-            $take->save(['status' => 2, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
+            /* 状态设置为盘点中(1) */
+            $take->save(['status' => 1, 'audit_by' => $this->getUserId(), 'audit_time' => date('Y-m-d H:i:s')]);
+            // 注意：盘点开始时不应该立即修正库存，库存修正应该在完成盘点时进行
+        });
 
-            /* 库存修正 */
+        return $this->success([], '盘点开始');
+    }
+
+    public function complete($id)
+    {
+        $take = StockTake::where('deleted_at', null)->find($id);
+        if (!$take) return $this->error('盘点单不存在');
+        // 检查状态：只有盘点中(1)的才允许完成
+        if (!in_array($take->status, [1])) {
+            return $this->error('只有盘点中的单才允许完成');
+        }
+
+        Db::transaction(function () use ($take, $id) {
+            /* 状态设置为已完成(2) */
+            $take->save(['status' => 2]);
+
+            /* 库存修正 - 在完成盘点时执行 */
             // 直接查询明细，不使用关联关系，避免可能的 exists() 方法调用
             $items = StockTakeItem::where('stock_take_id', $id)->select();
             foreach ($items as $v) {
@@ -294,19 +312,6 @@ class StockTakeController extends BaseController
             }
         });
 
-        return $this->success([], '盘点单审核成功');
-    }
-
-    public function complete($id)
-    {
-        $take = StockTake::where('deleted_at', null)->find($id);
-        if (!$take) return $this->error('盘点单不存在');
-        // 检查状态：已审核、已完成、已取消的不允许操作
-        if (in_array($take->status, [2, 3, 4])) {
-            return $this->error('该盘点单已审核，不允许完成');
-        }
-
-        $take->save(['status' => 3]); // 修改为状态3（已完成）
         return $this->success([], '盘点完成');
     }
 

@@ -125,7 +125,7 @@ class PurchaseStockController extends BaseController
 
             /* 明细 */
             foreach ($post['items'] as $v) {
-                if (empty($v['product_id']) || empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                if (!isset($v['product_id']) || !isset($v['sku_id']) || !isset($v['quantity']) || !isset($v['price']) || empty($v['product_id']) || empty($v['sku_id']) || $v['quantity'] <= 0 || $v['price'] < 0) {
                     throw new \Exception('商品明细不完整');
                 }
 
@@ -446,49 +446,11 @@ class PurchaseStockController extends BaseController
     }
 
     /**
-     * 取消审核（需要单独的路由）
+     * 取消审核入库单
      */
     public function cancelAudit($id)
     {
-        try {
-            Db::transaction(function () use ($id) {
-                $stock = PurchaseStock::find($id);
-                if (!$stock) {
-                    throw new \Exception('入库单不存在');
-                }
-
-                if ($stock->status != 1) {
-                    throw new \Exception('只有已审核状态的入库单可以取消审核');
-                }
-
-                // 如果入库单有关联的采购订单，需要回退已入库数量
-                if ($stock->purchase_order_id) {
-                    $items = PurchaseStockItem::where('purchase_stock_id', $id)->select();
-                    foreach ($items as $item) {
-                        // 使用原子操作减少已入库数量
-                        $this->updatePurchaseOrderReceivedQuantity(
-                            $stock->purchase_order_id,
-                            $item->product_id,
-                            $item->sku_id,  // 使用 item 的 sku_id
-                            -$item->quantity  // 负数表示减少
-                        );
-                    }
-
-                    // 重新计算采购订单状态
-                    $this->updatePurchaseOrderStatus($stock->purchase_order_id);
-                }
-
-                // 更新入库单状态
-                $stock->status = 0; // 待审核
-                $stock->audit_by = null;
-                $stock->audit_time = null;
-                $stock->save();
-            });
-
-            return $this->success([], '取消审核成功');
-        } catch (\Exception $e) {
-            return $this->error($e->getMessage());
-        }
+        return $this->error('不允许取消审核');
     }
 
     /**

@@ -157,8 +157,15 @@ class SaleOrderController extends BaseController
                 /* 明细 + 库存校验（修改为SKU维度） */
                 $total = 0;
                 foreach ($post['items'] as $v) {
-                    if (empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                    if (!isset($v['sku_id']) || !isset($v['quantity']) || !isset($v['price']) || empty($v['sku_id'])) {
                         throw new \Exception('商品明细不完整');
+                    }
+                    // 数量必须大于0，价格必须大于等于0
+                    if ($v['quantity'] <= 0) {
+                        throw new \Exception('商品数量必须大于0');
+                    }
+                    if ($v['price'] < 0) {
+                        throw new \Exception('商品价格不能为负数');
                     }
 
                     // 通过sku_id获取product_id

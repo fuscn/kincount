@@ -286,7 +286,7 @@ const canAudit = computed(() => {
 })
 
 const canCancelAudit = computed(() => {
-  return stockData.value?.status === 1 // 已审核
+  return false // 不允许取消审核
 })
 
 const canCancel = computed(() => {
@@ -311,13 +311,14 @@ const actions = computed(() => {
     })
   }
   
-  if (canCancelAudit.value) {
-    actionList.push({
-      name: '取消审核',
-      action: 'cancelAudit',
-      color: '#ff976a'
-    })
-  }
+  // 移除取消审核选项
+  // if (canCancelAudit.value) {
+  //   actionList.push({
+  //     name: '取消审核',
+  //     action: 'cancelAudit',
+  //     color: '#ff976a'
+  //   })
+  // }
   
   if (canCancel.value) {
     actionList.push({
@@ -359,9 +360,6 @@ const onActionSelect = (action) => {
     case 'audit':
       showConfirm('审核入库单', '确定要审核通过此入库单吗？审核后将更新库存数量。', 'audit')
       break
-    case 'cancelAudit':
-      showConfirm('取消审核', '确定要取消审核此入库单吗？取消审核将回退库存数量。', 'cancelAudit')
-      break
     case 'cancel':
       showConfirm('取消入库单', '确定要取消此入库单吗？此操作不可恢复。', 'cancel')
       break
@@ -384,10 +382,6 @@ const confirmAction = async () => {
       case 'audit':
         result = await purchaseStore.auditStock(stockData.value.id)
         if (result) showSuccessToast('审核成功')
-        break
-      case 'cancelAudit':
-        result = await purchaseStore.cancelAuditStock(stockData.value.id)
-        if (result) showSuccessToast('取消审核成功')
         break
       case 'cancel':
         result = await purchaseStore.cancelStock(stockData.value.id)

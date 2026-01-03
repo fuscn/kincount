@@ -221,7 +221,7 @@
         <div class="popup-header">
           <van-button type="default" size="small" @click="closeSkuPicker">取消</van-button>
           <div class="popup-title">选择销售商品</div>
-          <van-button type="primary" size="small" @click="confirmSkuSelection">确定</van-button>
+          <van-button type="primary" size="small" @click="triggerSkuStockConfirm">确定</van-button>
         </div>
         <div class="popup-content">
           <SkuStockList 
@@ -233,6 +233,7 @@
             :enable-category-filter="true"
             :enable-brand-filter="true"
             @click-card="handleSkuCardClick"
+            @confirm="handleSkuStockConfirm"
           />
         </div>
       </div>
@@ -554,16 +555,17 @@ const openSkuSelector = () => {
   tempSelectedIds.value = form.items
     .filter(item => item.sku_id && item.warehouse_id)
     .map(item => `${item.warehouse_id}-${item.sku_id}`)
-
   
   // 清空selectedSkus，重新开始选择
   selectedSkus.value = []
   
   // 打开弹窗
   showSkuSelect.value = true
-  
-  // SkuStockList组件会通过watch监听器自动监听warehouseId变化并刷新数据
-  // 不需要手动调用onRefresh，避免重复请求
+}
+
+// 触发 SkuStockList 组件的确认选择
+const triggerSkuStockConfirm = () => {
+  skuStockListRef.value?.confirmSelection()
 }
 
 // 处理SKU卡片点击
@@ -596,21 +598,22 @@ const handleSkuCardClick = (sku) => {
   console.log('更新后的选中SKU列表:', selectedSkus.value)
 }
 
-// 确认SKU选择
-const confirmSkuSelection = async () => {
+// 处理 SkuStockList 组件的确认选择
+const handleSkuStockConfirm = async (result) => {
   try {
-    // 使用selectedSkus中存储的完整SKU数据
-    const selectedData = [...selectedSkus.value]
+    const { selectedIds, selectedData } = result
+    console.log('SkuStockList 确认选择的数据:', selectedIds, selectedData)
     
-
-    
-    if (selectedData.length === 0) {
+    if (!selectedData || selectedData.length === 0) {
       showToast('未选择任何商品')
       return
     }
 
+    // 使用从 SkuStockList 组件返回的完整选中数据
+    const selectedStockData = [...selectedData]
+
     // 获取SKU详细信息并添加到表单
-    for (const sku of selectedData) {
+    for (const sku of selectedStockData) {
       if (!sku) continue
 
       try {
@@ -634,33 +637,25 @@ const confirmSkuSelection = async () => {
             sku_name: sku.name || sku.sku?.name || '',
             spec_text: sku.spec_text || getSpecText(sku),
             spec: sku.spec || sku.sku?.spec || {},
-            unit: sku.unit || '个',
-            price: Number(sku.sku?.sale_price) || 0, // 销售订单使用销售价，确保转换为数字
+            unit: sku.unit || sku.sku?.unit || '个',
+            price: sku.sku?.sale_price || 0,
             quantity: 1,
             available_stock: sku.quantity || 0,
             priceError: '',
             quantityError: ''
           }
-          
-          console.log('新创建的订单项:', newItem)
-          console.log('新项的价格:', newItem.price)
           form.items.push(newItem)
         }
       } catch (error) {
-        console.error('添加SKU失败:', error)
+        console.error('处理SKU数据失败:', error)
       }
     }
 
-    // 更新已选择的SKU ID（从组合键中提取sku_id）
-    selectedSkuIds.value = tempSelectedIds.value.map(key => {
-      const parts = key.split('-')
-      return parts.length > 1 ? parseInt(parts[1]) : null
-    }).filter(Boolean)
     showSkuSelect.value = false
-    showSuccessToast(`已添加 ${selectedData.length} 个商品`)
+    showSuccessToast(`已添加 ${selectedStockData.length} 个商品`)
   } catch (error) {
     console.error('确认SKU选择失败:', error)
-    showFailToast('添加商品失败')
+    showFailToast('处理选择失败')
   }
 }
 
@@ -704,7 +699,7 @@ const deleteSku = (index) => {
 // 验证价格
 const validatePrice = (item) => {
   setTimeout(() => {
-    const price = Number(item.price)
+    const price = item.price === null || item.price === undefined ? NaN : Number(item.price)
     if (isNaN(price) || price < 0) {
       item.priceError = '单价必须大于等于0'
       return false
@@ -717,9 +712,9 @@ const validatePrice = (item) => {
 // 验证数量
 const validateQuantity = (item) => {
   setTimeout(() => {
-    const quantity = Number(item.quantity)
-    if (isNaN(quantity) || quantity < 0) {
-      item.quantityError = '数量必须大于等于0'
+    const quantity = item.quantity === null || item.quantity === undefined ? NaN : Number(item.quantity)
+    if (isNaN(quantity) || quantity <= 0) {
+      item.quantityError = '数量必须大于0'
       return false
     }
     
@@ -754,9 +749,9 @@ const validateForm = () => {
   }
   // 验证每个SKU的价格和数量
   for (const item of form.items) {
-    const price = Number(item.price)
-    const quantity = Number(item.quantity)
-    if (isNaN(price) || price <= 0) {
+    const price = item.price === null || item.price === undefined ? NaN : Number(item.price)
+    const quantity = item.quantity === null || item.quantity === undefined ? NaN : Number(item.quantity)
+    if (isNaN(price) || price < 0) {
       showToast(`请检查商品"${getProductDisplayName(item)}"的单价`)
       return false
     }

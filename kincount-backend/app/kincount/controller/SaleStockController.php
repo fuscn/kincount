@@ -99,7 +99,7 @@ public function index()
 
                 /* 明细 + 库存扣减（修改为SKU维度） */
                 foreach ($post['items'] as $v) {
-                    if (empty($v['sku_id']) || empty($v['quantity']) || empty($v['price'])) {
+                    if (!isset($v['sku_id']) || !isset($v['quantity']) || !isset($v['price']) || empty($v['sku_id']) || $v['quantity'] <= 0 || $v['price'] < 0) {
                         throw new \Exception('商品明细不完整');
                     }
 
@@ -259,29 +259,12 @@ public function index()
         $stock = SaleStock::where('deleted_at', null)->find($id);
         if (!$stock) return $this->error('销售出库单不存在');
 
-        if (!in_array($stock->status, [0, 1])) {
-            return $this->error('当前状态无法取消');
+        // 只有待审核状态的销售出库单可以取消
+        if ($stock->status != 0) {
+            return $this->error('只有待审核状态的销售出库单可以取消');
         }
 
         Db::transaction(function () use ($stock) {
-            // 如果已经审核过，需要恢复库存
-            if ($stock->status == 1) {
-                foreach ($stock->items as $item) {
-                    // 恢复库存（SKU维度）
-                    Stock::where('sku_id', $item->sku_id)
-                        ->where('warehouse_id', $stock->warehouse_id)
-                        ->inc('quantity', $item->quantity)->save();
-
-                    // 恢复销售订单的出库数量
-                    if ($stock->sale_order_id) {
-                        \app\kincount\model\SaleOrderItem::where('sale_order_id', $stock->sale_order_id)
-                            ->where('product_id', $item->product_id)
-                            ->where('sku_id', $item->sku_id) // 添加 sku_id 条件
-                            ->dec('delivered_quantity', $item->quantity)->save();
-                    }
-                }
-            }
-
             // 更新状态为已取消 (2)
             $stock->save(['status' => 2, 'updated_at' => date('Y-m-d H:i:s')]);
         });
@@ -300,8 +283,70 @@ public function index()
      * @param int $saleOrderId 销售订单ID
      * @return void
      */
-    private function updateSaleOrderStatus($saleOrderId)
+    /**
+     * 更新销售出库单
+     */
+    public function update($id)
     {
+        try {
+            $post = input('post.');
+            $stock = SaleStock::find($id);
+
+            if (!$stock) {
+                return $this->error('销售出库单不存在');
+            }
+
+            // 只有待审核状态的销售出库单可以更新
+            if ($stock->status != 0) {
+                return $this->error('只有待审核状态的销售出库单可以更新');
+            }
+
+            // 过滤允许更新的字段
+            $allowFields = ['customer_id', 'warehouse_id', 'remark'];
+            $updateData = array_intersect_key($post, array_flip($allowFields));
+
+            if (!empty($updateData)) {
+                $stock->save($updateData);
+            }
+
+            return $this->success([], '更新成功');
+        } catch (\Exception $e) {
+            return $this->error($e->getMessage());
+        }
+    }
+
+    /**
+     * 删除销售出库单
+     */
+    public function delete($id)
+    {
+        try {
+            Db::transaction(function () use ($id) {
+                $stock = SaleStock::find($id);
+                if (!$stock) {
+                    throw new \Exception('销售出库单不存在');
+                }
+
+                // 只有待审核状态的销售出库单可以删除
+                if ($stock->status != 0) {
+                    throw new \Exception('只有待审核状态的销售出库单可以删除');
+                }
+
+                // 软删除销售出库单 - 直接更新 deleted_at 字段
+                $stock->save(['deleted_at' => date('Y-m-d H:i:s')]);
+
+                // 软删除销售出库单明细 - 直接更新 deleted_at 字段
+                SaleStockItem::where('sale_stock_id', $id)
+                    ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+            });
+
+            return $this->success([], '删除成功');
+        } catch (\Exception $e) {
+            return $this->error($e->getMessage());
+        }
+    }
+
+    private function updateSaleOrderStatus($saleOrderId) {
         // 查询销售订单项的总数量和总已出库数量
         $result = \app\kincount\model\SaleOrderItem::where('sale_order_id', $saleOrderId)
             ->field('SUM(quantity) as total_quantity, SUM(delivered_quantity) as total_delivered')

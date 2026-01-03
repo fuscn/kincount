@@ -59,9 +59,12 @@
           
           <!-- 信息区域 -->
           <div class="sku-info">
-            <!-- 第一行：商品名称 + 售价 -->
+            <!-- 第一行：商品名称 + 规格 + 售价 -->
             <div class="row product-row">
-              <div class="product-name">{{ getProductName(item) }}</div>
+              <div class="product-info">
+                <span class="product-name">{{ getProductName(item) }}</span>
+                <span class="sku-spec">{{ getSpecText(item) }}</span>
+              </div>
               <div class="sku-price">¥{{ getPrice(item) }}</div>
             </div>
             
@@ -74,9 +77,9 @@
               </div>
             </div>
             
-            <!-- 第三行：规格 + 仓库 -->
+            <!-- 第三行：仓库 -->
             <div class="row spec-row">
-              <div class="sku-spec">{{ getSpecText(item) }}</div>
+              <div></div>
               <div class="warehouse-info">
                 <van-icon name="location-o" size="12" />
                 {{ getWarehouseName(item) }}
@@ -127,7 +130,10 @@ const props = defineProps({
 
 })
 
-const emit = defineEmits(['click-card'])
+const emit = defineEmits(['click-card', 'confirm', 'change']) // 添加新的 emit 事件
+
+// 独立的完整选中商品数据存储
+const allSelectedStockData = ref([])
 
 // 筛选条件
 const filters = ref({
@@ -145,9 +151,39 @@ const renderKey = ref(Date.now()) // 用于确保渲染唯一性
 // 图片错误处理记录
 const imageErrorMap = ref(new Map())
 
+// 更新完整选中数据存储
+const updateAllSelectedData = (item) => {
+  const uniqueKey = `${item.warehouse_id}-${item.sku_id}`
+  const existingIndex = allSelectedStockData.value.findIndex(selected => `${selected.warehouse_id}-${selected.sku_id}` === uniqueKey)
+  if (existingIndex > -1) {
+    allSelectedStockData.value[existingIndex] = item
+  } else {
+    allSelectedStockData.value.push(item)
+  }
+}
+
 // 处理卡片点击事件
 const handleCardClick = (item) => {
+  // 更新完整数据存储
+  updateAllSelectedData(item)
   emit('click-card', item)
+}
+
+// 获取完整的选中数据
+const getSelectedStockData = () => {
+  // 从完整存储中筛选出当前 selectedIds 中的商品
+  return allSelectedStockData.value.filter(selected => 
+    props.selectedIds.includes(`${selected.warehouse_id}-${selected.sku_id}`)
+  )
+}
+
+// 确认选择
+const confirmSelection = () => {
+  const selectedData = getSelectedStockData()
+  emit('confirm', {
+    selectedIds: props.selectedIds,
+    selectedData: selectedData
+  })
 }
 
 // 获取商品名称（最重要的信息）
@@ -342,6 +378,20 @@ const onLoad = async () => {
     }
     
     if (dataList && dataList.length > 0) {
+      // 将加载的数据更新到完整存储中
+      dataList.forEach(item => {
+        const uniqueKey = `${item.warehouse_id}-${item.sku_id}`
+        const existingIndex = allSelectedStockData.value.findIndex(selected => `${selected.warehouse_id}-${selected.sku_id}` === uniqueKey)
+        if (existingIndex > -1) {
+          allSelectedStockData.value[existingIndex] = item
+        } else {
+          // 只有当该商品在 selectedIds 中时才添加到完整存储
+          if (props.selectedIds.includes(uniqueKey)) {
+            allSelectedStockData.value.push(item)
+          }
+        }
+      })
+      
       list.value.push(...dataList)
       finished.value = dataList.length < 10
       page++
@@ -397,6 +447,12 @@ watch(
   },
   { deep: true }
 )
+
+// 暴露方法给父组件
+defineExpose({
+  confirmSelection,
+  getSelectedStockData
+})
 </script>
 
 <style scoped lang="scss">
@@ -516,15 +572,29 @@ watch(
     }
     
     .product-row {
+      .product-info {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-right: 8px;
+      }
+      
       .product-name {
         font-size: 15px;
         font-weight: 600;
         color: #333;
-        flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        margin-right: 8px;
+      }
+      
+      .sku-spec {
+        font-size: 12px;
+        color: #888;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       
       .sku-price {

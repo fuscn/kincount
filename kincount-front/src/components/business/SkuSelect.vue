@@ -164,6 +164,8 @@ const filterBrand = ref('')
 // 选中的SKU
 const selectedSkuIds = ref([...props.modelValue])
 const selectedSkuData = ref([])
+// 维护一个独立的完整选中商品信息存储
+const allSelectedSkuData = ref([])
 
 // 递归更新防护
 let recursionGuard = false
@@ -193,9 +195,27 @@ const skuList = computed(() => productStore.skuSelectOptions || [])
 
 // 初始化选中数据
 const initSelectedData = () => {
+  // 从当前列表和已有存储中获取选中商品信息
   selectedSkuData.value = selectedSkuIds.value.map(id => {
-    return skuList.value.find(sku => sku.id === id)
+    // 优先从当前列表查找
+    const fromCurrentList = skuList.value.find(sku => sku.id === id)
+    if (fromCurrentList) {
+      return fromCurrentList
+    }
+    // 从完整存储中查找
+    const fromAllSelected = allSelectedSkuData.value.find(sku => sku.id === id)
+    return fromAllSelected
   }).filter(Boolean)
+  
+  // 更新完整存储，确保包含所有当前选中的商品
+  selectedSkuData.value.forEach(sku => {
+    const existingIndex = allSelectedSkuData.value.findIndex(item => item.id === sku.id)
+    if (existingIndex === -1) {
+      allSelectedSkuData.value.push(sku)
+    } else {
+      allSelectedSkuData.value[existingIndex] = sku
+    }
+  })
 }
 
 // 修复监听逻辑 - 避免循环更新
@@ -404,6 +424,7 @@ const toggleSkuSelection = (sku) => {
       // 单选模式
       selectedSkuIds.value = [sku.id]
       selectedSkuData.value = [sku]
+      allSelectedSkuData.value = [sku]
     } else {
       // 多选模式
       const index = selectedSkuIds.value.indexOf(sku.id)
@@ -411,10 +432,17 @@ const toggleSkuSelection = (sku) => {
         // 取消选中
         selectedSkuIds.value.splice(index, 1)
         selectedSkuData.value.splice(index, 1)
+        allSelectedSkuData.value = allSelectedSkuData.value.filter(item => item.id !== sku.id)
       } else {
         // 新增选中
         selectedSkuIds.value.push(sku.id)
         selectedSkuData.value.push(sku)
+        const existingIndex = allSelectedSkuData.value.findIndex(item => item.id === sku.id)
+        if (existingIndex === -1) {
+          allSelectedSkuData.value.push(sku)
+        } else {
+          allSelectedSkuData.value[existingIndex] = sku
+        }
       }
     }
 
@@ -444,9 +472,22 @@ const handleConfirm = () => {
       showToast('请选择商品')
       return
     }
+    
+    // 使用完整存储来确保所有选中商品都被传递
+    const confirmedData = selectedSkuIds.value.map(id => {
+      // 优先从完整存储中查找
+      const fromAllSelected = allSelectedSkuData.value.find(sku => sku.id === id)
+      if (fromAllSelected) {
+        return fromAllSelected
+      }
+      // 从当前列表查找
+      const fromCurrentList = skuList.value.find(sku => sku.id === id)
+      return fromCurrentList
+    }).filter(Boolean)
+    
     emit('confirm', {
       selectedIds: selectedSkuIds.value,
-      selectedData: selectedSkuData.value
+      selectedData: confirmedData
     })
   })
 }
@@ -466,6 +507,7 @@ const reset = () => {
     filterBrand.value = ''
     selectedSkuIds.value = []
     selectedSkuData.value = []
+    allSelectedSkuData.value = []
     currentPage.value = 1
     finished.value = false
     productStore.skuSelectOptions = []

@@ -1,4 +1,4 @@
 <?php
 //000000000300
  exit();?>
-a:15:{s:2:"id";i:1;s:8:"username";s:5:"admin";s:8:"password";s:60:"$2y$10$TzOWL5L.Wg.OTmwOOTZ3HeRjbhEMx4kZotlRhM/cLBJyQixrMT4V.";s:9:"real_name";s:16:"系统管理员0";s:5:"phone";s:11:"13800138000";s:5:"email";s:12:"fuscn@qq.com";s:6:"avatar";N;s:7:"role_id";i:1;s:10:"department";s:9:"管理部";s:6:"status";i:1;s:15:"last_login_time";s:19:"2025-12-31 18:16:50";s:13:"last_login_ip";s:9:"127.0.0.1";s:10:"created_at";s:19:"2025-11-08 14:00:32";s:10:"updated_at";s:19:"2025-12-31 18:16:51";s:10:"deleted_at";N;}
+a:15:{s:2:"id";i:1;s:8:"username";s:5:"admin";s:8:"password";s:60:"$2y$10$TzOWL5L.Wg.OTmwOOTZ3HeRjbhEMx4kZotlRhM/cLBJyQixrMT4V.";s:9:"real_name";s:16:"系统管理员0";s:5:"phone";s:11:"13800138000";s:5:"email";s:12:"fuscn@qq.com";s:6:"avatar";N;s:7:"role_id";i:1;s:10:"department";s:9:"管理部";s:6:"status";i:1;s:15:"last_login_time";s:19:"2026-01-03 19:24:34";s:13:"last_login_ip";s:9:"127.0.0.1";s:10:"created_at";s:19:"2025-11-08 14:00:32";s:10:"updated_at";s:19:"2026-01-03 19:24:34";s:10:"deleted_at";N;}

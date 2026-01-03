@@ -128,46 +128,14 @@
     <!-- 加载状态 -->
     <van-loading v-if="loading" class="page-loading" />
 
-    <!-- 操作面板 -->
+    <!-- 操作面板 - 使用 Vant ActionSheet 基础用法 -->
     <van-action-sheet
       v-model:show="showActionSheet"
+      :actions="actions"
       cancel-text="取消"
       title="操作"
-    >
-      <van-button 
-        type="primary" 
-        block 
-        @click="handleEditAction"
-        v-perm="PERM.STOCK_TAKE"
-        v-if="canEdit"
-      >
-        编辑
-      </van-button>
-      <van-button 
-        type="primary" 
-        block 
-        @click="handleAuditAction"
-        v-if="canAudit"
-      >
-        审核通过
-      </van-button>
-      <van-button 
-        type="success" 
-        block 
-        @click="handleCompleteAction"
-        v-if="canComplete"
-      >
-        完成盘点
-      </van-button>
-      <van-button 
-        type="danger" 
-        block 
-        @click="handleCancelAction"
-        v-if="canCancel"
-      >
-        取消盘点
-      </van-button>
-    </van-action-sheet>
+      @select="onSelectAction"
+    />
   </div>
 </template>
 
@@ -189,6 +157,33 @@ const stockStore = useStockStore()
 const loading = ref(true)
 const detail = ref({})
 const showActionSheet = ref(false)
+
+// 操作选项列表
+const actions = computed(() => {
+  const items = []
+  
+  // 编辑
+  if (canEdit.value) {
+    items.push({ name: '编辑', value: 'edit' })
+  }
+  
+  // 盘点中（原审核通过）
+  if (canAudit.value) {
+    items.push({ name: '盘点中', value: 'audit' })
+  }
+  
+  // 完成盘点
+  if (canComplete.value) {
+    items.push({ name: '完成盘点', value: 'complete' })
+  }
+  
+  // 取消盘点
+  if (canCancel.value) {
+    items.push({ name: '取消盘点', value: 'cancel' })
+  }
+  
+  return items
+})
 
 // 计算属性
 const totalProfit = computed(() => {
@@ -213,24 +208,29 @@ const totalDifference = computed(() => {
 })
 
 // 权限控制（以数据库为准：0-待盘点,1-盘点中,2-已完成,3-已取消）
+// 待盘点不显示完成,盘点中不显示编辑、取消,已完成和已取消不显示任何操作
 const canEdit = computed(() => {
-  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可编辑
+  return detail.value.status === 0 // 只有待盘点可编辑
 })
 
 const canAudit = computed(() => {
-  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可审核
+  return detail.value.status === 0 // 只有待盘点可审核，盘点中时只显示完成盘点
 })
 
 const canComplete = computed(() => {
-  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可完成
+  return detail.value.status === 1 // 只有盘点中可完成
 })
 
 const canCancel = computed(() => {
-  return [0, 1].includes(detail.value.status) // 待盘点、盘点中可取消
+  return detail.value.status === 0 // 只有待盘点可取消
 })
 
 const showActions = computed(() => {
-  return canAudit.value || canComplete.value || canCancel.value
+  // 已完成(2)和已取消(3)不显示任何操作
+  if ([2, 3].includes(detail.value.status)) {
+    return false
+  }
+  return canEdit.value || canAudit.value || canComplete.value || canCancel.value
 })
 
 // 获取状态文本
@@ -287,32 +287,47 @@ const handleBack = () => {
   router.back()
 }
 
-const handleEditAction = () => {
+// 处理操作面板选择
+const onSelectAction = (action) => {
   showActionSheet.value = false
-  router.push(`/stock/take/edit/${detail.value.id}`)
+  
+  switch (action.value) {
+    case 'edit':
+      router.push(`/stock/take/edit/${detail.value.id}`)
+      break
+    case 'audit':
+      handleAudit()
+      break
+    case 'complete':
+      handleComplete()
+      break
+    case 'cancel':
+      handleCancel()
+      break
+  }
 }
 
-const handleAuditAction = async () => {
-  showActionSheet.value = false
+// 审核通过
+const handleAudit = async () => {
   try {
     await showConfirmDialog({
-      title: '确认审核',
-      message: '确认审核通过此盘点单？'
+      title: '盘点提示',
+      message: '确认开始盘点此盘点单？'
     })
     
     await stockStore.auditTake(detail.value.id)
-    showToast('审核成功')
+    showToast('盘点开始')
     await loadDetail() // 重新加载详情
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('审核失败:', error)
-      showToast('审核失败')
+      console.error('盘点失败:', error)
+      showToast('盘点失败')
     }
   }
 }
 
-const handleCompleteAction = async () => {
-  showActionSheet.value = false
+// 完成盘点
+const handleComplete = async () => {
   try {
     await showConfirmDialog({
       title: '确认完成',
@@ -330,8 +345,8 @@ const handleCompleteAction = async () => {
   }
 }
 
-const handleCancelAction = async () => {
-  showActionSheet.value = false
+// 取消盘点
+const handleCancel = async () => {
   try {
     await showConfirmDialog({
       title: '确认取消',
@@ -571,6 +586,87 @@ onMounted(() => {
 .negative-text {
   color: #ff4d4f !important;
   font-weight: 600;
+}
+
+/* 操作面板自定义样式 */
+.action-sheet-content {
+  padding: 16px;
+}
+
+.action-button {
+  margin-bottom: 12px;
+  border-radius: 12px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.action-button:active::before {
+  left: 100%;
+}
+
+.action-button:last-child {
+  margin-bottom: 0;
+}
+
+.action-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.edit-button {
+  background: linear-gradient(135deg, #1890ff, #096dd9);
+  border: none;
+}
+
+.edit-button:active {
+  background: linear-gradient(135deg, #096dd9, #0050b3);
+}
+
+.audit-button {
+  background: linear-gradient(135deg, #52c41a, #389e0d);
+  border: none;
+}
+
+.audit-button:active {
+  background: linear-gradient(135deg, #389e0d, #237804);
+}
+
+.complete-button {
+  background: linear-gradient(135deg, #faad14, #d48806);
+  border: none;
+}
+
+.complete-button:active {
+  background: linear-gradient(135deg, #d48806, #ad6800);
+}
+
+.cancel-button {
+  background: linear-gradient(135deg, #ff4d4f, #cf1322);
+  border: none;
+}
+
+.cancel-button:active {
+  background: linear-gradient(135deg, #cf1322, #a8071a);
 }
 
 

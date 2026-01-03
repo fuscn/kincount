@@ -134,7 +134,10 @@ class PurchaseOrderController extends BaseController
 
         // 详细的商品明细验证
         foreach ($post['items'] as $index => $item) {
-            if (empty($item['product_id']) || empty($item['sku_id']) || empty($item['quantity']) || empty($item['price'])) {
+            if (!isset($item['product_id']) || !isset($item['sku_id']) || !isset($item['quantity']) || !isset($item['price'])) {
+                return $this->error("第" . ($index + 1) . "个商品明细不完整，必须包含商品ID、SKU ID、数量和单价");
+            }
+            if (empty($item['product_id']) || empty($item['sku_id'])) {
                 return $this->error("第" . ($index + 1) . "个商品明细不完整，必须包含商品ID、SKU ID、数量和单价");
             }
             if (!is_numeric($item['product_id']) || $item['product_id'] <= 0) {
@@ -246,7 +249,7 @@ class PurchaseOrderController extends BaseController
                 'items.*.product_id' => 'require|number|gt:0',
                 'items.*.sku_id'     => 'require|number|gt:0',
                 'items.*.quantity'   => 'require|number|gt:0',
-                'items.*.price'      => 'require|float|gt:0',
+                'items.*.price'      => 'require|float|egt:0',
             ]);
 
             $validate->message([
@@ -265,7 +268,7 @@ class PurchaseOrderController extends BaseController
                 'items.*.quantity.require'   => '采购数量不能为空',
                 'items.*.quantity.gt'        => '采购数量必须大于0',
                 'items.*.price.require'      => '采购单价不能为空',
-                'items.*.price.gt'           => '采购单价必须大于0',
+                'items.*.price.egt'          => '采购单价必须大于等于0',
             ]);
 
             if (!$validate->check($post)) {
